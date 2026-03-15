@@ -98,7 +98,7 @@ fn create_prngs() -> Vec<(&'static str, Box<dyn DynCloneRng>)> {
     #[cfg(feature = "reproducibility_cross_platform")]
     prngs.push(("TripleMixPrng<CrossPlatform>", Box::new(TripleMixPrng::<CrossPlatform>::from(&seed))));
     #[cfg(feature = "bench_include_threadrng")]
-    prngs.push(("ThreadRng", rng()));
+    prngs.push(("ThreadRng", Box::new(rng())));
     prngs
 }
 
