@@ -333,7 +333,7 @@ pub(crate) fn mix(
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
     // Deep Nonlinear Spread - All 4 multiplications are now independent
-    let md = simd_wrapping_mul(d, AVALANCHE_MULTIPLIERS_4);
+    let md = simd_wrapping_mul(d ^ c, AVALANCHE_MULTIPLIERS_4);
     let mc = simd_wrapping_mul(c + d, AVALANCHE_MULTIPLIERS_3);
     let ma = simd_wrapping_mul(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
     let mb = simd_wrapping_mul(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
