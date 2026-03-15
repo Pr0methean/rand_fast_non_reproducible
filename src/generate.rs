@@ -344,7 +344,7 @@ pub(crate) fn mix(
     a = a + b.rotate_elements_left::<1>();
     d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
     c = c + d.rotate_elements_right::<2>();
-    b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
+    b = rotl(b ^ c, 19);
 
     // Deep Nonlinear Spread - All 4 multiplications are now independent
     let ma = simd_wrapping_mul(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
@@ -356,7 +356,7 @@ pub(crate) fn mix(
     let a3 = rotl(ma + mb.rotate_elements_left::<1>(), 43);
     let c3 = mc + md.rotate_elements_right::<1>();
     let d3 = md ^ a3.rotate_elements_right::<2>();
-    let b3 = rotl(mb ^ c3.rotate_elements_left::<2>(), 11);
+    let b3 = rotl(mb ^ c3.rotate_elements_right::<2>(), 11);
 
     // Output combiners (note reuse of d from round 2!)
     let adr = rotl(a3 + d, 41);
