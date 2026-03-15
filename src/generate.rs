@@ -14,7 +14,6 @@ use std::simd::Select;
     not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
 ))]
 use crate::avx2;
-use crate::avx2::mul_small;
 
 impl TripleMixSimdCore {
     const TINYMT_MAT1: u64 = 0xdaa51b54;
@@ -334,10 +333,10 @@ pub(crate) fn mix(
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
     // Deep Nonlinear Spread - All 4 multiplications are now independent
-    let (md, _) = mul_small(d ^ c, AVALANCHE_MULTIPLIERS_4);
-    let (mc, _) = mul_small(c + d, AVALANCHE_MULTIPLIERS_3);
-    let (ma, _) = mul_small(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
-    let (mb, _) = mul_small(b - rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
+    let (md, _) = simd_mulsmall(d ^ c, AVALANCHE_MULTIPLIERS_4);
+    let (mc, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
+    let (ma, _) = simd_mulsmall(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
+    let (mb, _) = simd_mulsmall(b - rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
 
     // Round 3 - Final cross-lane spread
     let c3 = mc + md.rotate_elements_right::<1>();
