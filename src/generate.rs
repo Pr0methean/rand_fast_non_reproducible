@@ -162,12 +162,10 @@ impl TripleMixSimdCore {
             // TinyMT Step 4: Fourth shift (Interleave with PCG final rotation)
             tm_x ^= tm_x << Simd::splat(11);
 
-            // Finalize PCG output as soon as pcg_m/pcg_rot are likely ready.
-            let pcg_output = (pcg_m >> pcg_rot) | (pcg_m << (Simd64::splat(64) - pcg_rot));
-
             // TinyMT Step 5: Final output and transition prep
             let tm_out = tm_y ^ ((tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT));
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
+            let pcg_output = (pcg_m >> pcg_rot) | (pcg_m << (Simd64::splat(64) - pcg_rot));
             let tm_next_0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             let tm_next_1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
 
