@@ -14,6 +14,7 @@ use std::simd::Select;
     not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
 ))]
 use crate::avx2;
+use crate::avx2::mul_small;
 
 impl TripleMixSimdCore {
     const TINYMT_MAT1: u64 = 0xdaa51b54;
@@ -292,28 +293,28 @@ pub(crate) fn mix(
     }
 
     const AVALANCHE_MULTIPLIERS_1: Simd64 = Simd::from_array([
-        0xd6e8feb86659fd93,
-        0x881cf9e71fbdd5b9,
-        0xbf58476d1ce4e5b9,
-        0xcb79e64eccc0e578,
+        0x6659fd93,
+        0x1fbdd5b9,
+        0x1ce4e5b9,
+        0xccc0e578,
     ]);
     const AVALANCHE_MULTIPLIERS_2: Simd64 = Simd::from_array([
-        0xd1342543de82ef95,
-        0xa24baed4963ee407,
-        0x9fb21c651e98df25,
-        0xc2b2ae3d27d4eb4f,
+        0xde82ef95,
+        0x963ee407,
+        0x1e98df25,
+        0x27d4eb4f,
     ]);
     const AVALANCHE_MULTIPLIERS_3: Simd64 = Simd::from_array([
-        0xe68e0860ce559b5b,
-        0xbca6b7d7acc9d61b,
-        0x94d049bb133111eb,
-        0xbcf746f9ee677775,
+        0xce559b5b,
+        0xacc9d61b,
+        0x133111eb,
+        0xee677775,
     ]);
     const AVALANCHE_MULTIPLIERS_4: Simd64 = Simd::from_array([
-        0xb8fe6c3923a44bbd,
-        0x7c01812cf721ad1b,
-        0xded46de9839097d9,
-        0x7240a4a4b7b3671f
+        0x23a44bbd,
+        0xf721ad1b,
+        0x839097d9,
+        0xb7b3671f
     ]);
     let i_rotated = rotl24(i);
 
@@ -333,10 +334,10 @@ pub(crate) fn mix(
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
     // Deep Nonlinear Spread - All 4 multiplications are now independent
-    let md = simd_wrapping_mul(d ^ c, AVALANCHE_MULTIPLIERS_4);
-    let mc = simd_wrapping_mul(c + d, AVALANCHE_MULTIPLIERS_3);
-    let ma = simd_wrapping_mul(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
-    let mb = simd_wrapping_mul(b - rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
+    let (md, _) = mul_small(d ^ c, AVALANCHE_MULTIPLIERS_4);
+    let (mc, _) = mul_small(c + d, AVALANCHE_MULTIPLIERS_3);
+    let (ma, _) = mul_small(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
+    let (mb, _) = mul_small(b - rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
 
     // Round 3 - Final cross-lane spread
     let c3 = mc + md.rotate_elements_right::<1>();
