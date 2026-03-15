@@ -24,6 +24,7 @@ use generate::Simd64;
 use rand_core::TryRng;
 use rand_core::block::BlockRng;
 use reproducibility::Reproducibility;
+use crate::generate::{OUTPUTS_PER_STEP, SIMD_WIDTH};
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -138,3 +139,4 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> [TripleMixPrng<R>; 5] {
 
 const MAJOR_VERSION: &str = env!("CARGO_PKG_VERSION_MAJOR");
 const MINOR_VERSION: &str = env!("CARGO_PKG_VERSION_MINOR");
+pub const BLOCK_SIZE: usize = OUTPUTS_PER_STEP * SIMD_WIDTH;

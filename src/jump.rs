@@ -356,7 +356,7 @@ const fn pow_mat_2_exp(mut a: [u128; 128], mut exp: u32) -> [u128; 128] {
 #[cfg(test)]
 mod tests {
     use crate::TripleMixSimdCore;
-    use crate::generate::OUTPUT_LEN;
+    use crate::BLOCK_SIZE;
     use crate::jump::pow_mat_2_exp;
     use crate::reproducibility::NotReproducible;
     use rand_core::Rng;
@@ -381,7 +381,7 @@ mod tests {
 
             // Advance sequential by 12 steps (meaning 12 * 8 = 96 next_u64 calls)
             for _ in 0..12 {
-                for _ in 0..OUTPUT_LEN {
+                for _ in 0..BLOCK_SIZE {
                     prng.next_u64();
                 }
             }
@@ -391,7 +391,7 @@ mod tests {
             prng.block_core.reset_and_skip(0);
             prng_jmp.block_core.reset_and_skip(0);
 
-            for _ in 0..OUTPUT_LEN {
+            for _ in 0..BLOCK_SIZE {
                 assert_eq!(prng.next_u64(), prng_jmp.next_u64());
             }
 

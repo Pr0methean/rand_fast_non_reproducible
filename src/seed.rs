@@ -102,6 +102,9 @@ impl<R: Reproducibility> SeedableRng for TripleMixPrng<R> {
 }
 
 impl<R: Reproducibility> TripleMixPrng<R> {
+    pub fn into_core(self) -> TripleMixSimdCore {
+        self.block_core.core
+    }
     #[inline(always)]
     fn permute(base: &Kmac, tweak: u128) -> TripleMixSimdCore {
         let mut pcg_state_lo = Simd64::splat(0);

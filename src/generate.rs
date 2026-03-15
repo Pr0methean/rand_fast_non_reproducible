@@ -1,9 +1,9 @@
-use crate::TripleMixSimdCore;
+use crate::{TripleMixSimdCore, BLOCK_SIZE};
 use bytemuck::cast;
 use core::simd::cmp::SimdPartialOrd;
 use core::simd::num::SimdInt;
 use core::simd::num::SimdUint;
-use core::simd::{Simd, simd_swizzle, u8x32, u16x16};
+use core::simd::{simd_swizzle, u16x16, u8x32, Simd};
 use core::slice::from_mut;
 use rand_core::block::Generator;
 use std::simd::Select;
@@ -102,7 +102,7 @@ impl TripleMixSimdCore {
     }
 
     #[inline(always)]
-    pub(crate) fn fill_blocks(&mut self, blocks: &mut [[u64; OUTPUT_LEN]]) {
+    pub(crate) fn fill_blocks(&mut self, blocks: &mut [[u64; BLOCK_SIZE]]) {
         if blocks.is_empty() {
             return;
         }
@@ -254,7 +254,6 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
 pub(crate) const TINYMT64_LANE_MASK: u64 = 0x7fff_ffff_ffff_ffff_u64;
 pub(crate) const SIMD_WIDTH: usize = 4;
 pub(crate) const OUTPUTS_PER_STEP: usize = 2;
-pub(crate) const OUTPUT_LEN: usize = OUTPUTS_PER_STEP * SIMD_WIDTH;
 
 pub(crate) type Simd64 = Simd<u64, SIMD_WIDTH>;
 
@@ -370,7 +369,7 @@ pub(crate) fn mix(
 }
 
 impl Generator for TripleMixSimdCore {
-    type Output = [u64; OUTPUT_LEN];
+    type Output = [u64; BLOCK_SIZE];
 
     #[inline(always)]
     fn generate(&mut self, output: &mut Self::Output) {
@@ -380,9 +379,9 @@ impl Generator for TripleMixSimdCore {
 
 #[cfg(test)]
 mod tests {
-    use crate::generate::{OUTPUT_LEN, OUTPUTS_PER_STEP, SIMD_WIDTH, Simd64, mix};
+    use crate::generate::{mix, Simd64, OUTPUTS_PER_STEP, SIMD_WIDTH};
     use crate::reproducibility::NotReproducible;
-    use crate::{TripleMixPrng, TripleMixSimdCore};
+    use crate::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
     use bytemuck::cast_slice_mut;
     use core::simd::Simd;
     use core::simd::cmp::SimdPartialEq;
@@ -391,8 +390,8 @@ mod tests {
     use gf2::{BitMatrix, BitStore};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
-    use proptest::{prop_assert, proptest, prelude::any};
-    use rand::{RngExt, rng};
+    use proptest::{prelude::any, prop_assert, proptest};
+    use rand::{rng, RngExt};
     use rand_core::{Rng, SeedableRng};
     use statrs::distribution::{Binomial, Discrete, DiscreteCDF};
 
@@ -761,10 +760,10 @@ mod tests {
 
     #[test]
     fn test_avalanche() {
-        const LOW_AVALANCHE_THRESHOLD: u64 = 28 * OUTPUT_LEN as u64;
+        const LOW_AVALANCHE_THRESHOLD: u64 = 28 * BLOCK_SIZE as u64;
         let mut total_low_avalanche_checks = 0;
         let mut total_checks = 0;
-        let bit_flip_distribution = Binomial::new(0.5, (OUTPUT_LEN * 64) as u64).unwrap();
+        let bit_flip_distribution = Binomial::new(0.5, (BLOCK_SIZE * 64) as u64).unwrap();
         let low_avalanche_probability = bit_flip_distribution.cdf(LOW_AVALANCHE_THRESHOLD);
         for rng in crate::create_rngs::<NotReproducible>() {
             let core = rng.block_core.core;
@@ -911,11 +910,11 @@ mod tests {
 
             const DEVIATION: f64 = 0.1;
             assert!(
-                avg_flips >= 32.0 * (1.0 - DEVIATION) * (OUTPUT_LEN as f64),
+                avg_flips >= 32.0 * (1.0 - DEVIATION) * (BLOCK_SIZE as f64),
                 "Average diffusion too low"
             );
             assert!(
-                avg_flips <= 32.0 * (1.0 + DEVIATION) * (OUTPUT_LEN as f64),
+                avg_flips <= 32.0 * (1.0 + DEVIATION) * (BLOCK_SIZE as f64),
                 "Average diffusion too high?"
             );
 
@@ -932,7 +931,7 @@ mod tests {
                 "Too many low-avalanche results. Worst offender: Field {min_field} lane {min_lane} bit {min_bit} on iteration {min_iter} with {min_flips} flips."
             );
             assert!(
-                min_flips as usize >= 16 * OUTPUT_LEN,
+                min_flips as usize >= 16 * BLOCK_SIZE,
                 "Minimum diffusion too low in field {min_field} lane {min_lane} bit {min_bit} on iteration {min_iter}, possible blind spot!"
             );
             total_checks += count;
@@ -1192,7 +1191,7 @@ mod tests {
     fn build_transition_matrix(config: &MatrixConfig) -> (BitMatrix<u64>, Vec<String>) {
         let state_bits = 8 * SIMD_WIDTH * 64; // 8 fields × 4 lanes × 64 bits = 2048 bits
 
-        let output_bits = config.steps * OUTPUT_LEN * 64; // steps × 8 words × 64 bits
+        let output_bits = config.steps * BLOCK_SIZE * 64; // steps × 8 words × 64 bits
 
         let mut matrix = BitMatrix::<u64>::zeros(output_bits, state_bits);
         let mut column_labels = Vec::with_capacity(state_bits);
@@ -1246,7 +1245,7 @@ mod tests {
         ];
 
         // Generate base outputs once
-        let mut base_outputs = vec![[0u64; OUTPUT_LEN]; config.steps];
+        let mut base_outputs = vec![[0u64; BLOCK_SIZE]; config.steps];
         let mut base_core = config.base_state.clone();
         base_core.fill_blocks(&mut base_outputs);
 
@@ -1266,17 +1265,17 @@ mod tests {
                     set_field(&mut flipped_state, Simd64::from_array(flipped_arr));
 
                     // Generate outputs from flipped state
-                    let mut flipped_outputs = vec![[0u64; OUTPUT_LEN]; config.steps];
+                    let mut flipped_outputs = vec![[0u64; BLOCK_SIZE]; config.steps];
                     let mut flipped_core = flipped_state;
                     flipped_core.fill_blocks(&mut flipped_outputs);
 
                     // Record differences
                     for step in 0..config.steps {
-                        for word in 0..OUTPUT_LEN {
+                        for word in 0..BLOCK_SIZE {
                             let diff = base_outputs[step][word] ^ flipped_outputs[step][word];
                             for out_bit in 0..64 {
                                 if (diff >> out_bit) & 1 == 1 {
-                                    let row = step * OUTPUT_LEN * 64 + word * 64 + out_bit;
+                                    let row = step * BLOCK_SIZE * 64 + word * 64 + out_bit;
                                     matrix.set(row, col_idx, true);
                                 }
                             }

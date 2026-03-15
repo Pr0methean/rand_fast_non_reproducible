@@ -9,7 +9,7 @@ use criterion_cycles_per_byte::CyclesPerByte;
 use rand::rng;
 use rand::rngs::SysRng;
 use rand_core::{Rng, SeedableRng, TryRng};
-use rand_triplemix::TripleMixPrng;
+use rand_triplemix::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
 use rand_triplemix::reproducibility::NotReproducible;
 #[cfg(feature = "reproducibility_cross_platform")]
 use rand_triplemix::reproducibility::cross_platform::CrossPlatform;
@@ -100,6 +100,18 @@ fn create_prngs() -> Vec<(&'static str, Box<dyn DynCloneRng>)> {
     #[cfg(feature = "bench_include_threadrng")]
     prngs.push(("ThreadRng", rng()));
     prngs
+}
+
+fn core<T: Measurement>(c: &mut Criterion<T>) {
+    let mut seed = [0u8; DEFAULT_SEED_SIZE];
+    SysRng.try_fill_bytes(&mut seed).unwrap();
+    let mut core = TripleMixPrng::<NotReproducible>::from(&seed).into_core();
+    let mut group = c.benchmark_group(formatcp!("{PLATFORM}: core"));
+    group.throughput(Throughput::Bytes((BLOCK_SIZE * size_of::<u64>()) as u64));
+    let mut block = [[0u64; BLOCK_SIZE]];
+    group.bench_function("fill_blocks", move |b| {
+        core.
+    })
 }
 
 fn init<T: Measurement>(c: &mut Criterion<T>) {
