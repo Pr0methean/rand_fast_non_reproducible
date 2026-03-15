@@ -28,6 +28,7 @@ zeroize = ["zeroize/zeroize_derive"]
 serde = ["serde/serde_derive"]
 no_std = ["once_cell/race", "once_cell/alloc", "serde/alloc"]
 bench_include_threadrng = []
+large_seeds_by_default = []  # Makes 288 bytes the default seed size. Enable this only if you're using fast hardware RNGs to produce seeds.
 
 [lib]
 bench = false  # Suppress use of libtest harness, since we're using criterion

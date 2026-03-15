@@ -195,6 +195,7 @@ pub mod cross_platform {
 
     #[cfg(test)]
     mod tests {
+        #[cfg(not(feature = "large_seeds_by_default"))]
         #[test]
         fn test_cross_platform_reproducibility() {
             use super::CrossPlatform;

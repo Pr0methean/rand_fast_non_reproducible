@@ -49,7 +49,12 @@ pub const LARGE_SEED_SIZE: usize = 288;
 /// and Linux CSPRNGs are designed to provide only 256 bits of security, so this is the smallest
 /// size that's at least 32 bytes and provides a whole number of input blocks to the SHA3-512-KMAC.
 /// It will make the TripleMixPrng faster to create than any larger seed size.
+#[cfg(not(feature = "large_seeds_by_default"))]
 pub const DEFAULT_SEED_SIZE: usize = 72;
+
+#[cfg(feature = "large_seeds_by_default")]
+pub const DEFAULT_SEED_SIZE: usize = LARGE_SEED_SIZE;
+
 const SEED_DOMAIN_STRING: &[u8] = formatcp!("{VERSION_OID}::Seed").as_bytes();
 const FORK_DOMAIN_STRING: &[u8] = formatcp!("{VERSION_OID}::Fork").as_bytes();
 
