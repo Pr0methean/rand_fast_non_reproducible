@@ -336,11 +336,11 @@ pub(crate) fn mix(
     let md = simd_wrapping_mul(d ^ c, AVALANCHE_MULTIPLIERS_4);
     let mc = simd_wrapping_mul(c + d, AVALANCHE_MULTIPLIERS_3);
     let ma = simd_wrapping_mul(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
-    let mb = simd_wrapping_mul(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
+    let mb = simd_wrapping_mul(b - rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
 
     // Round 3 - Final cross-lane spread
     let c3 = mc + md.rotate_elements_right::<1>();
-    let a3 = rotl(ma + mb.rotate_elements_left::<1>(), 43);
+    let a3 = rotl(ma - mb.rotate_elements_left::<1>(), 43);
     let b3 = rotl(mb ^ c3.rotate_elements_left::<2>(), 11);
     let d3 = md ^ a3.rotate_elements_right::<2>();
 
@@ -349,7 +349,7 @@ pub(crate) fn mix(
     let bcr = rotl(b3 ^ c3, 17);
     let bxd = b3 + d3;
     let axc = a3 ^ c3;
-    let y = bxd + adr;
+    let y = bxd - adr;
     let x = axc ^ bcr;
 
     (x, y)
