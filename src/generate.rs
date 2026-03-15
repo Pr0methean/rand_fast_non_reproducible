@@ -291,6 +291,18 @@ pub(crate) fn mix(
         ))
     }
 
+    const FEISTEL_CONSTANT_1: Simd64 = Simd::from_array([
+        0x9E3779B97F4A7C15,
+        0x2767f0b153d27b7f,
+        0xf06ad7ae9717877e,
+        0x626e33b8d04b4331,
+    ]);
+    const FEISTEL_CONSTANT_2: Simd64 = Simd::from_array([
+        0xf39cc0605cedc834,
+        0x0347045b5bf1827f,
+        0x85839d6effbd7dc6,
+        0xbbf73c790d94f79d,
+    ]);
     const AVALANCHE_MULTIPLIERS_1: Simd64 = Simd::from_array([
         0x6659fd93,
         0x1fbdd5b9,
@@ -315,12 +327,13 @@ pub(crate) fn mix(
         0x839097d9,
         0xb7b3671f
     ]);
-    let i_rotated = rotl24(i);
+    let i_mixed_1 = i + FEISTEL_CONSTANT_1;
+    let i_mixed_2 = rotl24(i) ^ FEISTEL_CONSTANT_2;
 
     let mut a = w_lo;
     let mut d = w_hi;
-    let mut b = t ^ i;
-    let mut c = x_in + i_rotated;
+    let mut b = t ^ i_mixed_1;
+    let mut c = x_in + i_mixed_2;
 
     // Round 1 - Full ARX (Lane local)
     a = a + b; d ^= a; d = rotl24(d);
@@ -333,16 +346,16 @@ pub(crate) fn mix(
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
     // Deep Nonlinear Spread - All 4 multiplications are now independent
-    let (md, _) = simd_mulsmall(d - c, AVALANCHE_MULTIPLIERS_4);
-    let (mc, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
-    let (ma, _) = simd_mulsmall(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
-    let (mb, _) = simd_mulsmall(b - rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
+    let (md, _) = simd_mulsmall(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
+    let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
+    let (ma, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
+    let (mb, _) = simd_mulsmall(d ^ c, AVALANCHE_MULTIPLIERS_4);
 
     // Round 3 - Final cross-lane spread
+    let a3 = rotl(ma + mb.rotate_elements_left::<1>(), 43);
     let c3 = mc + md.rotate_elements_right::<1>();
-    let a3 = rotl(ma - mb.rotate_elements_left::<1>(), 43);
-    let b3 = rotl(mb ^ c3.rotate_elements_left::<2>(), 11);
     let d3 = md ^ a3.rotate_elements_right::<2>();
+    let b3 = rotl(mb ^ c3.rotate_elements_left::<2>(), 11);
 
     // Output combiners (note reuse of d from round 2!)
     let adr = rotl(a3 + d, 41);
