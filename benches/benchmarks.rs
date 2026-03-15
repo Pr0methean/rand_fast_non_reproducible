@@ -9,7 +9,7 @@ use criterion_cycles_per_byte::CyclesPerByte;
 use rand::rng;
 use rand::rngs::SysRng;
 use rand_core::{Rng, SeedableRng, TryRng};
-use rand_triplemix::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
+use rand_triplemix::{TripleMixPrng, BLOCK_SIZE};
 use rand_triplemix::reproducibility::NotReproducible;
 #[cfg(feature = "reproducibility_cross_platform")]
 use rand_triplemix::reproducibility::cross_platform::CrossPlatform;
@@ -54,7 +54,7 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
         group.throughput(Throughput::Bytes(LARGE_FILL_LEN as u64));
         let mut fill_bytes_prng = clone_box(&*prng);
         const ITERATIONS: usize = LARGE_FILL_LEN / BUFFER_LEN;
-        group.bench_function("", move |b| {
+        group.bench_function("fill_bytes", move |b| {
             let mut buffer = vec![0u64; BUFFER_LEN / size_of::<u64>()];
             let (_, buffer, _) = unsafe { buffer.align_to_mut::<u8>() };
             b.iter(|| {
