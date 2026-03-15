@@ -167,5 +167,6 @@ criterion_group!(
 criterion_group!(
     name = benches;
     config = Criterion::default().warm_up_time(Duration::from_secs(10));
-    targets = fill_bytes, next_u64, init);
+    targets = generate, init, core
+);
 criterion_main!(benches);
