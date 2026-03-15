@@ -19,140 +19,87 @@ use rand_triplemix::seed::{DEFAULT_SEED_SIZE, LARGE_SEED_SIZE};
 use std::env::consts::{ARCH, OS};
 use std::hint::black_box;
 use std::mem::size_of;
+use dyn_clone::{clone_box, DynClone};
 
 const PLATFORM: &str = formatcp!("{ARCH}:{OS}");
 
-fn fill_bytes<T: Measurement>(c: &mut Criterion<T>) {
-    let mut seed = [0u8; DEFAULT_SEED_SIZE];
-    SysRng.try_fill_bytes(&mut seed).unwrap();
-    let triple_mix = TripleMixPrng::<NotReproducible>::from(&seed);
-    #[cfg(feature = "reproducibility_same_endianness")]
-    let triple_mix_reproducible = TripleMixPrng::<SameEndianness>::from(&seed);
-    #[cfg(feature = "reproducibility_cross_platform")]
-    let triple_mix_x_reproducible = TripleMixPrng::<CrossPlatform>::from(&seed);
+trait DynCloneRng: DynClone + Rng {}
+impl<T: DynClone + Rng> DynCloneRng for T {}
+
+fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
 
     // Allocate buffer as u64's so that it's aligned
     const MAX_ALIGNMENT: usize = size_of::<u64>() - 1;
-    const BUFFER_LEN: usize = 1024 * 1024;
-    for alignment in 0..=MAX_ALIGNMENT {
-        let misaligned_name = format!("{}: fill_bytes 1MB (misalignment: {})", PLATFORM, alignment);
-        let mut group = c.benchmark_group(misaligned_name);
+    const BUFFER_LEN: usize = 16 * 1024;
+
+    const LARGE_FILL_LEN: usize = 1024 * 1024;
+    for (name, mut prng) in create_prngs() {
+        let mut group = c.benchmark_group(format!("{}:{}: fill_bytes 16KiB", PLATFORM, name));
         group.throughput(Throughput::Bytes(BUFFER_LEN as u64));
-        let mut triple_mix = triple_mix.clone();
-        group.bench_function("TripleMixPrng", move |b| {
-            let mut buffer = vec![0u64; BUFFER_LEN / size_of::<u64>() + 1]; // 1 MiB plus de-alignment padding
-            let (_, buffer, _) = unsafe { buffer.align_to_mut::<u8>() };
-            let misaligned_buffer = &mut buffer[alignment..(BUFFER_LEN + alignment)];
-            b.iter(|| {
-                triple_mix.fill_bytes(misaligned_buffer);
-                black_box(&*misaligned_buffer);
-            })
-        });
-        #[cfg(feature = "reproducibility_same_endianness")]
-        {
-            let mut triple_mix_reproducible = triple_mix_reproducible.clone();
-            group.bench_function(
-                "TripleMixPrng with SameEndianness reproducibility",
-                move |b| {
-                    let mut buffer = vec![0u64; BUFFER_LEN / size_of::<u64>() + 1]; // 1 MiB plus de-alignment padding
-                    let (_, buffer, _) = unsafe { buffer.align_to_mut::<u8>() };
-                    let misaligned_buffer = &mut buffer[alignment..(BUFFER_LEN + alignment)];
-                    b.iter(|| {
-                        triple_mix_reproducible.fill_bytes(misaligned_buffer);
-                        black_box(&*misaligned_buffer);
-                    })
-                },
-            );
-        }
-        #[cfg(feature = "reproducibility_cross_platform")]
-        {
-            let mut triple_mix_x_reproducible = triple_mix_x_reproducible.clone();
-            group.bench_function(
-                "TripleMixPrng with CrossPlatform reproducibility",
-                move |b| {
-                    let mut buffer = vec![0u64; BUFFER_LEN / size_of::<u64>() + 1]; // 1 MiB plus de-alignment padding
-                    let (_, buffer, _) = unsafe { buffer.align_to_mut::<u8>() };
-                    let misaligned_buffer = &mut buffer[alignment..(BUFFER_LEN + alignment)];
-                    b.iter(|| {
-                        triple_mix_x_reproducible.fill_bytes(misaligned_buffer);
-                        black_box(&*misaligned_buffer);
-                    })
-                },
-            );
-        }
-        #[cfg(feature = "bench_include_threadrng")]
-        {
-            let mut thread_rng = rng();
-            group.bench_function("ThreadRng", move |b| {
-                let mut buffer = vec![0u64; crate::BUFFER_LEN / size_of::<u64>() + 1]; // 1 MiB plus de-alignment padding
+        for alignment in [0, 1, MAX_ALIGNMENT] {
+            let mut prng = clone_box(&*prng);
+            let misaligned_name = format!("misalignment {}", alignment);
+            group.bench_function(misaligned_name, move |b| {
+                let mut buffer = vec![0u64; BUFFER_LEN / size_of::<u64>() + 1]; // 1 MiB plus de-alignment padding
                 let (_, buffer, _) = unsafe { buffer.align_to_mut::<u8>() };
                 let misaligned_buffer = &mut buffer[alignment..(BUFFER_LEN + alignment)];
                 b.iter(|| {
-                    thread_rng.fill_bytes(misaligned_buffer);
+                    prng.fill_bytes(misaligned_buffer);
                     black_box(&*misaligned_buffer);
                 })
             });
         }
         group.finish();
+        let mut group = c.benchmark_group(format!("{}:{}: fill_bytes 1MB", PLATFORM, name));
+        group.throughput(Throughput::Bytes(LARGE_FILL_LEN as u64));
+        let mut fill_bytes_prng = clone_box(&*prng);
+        const ITERATIONS: usize = LARGE_FILL_LEN / BUFFER_LEN;
+        group.bench_function("", move |b| {
+            let mut buffer = vec![0u64; BUFFER_LEN / size_of::<u64>()];
+            let (_, buffer, _) = unsafe { buffer.align_to_mut::<u8>() };
+            b.iter(|| {
+                let mut acc = 0u8;
+                for i in 0..ITERATIONS {
+                fill_bytes_prng.fill_bytes(buffer);
+                    acc ^= black_box(buffer[black_box(i)]);
+                }
+                acc
+            })
+        });
+        group.finish();
+        const U64_ITERATIONS: usize = 8;
+        let mut group = c.benchmark_group(formatcp!("{PLATFORM}: next_u64"));
+        group.throughput(Throughput::Bytes((size_of::<u64>() * U64_ITERATIONS) as u64));
+        group.bench_function("TripleMixPrng", move |b| {
+            b.iter(|| {
+                let mut accum = prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum
+            })
+        });
+        group.finish();
     }
 }
 
-fn next_u64<T: Measurement>(c: &mut Criterion<T>) {
-    const ITERATIONS: usize = 8;
+fn create_prngs() -> Vec<(&'static str, Box<dyn DynCloneRng>)> {
     let mut seed = [0u8; DEFAULT_SEED_SIZE];
     SysRng.try_fill_bytes(&mut seed).unwrap();
-    let mut triple_mix = TripleMixPrng::<NotReproducible>::from(&seed);
-    #[cfg(feature = "bench_include_threadrng")]
-    let mut thread_rng = rng();
-    let mut group = c.benchmark_group(formatcp!("{PLATFORM}: next_u64"));
-    group.throughput(Throughput::Bytes((size_of::<u64>() * ITERATIONS) as u64));
-    group.bench_function("TripleMixPrng", move |b| {
-        b.iter(|| {
-            for _ in 0..ITERATIONS {
-                black_box(triple_mix.next_u64());
-            }
-        })
-    });
+
+    let mut prngs = Vec::<(&'static str, Box<dyn DynCloneRng>)>::new();
+    prngs.push(("TripleMixPrng", Box::new(TripleMixPrng::<NotReproducible>::from(&seed))));
     #[cfg(feature = "reproducibility_same_endianness")]
-    {
-        let mut triple_mix_reproducible = TripleMixPrng::<SameEndianness>::from(&seed);
-        group.bench_function(
-            "TripleMixPrng with SameEndianness reproducibility",
-            move |b| {
-                b.iter(|| {
-                    for _ in 0..ITERATIONS {
-                        black_box(triple_mix_reproducible.next_u64());
-                    }
-                })
-            },
-        );
-    }
+    prngs.push(("TripleMixPrng<SameEndianness>", Box::new(TripleMixPrng::<SameEndianness>::from(&seed))));
     #[cfg(feature = "reproducibility_cross_platform")]
-    {
-        let mut triple_mix_x_reproducible = TripleMixPrng::<CrossPlatform>::from(&seed);
-        group.bench_function(
-            "TripleMixPrng with CrossPlatform reproducibility",
-            move |b| {
-                b.iter(|| {
-                    for _ in 0..ITERATIONS {
-                        black_box(triple_mix_x_reproducible.next_u64());
-                    }
-                })
-            },
-        );
-    }
+    prngs.push(("TripleMixPrng<CrossPlatform>", Box::new(TripleMixPrng::<CrossPlatform>::from(&seed))));
     #[cfg(feature = "bench_include_threadrng")]
-    {
-        let mut thread_rng = rng();
-        group.bench_function("ThreadRng", move |b| {
-            b.iter(|| {
-                for _ in 0..crate::ITERATIONS {
-                    black_box(thread_rng.next_u64());
-                }
-            })
-        });
-    }
-    group.finish();
+    prngs.push(("ThreadRng", rng()));
+    prngs
 }
 
 fn init<T: Measurement>(c: &mut Criterion<T>) {
@@ -169,8 +116,8 @@ fn init<T: Measurement>(c: &mut Criterion<T>) {
         64,
         DEFAULT_SEED_SIZE,
         128,
-        LARGE_SEED_SIZE,
         256,
+        LARGE_SEED_SIZE,
         512,
     ] {
         let input_seed = &seed_4096[..size];
@@ -201,7 +148,7 @@ fn init<T: Measurement>(c: &mut Criterion<T>) {
 criterion_group!(
     name = benches;
     config = Criterion::default().with_measurement(CyclesPerByte).warm_up_time(Duration::from_secs(10));
-    targets = fill_bytes, next_u64, init
+    targets = generate, init
 );
 #[cfg(not(any(target_arch = "x86_64", target_arch = "x86")))]
 criterion_group!(
