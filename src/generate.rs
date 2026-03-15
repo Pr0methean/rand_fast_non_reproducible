@@ -14,6 +14,7 @@ use std::simd::Select;
     not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
 ))]
 use crate::avx2;
+use crate::avx2::mul_small;
 
 impl TripleMixSimdCore {
     const TINYMT_MAT1: u64 = 0xdaa51b54;
