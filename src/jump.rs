@@ -103,7 +103,7 @@ impl JumpMatrix {
     }
 }
 
-/// Full 128x128 multiplication
+/// Full 128x128 multiplication. Returns (low, high).
 fn mul128x128(a_high: Simd64, a_low: Simd64, b_high: Simd64, b_low: Simd64) -> (Simd64, Simd64) {
     let (h1, low) = TripleMixSimdCore::mul128x64to128(a_high, a_low, b_low);
     let h2 = crate::generate::simd_wrapping_mul(a_low, b_high);
