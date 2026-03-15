@@ -16,7 +16,7 @@ mod serde;
 #[cfg(feature = "zeroize")]
 mod zeroize;
 
-use crate::reproducibility::DefaultReproducibility;
+use crate::reproducibility::{DefaultReproducibility, NotReproducible};
 use const_format::formatcp;
 use core::convert::Infallible;
 use core::marker::PhantomData;
@@ -24,6 +24,7 @@ use generate::Simd64;
 use rand_core::TryRng;
 use rand_core::block::BlockRng;
 use reproducibility::Reproducibility;
+use crate::generate::{OUTPUTS_PER_STEP, SIMD_WIDTH};
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -77,6 +78,13 @@ pub struct TripleMixPrng<R: Reproducibility = DefaultReproducibility> {
 
 pub const TRIPLE_MIX_PRNG_OID: &str = "1.3.6.1.4.1.54392.5.3311";
 pub const VERSION_OID: &str = formatcp!("{TRIPLE_MIX_PRNG_OID}.{MAJOR_VERSION}.{MINOR_VERSION}");
+
+impl TripleMixPrng<NotReproducible> {
+    #[inline(always)]
+    pub fn fill_blocks_unbuffered(&mut self, blocks: &mut [[u64; BLOCK_SIZE]]) {
+        self.block_core.core.fill_blocks(blocks);
+    }
+}
 
 impl<R: Reproducibility> TryRng for TripleMixPrng<R> {
     type Error = Infallible;
@@ -138,3 +146,4 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> [TripleMixPrng<R>; 5] {
 
 const MAJOR_VERSION: &str = env!("CARGO_PKG_VERSION_MAJOR");
 const MINOR_VERSION: &str = env!("CARGO_PKG_VERSION_MINOR");
+pub const BLOCK_SIZE: usize = OUTPUTS_PER_STEP * SIMD_WIDTH;

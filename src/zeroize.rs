@@ -39,9 +39,9 @@ impl<R: Reproducibility> Drop for TripleMixPrng<R> {
 
 #[cfg(test)]
 mod tests {
-    use crate::generate::{OUTPUT_LEN, Simd64};
+    use crate::generate::Simd64;
     use crate::reproducibility::DefaultReproducibility;
-    use crate::{TripleMixPrng, TripleMixSimdCore, create_rngs};
+    use crate::{create_rngs, TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
     use rand_core::Rng;
     use zeroize::Zeroize;
 
@@ -57,11 +57,11 @@ mod tests {
             mwc_state: Simd64::splat(0),
             mwc_carry: Simd64::splat(0),
         };
-        let mut expected_output = [0u8; OUTPUT_LEN * size_of::<u64>() * 2];
+        let mut expected_output = [0u8; BLOCK_SIZE * size_of::<u64>() * 2];
         TripleMixPrng::<DefaultReproducibility>::from_core(zero_core)
             .fill_bytes(&mut expected_output);
         for mut prng in create_rngs::<DefaultReproducibility>() {
-            let mut output = [0u8; OUTPUT_LEN * size_of::<u64>() * 2];
+            let mut output = [0u8; BLOCK_SIZE * size_of::<u64>() * 2];
             prng.next_u64();
             prng.zeroize();
             prng.fill_bytes(&mut output);

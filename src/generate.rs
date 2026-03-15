@@ -1,9 +1,9 @@
-use crate::TripleMixSimdCore;
+use crate::{TripleMixSimdCore, BLOCK_SIZE};
 use bytemuck::cast;
 use core::simd::cmp::SimdPartialOrd;
 use core::simd::num::SimdInt;
 use core::simd::num::SimdUint;
-use core::simd::{Simd, simd_swizzle, u8x32, u16x16};
+use core::simd::{simd_swizzle, u16x16, u8x32, Simd};
 use core::slice::from_mut;
 use rand_core::block::Generator;
 use std::simd::Select;
@@ -102,7 +102,7 @@ impl TripleMixSimdCore {
     }
 
     #[inline(always)]
-    pub(crate) fn fill_blocks(&mut self, blocks: &mut [[u64; OUTPUT_LEN]]) {
+    pub(crate) fn fill_blocks(&mut self, blocks: &mut [[u64; BLOCK_SIZE]]) {
         if blocks.is_empty() {
             return;
         }
@@ -254,7 +254,6 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
 pub(crate) const TINYMT64_LANE_MASK: u64 = 0x7fff_ffff_ffff_ffff_u64;
 pub(crate) const SIMD_WIDTH: usize = 4;
 pub(crate) const OUTPUTS_PER_STEP: usize = 2;
-pub(crate) const OUTPUT_LEN: usize = OUTPUTS_PER_STEP * SIMD_WIDTH;
 
 pub(crate) type Simd64 = Simd<u64, SIMD_WIDTH>;
 
@@ -292,49 +291,36 @@ pub(crate) fn mix(
         ))
     }
 
-    const FEISTEL_CONSTANT_1: Simd64 = Simd::from_array([
-        0x9E3779B97F4A7C15,
-        0x2767f0b153d27b7f,
-        0xf06ad7ae9717877e,
-        0x626e33b8d04b4331,
-    ]);
-    const FEISTEL_CONSTANT_2: Simd64 = Simd::from_array([
-        0xf39cc0605cedc834,
-        0x0347045b5bf1827f,
-        0x85839d6effbd7dc6,
-        0xbbf73c790d94f79d,
-    ]);
     const AVALANCHE_MULTIPLIERS_1: Simd64 = Simd::from_array([
-        0xd6e8feb86659fd93,
-        0x881cf9e71fbdd5b9,
-        0xbf58476d1ce4e5b9,
-        0xcb79e64eccc0e578,
+        0x6659fd93,
+        0x1fbdd5b9,
+        0x1ce4e5b9,
+        0xccc0e578,
     ]);
     const AVALANCHE_MULTIPLIERS_2: Simd64 = Simd::from_array([
-        0xd1342543de82ef95,
-        0xa24baed4963ee407,
-        0x9fb21c651e98df25,
-        0xc2b2ae3d27d4eb4f,
+        0xde82ef95,
+        0x963ee407,
+        0x1e98df25,
+        0x27d4eb4f,
     ]);
     const AVALANCHE_MULTIPLIERS_3: Simd64 = Simd::from_array([
-        0xe68e0860ce559b5b,
-        0xbca6b7d7acc9d61b,
-        0x94d049bb133111eb,
-        0xbcf746f9ee677775,
+        0xce559b5b,
+        0xacc9d61b,
+        0x133111eb,
+        0xee677775,
     ]);
     const AVALANCHE_MULTIPLIERS_4: Simd64 = Simd::from_array([
-        0xb8fe6c3923a44bbd,
-        0x7c01812cf721ad1b,
-        0xded46de9839097d9,
-        0x7240a4a4b7b3671f
+        0x23a44bbd,
+        0xf721ad1b,
+        0x839097d9,
+        0xb7b3671f
     ]);
-    let i_mixed_1 = i + FEISTEL_CONSTANT_1;
-    let i_mixed_2 = rotl24(i) ^ FEISTEL_CONSTANT_2;
+    let i_rotated = rotl24(i);
 
     let mut a = w_lo;
     let mut d = w_hi;
-    let mut b = t ^ i_mixed_1;
-    let mut c = x_in + i_mixed_2;
+    let mut b = t ^ i;
+    let mut c = x_in + i_rotated;
 
     // Round 1 - Full ARX (Lane local)
     a = a + b; d ^= a; d = rotl24(d);
@@ -347,30 +333,30 @@ pub(crate) fn mix(
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
     // Deep Nonlinear Spread - All 4 multiplications are now independent
-    let ma = simd_wrapping_mul(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
-    let mb = simd_wrapping_mul(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
-    let mc = simd_wrapping_mul(c + d, AVALANCHE_MULTIPLIERS_3);
-    let md = simd_wrapping_mul(d ^ c, AVALANCHE_MULTIPLIERS_4);
+    let (md, _) = simd_mulsmall(d - c, AVALANCHE_MULTIPLIERS_4);
+    let (mc, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
+    let (ma, _) = simd_mulsmall(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
+    let (mb, _) = simd_mulsmall(b - rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
 
     // Round 3 - Final cross-lane spread
-    let a3 = rotl(ma + mb.rotate_elements_left::<1>(), 43);
     let c3 = mc + md.rotate_elements_right::<1>();
-    let d3 = md ^ a3.rotate_elements_right::<2>();
+    let a3 = rotl(ma - mb.rotate_elements_left::<1>(), 43);
     let b3 = rotl(mb ^ c3.rotate_elements_left::<2>(), 11);
+    let d3 = md ^ a3.rotate_elements_right::<2>();
 
     // Output combiners (note reuse of d from round 2!)
     let adr = rotl(a3 + d, 41);
     let bcr = rotl(b3 ^ c3, 17);
     let bxd = b3 + d3;
     let axc = a3 ^ c3;
-    let y = bxd + adr;
+    let y = bxd - adr;
     let x = axc ^ bcr;
 
     (x, y)
 }
 
 impl Generator for TripleMixSimdCore {
-    type Output = [u64; OUTPUT_LEN];
+    type Output = [u64; BLOCK_SIZE];
 
     #[inline(always)]
     fn generate(&mut self, output: &mut Self::Output) {
@@ -380,9 +366,9 @@ impl Generator for TripleMixSimdCore {
 
 #[cfg(test)]
 mod tests {
-    use crate::generate::{OUTPUT_LEN, OUTPUTS_PER_STEP, SIMD_WIDTH, Simd64, mix};
+    use crate::generate::{mix, Simd64, OUTPUTS_PER_STEP, SIMD_WIDTH};
     use crate::reproducibility::NotReproducible;
-    use crate::{TripleMixPrng, TripleMixSimdCore};
+    use crate::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
     use bytemuck::cast_slice_mut;
     use core::simd::Simd;
     use core::simd::cmp::SimdPartialEq;
@@ -391,8 +377,8 @@ mod tests {
     use gf2::{BitMatrix, BitStore};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
-    use proptest::{prop_assert, proptest, prelude::any};
-    use rand::{RngExt, rng};
+    use proptest::{prelude::any, prop_assert, proptest};
+    use rand::{rng, RngExt};
     use rand_core::{Rng, SeedableRng};
     use statrs::distribution::{Binomial, Discrete, DiscreteCDF};
 
@@ -761,10 +747,10 @@ mod tests {
 
     #[test]
     fn test_avalanche() {
-        const LOW_AVALANCHE_THRESHOLD: u64 = 28 * OUTPUT_LEN as u64;
+        const LOW_AVALANCHE_THRESHOLD: u64 = 28 * BLOCK_SIZE as u64;
         let mut total_low_avalanche_checks = 0;
         let mut total_checks = 0;
-        let bit_flip_distribution = Binomial::new(0.5, (OUTPUT_LEN * 64) as u64).unwrap();
+        let bit_flip_distribution = Binomial::new(0.5, (BLOCK_SIZE * 64) as u64).unwrap();
         let low_avalanche_probability = bit_flip_distribution.cdf(LOW_AVALANCHE_THRESHOLD);
         for rng in crate::create_rngs::<NotReproducible>() {
             let core = rng.block_core.core;
@@ -911,11 +897,11 @@ mod tests {
 
             const DEVIATION: f64 = 0.1;
             assert!(
-                avg_flips >= 32.0 * (1.0 - DEVIATION) * (OUTPUT_LEN as f64),
+                avg_flips >= 32.0 * (1.0 - DEVIATION) * (BLOCK_SIZE as f64),
                 "Average diffusion too low"
             );
             assert!(
-                avg_flips <= 32.0 * (1.0 + DEVIATION) * (OUTPUT_LEN as f64),
+                avg_flips <= 32.0 * (1.0 + DEVIATION) * (BLOCK_SIZE as f64),
                 "Average diffusion too high?"
             );
 
@@ -932,7 +918,7 @@ mod tests {
                 "Too many low-avalanche results. Worst offender: Field {min_field} lane {min_lane} bit {min_bit} on iteration {min_iter} with {min_flips} flips."
             );
             assert!(
-                min_flips as usize >= 16 * OUTPUT_LEN,
+                min_flips as usize >= 16 * BLOCK_SIZE,
                 "Minimum diffusion too low in field {min_field} lane {min_lane} bit {min_bit} on iteration {min_iter}, possible blind spot!"
             );
             total_checks += count;
@@ -1192,7 +1178,7 @@ mod tests {
     fn build_transition_matrix(config: &MatrixConfig) -> (BitMatrix<u64>, Vec<String>) {
         let state_bits = 8 * SIMD_WIDTH * 64; // 8 fields × 4 lanes × 64 bits = 2048 bits
 
-        let output_bits = config.steps * OUTPUT_LEN * 64; // steps × 8 words × 64 bits
+        let output_bits = config.steps * BLOCK_SIZE * 64; // steps × 8 words × 64 bits
 
         let mut matrix = BitMatrix::<u64>::zeros(output_bits, state_bits);
         let mut column_labels = Vec::with_capacity(state_bits);
@@ -1246,7 +1232,7 @@ mod tests {
         ];
 
         // Generate base outputs once
-        let mut base_outputs = vec![[0u64; OUTPUT_LEN]; config.steps];
+        let mut base_outputs = vec![[0u64; BLOCK_SIZE]; config.steps];
         let mut base_core = config.base_state.clone();
         base_core.fill_blocks(&mut base_outputs);
 
@@ -1266,17 +1252,17 @@ mod tests {
                     set_field(&mut flipped_state, Simd64::from_array(flipped_arr));
 
                     // Generate outputs from flipped state
-                    let mut flipped_outputs = vec![[0u64; OUTPUT_LEN]; config.steps];
+                    let mut flipped_outputs = vec![[0u64; BLOCK_SIZE]; config.steps];
                     let mut flipped_core = flipped_state;
                     flipped_core.fill_blocks(&mut flipped_outputs);
 
                     // Record differences
                     for step in 0..config.steps {
-                        for word in 0..OUTPUT_LEN {
+                        for word in 0..BLOCK_SIZE {
                             let diff = base_outputs[step][word] ^ flipped_outputs[step][word];
                             for out_bit in 0..64 {
                                 if (diff >> out_bit) & 1 == 1 {
-                                    let row = step * OUTPUT_LEN * 64 + word * 64 + out_bit;
+                                    let row = step * BLOCK_SIZE * 64 + word * 64 + out_bit;
                                     matrix.set(row, col_idx, true);
                                 }
                             }
