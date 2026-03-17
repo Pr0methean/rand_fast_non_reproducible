@@ -301,7 +301,7 @@ pub(crate) fn mix(
     let mut c = x_in + i_rotated;
 
     // Round 1 - Full ARX (Lane local)
-    a = a + b; d ^= a; d = rotl(d, 24);
+    a = a + b; d ^= a; d = rotl(d, 4);
     c = c + d; b ^= c; b = rotl(b, 16);
 
     // Round 2 - Cross-lane swizzled mixing
@@ -311,10 +311,10 @@ pub(crate) fn mix(
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
     // Deep Nonlinear Spread - All 4 multiplications are now independent
-    let (md, _) = simd_mulsmall(d - c, AVALANCHE_MULTIPLIERS_4);
-    let (mc, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
-    let (ma, _) = simd_mulsmall(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
-    let (mb, _) = simd_mulsmall(b - rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
+    let (md, _) = simd_mulsmall(a ^ rotl(b, 13), AVALANCHE_MULTIPLIERS_1);
+    let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
+    let (ma, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
+    let (mb, _) = simd_mulsmall(d ^ c, AVALANCHE_MULTIPLIERS_4);
 
     // Round 3 - Final cross-lane spread
     let c3 = mc + md.rotate_elements_right::<1>();
