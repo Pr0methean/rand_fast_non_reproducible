@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773724540560,
+  "lastUpdate": 1773724564272,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -40715,6 +40715,156 @@ window.BENCHMARK_DATA = {
             "name": "aarch64:linux: core/fill_blocks",
             "value": 53,
             "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ec95fc8f31453345835627fcac2d6a4eda34ff28",
+          "message": "Update entropy stats and other details in README (#73)",
+          "timestamp": "2026-03-17T04:54:56Z",
+          "tree_id": "0f48a3cd5de1678d9f2dadaf894cc328c007893a",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/ec95fc8f31453345835627fcac2d6a4eda34ff28"
+        },
+        "date": 1773724562449,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 8557,
+            "range": "± 1027",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 8579,
+            "range": "± 341",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 7763,
+            "range": "± 47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 497947,
+            "range": "± 7985",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: next_u64/TripleMixPrng",
+            "value": 34,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 7758,
+            "range": "± 751",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 7956,
+            "range": "± 98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 7962,
+            "range": "± 179",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 493014,
+            "range": "± 9763",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: next_u64/TripleMixPrng #2",
+            "value": 34,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/8",
+            "value": 1863,
+            "range": "± 52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/16",
+            "value": 1866,
+            "range": "± 58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/32",
+            "value": 1868,
+            "range": "± 146",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/64",
+            "value": 1987,
+            "range": "± 46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/72",
+            "value": 1983,
+            "range": "± 141",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/128",
+            "value": 2238,
+            "range": "± 71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/256",
+            "value": 2720,
+            "range": "± 259",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/288",
+            "value": 2452,
+            "range": "± 297",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/512",
+            "value": 2881,
+            "range": "± 149",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/fork",
+            "value": 2332,
+            "range": "± 91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: core/fill_blocks",
+            "value": 31,
+            "range": "± 1",
             "unit": "ns/iter"
           }
         ]
