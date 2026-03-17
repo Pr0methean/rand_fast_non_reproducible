@@ -293,7 +293,7 @@ pub(crate) fn mix(
         0x839097d9,
         0xb7b3671f
     ]);
-    let i_rotated = rotl(i, 25);
+    let i_rotated = rotl(i, 29);
 
     let mut a = w_lo;
     let mut d = w_hi;
@@ -301,8 +301,8 @@ pub(crate) fn mix(
     let mut c = x_in + i_rotated;
 
     // Round 1 - Full ARX (Lane local)
-    a = a + b; d ^= a; d = rotl(d, 4);
-    c = c + d; b ^= c; b = rotl(b, 16);
+    a = a + b; d ^= a; d = rotl(d, 7);
+    c = c + d; b ^= c; b = rotl(b, 17);
 
     // Round 2 - Cross-lane swizzled mixing
     a = a + b.rotate_elements_left::<1>();
@@ -324,7 +324,7 @@ pub(crate) fn mix(
 
     // Output combiners (note reuse of d from round 2!)
     let adr = rotl(a3 + d, 41);
-    let bcr = rotl(b3 ^ c3, 17);
+    let bcr = rotl(b3 ^ c3, 25);
     let bxd = b3 + d3;
     let axc = a3 ^ c3;
     let y = bxd - adr;
