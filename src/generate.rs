@@ -1,9 +1,8 @@
 use crate::{TripleMixSimdCore, BLOCK_SIZE};
-use bytemuck::cast;
 use core::simd::cmp::SimdPartialOrd;
 use core::simd::num::SimdInt;
 use core::simd::num::SimdUint;
-use core::simd::{simd_swizzle, u16x16, u8x32, Simd};
+use core::simd::Simd;
 use core::slice::from_mut;
 use rand_core::block::Generator;
 use std::simd::Select;
@@ -270,27 +269,6 @@ pub(crate) fn mix(
     w_hi: Simd64,
     i: Simd64,
 ) -> (Simd64, Simd64) {
-    #[inline(always)]
-    fn rotl16(d: Simd64) -> Simd64 {
-        let d_transmuted: u16x16 = cast(d);
-        cast(simd_swizzle!(
-            d_transmuted,
-            [3, 0, 1, 2, 7, 4, 5, 6, 11, 8, 9, 10, 15, 12, 13, 14]
-        ))
-    }
-
-    #[inline(always)]
-    fn rotl24(d: Simd64) -> Simd64 {
-        let d_transmuted: u8x32 = cast(d);
-        cast(simd_swizzle!(
-            d_transmuted,
-            [
-                5, 6, 7, 0, 1, 2, 3, 4, 13, 14, 15, 8, 9, 10, 11, 12, 21, 22, 23, 16, 17, 18, 19,
-                20, 29, 30, 31, 24, 25, 26, 27, 28
-            ]
-        ))
-    }
-
     const AVALANCHE_MULTIPLIERS_1: Simd64 = Simd::from_array([
         0x6659fd93,
         0x1fbdd5b9,
@@ -315,7 +293,7 @@ pub(crate) fn mix(
         0x839097d9,
         0xb7b3671f
     ]);
-    let i_rotated = rotl24(i);
+    let i_rotated = rotl(i, 29);
 
     let mut a = w_lo;
     let mut d = w_hi;
@@ -323,8 +301,8 @@ pub(crate) fn mix(
     let mut c = x_in + i_rotated;
 
     // Round 1 - Full ARX (Lane local)
-    a = a + b; d ^= a; d = rotl24(d);
-    c = c + d; b ^= c; b = rotl16(b);
+    a = a + b; d ^= a; d = rotl(d, 7);
+    c = c + d; b ^= c; b = rotl(b, 17);
 
     // Round 2 - Cross-lane swizzled mixing
     a = a + b.rotate_elements_left::<1>();
@@ -333,10 +311,10 @@ pub(crate) fn mix(
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
     // Deep Nonlinear Spread - All 4 multiplications are now independent
-    let (md, _) = simd_mulsmall(d - c, AVALANCHE_MULTIPLIERS_4);
-    let (mc, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
-    let (ma, _) = simd_mulsmall(a ^ rotl(b, 19), AVALANCHE_MULTIPLIERS_1);
-    let (mb, _) = simd_mulsmall(b - rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
+    let (md, _) = simd_mulsmall(a ^ rotl(b, 13), AVALANCHE_MULTIPLIERS_1);
+    let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
+    let (ma, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
+    let (mb, _) = simd_mulsmall(d ^ c, AVALANCHE_MULTIPLIERS_4);
 
     // Round 3 - Final cross-lane spread
     let c3 = mc + md.rotate_elements_right::<1>();
@@ -346,7 +324,7 @@ pub(crate) fn mix(
 
     // Output combiners (note reuse of d from round 2!)
     let adr = rotl(a3 + d, 41);
-    let bcr = rotl(b3 ^ c3, 17);
+    let bcr = rotl(b3 ^ c3, 25);
     let bxd = b3 + d3;
     let axc = a3 ^ c3;
     let y = bxd - adr;
@@ -370,9 +348,9 @@ mod tests {
     use crate::reproducibility::NotReproducible;
     use crate::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
     use bytemuck::cast_slice_mut;
-    use core::simd::Simd;
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;
+    use core::simd::Simd;
     use fsum::FSum;
     use gf2::{BitMatrix, BitStore};
     use hypors::chi_square::goodness_of_fit;
