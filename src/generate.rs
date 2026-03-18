@@ -310,11 +310,16 @@ pub(crate) fn mix(
     c = c + d.rotate_elements_right::<2>();
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
-    // Deep Nonlinear Spread - All 4 multiplications are now independent
     let (md, _) = simd_mulsmall(a ^ rotl(b, 13), AVALANCHE_MULTIPLIERS_1);
     let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
-    let (ma, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
-    let (mb, _) = simd_mulsmall(d ^ c, AVALANCHE_MULTIPLIERS_4);
+
+    let c2 = mc + md.rotate_elements_right::<1>();
+    let a2 = rotl(a - md.rotate_elements_left::<1>(), 43);
+    let b2 = rotl(b ^ c2.rotate_elements_left::<2>(), 11);
+    let d2 = md ^ a2.rotate_elements_right::<2>();
+
+    let (ma, _) = simd_mulsmall(c2 + d2, AVALANCHE_MULTIPLIERS_3);
+    let (mb, _) = simd_mulsmall(a2 ^ b2, AVALANCHE_MULTIPLIERS_4);
 
     // Round 3 - Final cross-lane spread
     let c3 = mc + md.rotate_elements_right::<1>();
