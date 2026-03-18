@@ -299,7 +299,7 @@ pub(crate) fn mix(
     // -------------------------
     a = a + b.rotate_elements_left::<1>();
     d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
-    c = c + d.rotate_elements_right::<2>();
+    c = c + d.rotate_elements_left::<2>();
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
     // ============================================================
@@ -349,7 +349,7 @@ pub(crate) fn mix(
     let c3 = mc + ma.rotate_elements_right::<1>();
     let a4 = rotl(ma.rotate_elements_left::<1>(), 43);
     let b4 = rotl(ma ^ c3.rotate_elements_left::<2>(), 11);
-    let d4 = mc ^ ma.rotate_elements_right::<2>();
+    let d4 = mc ^ ma.rotate_elements_left::<2>();
 
     // -------------------------
     // Output combiners (unchanged structure)
@@ -384,13 +384,15 @@ mod tests {
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;
     use core::simd::Simd;
+    use std::hint::black_box;
     use fsum::FSum;
     use gf2::{BitMatrix, BitStore};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
     use proptest::{prelude::any, prop_assert, proptest};
     use rand::{rng, RngExt};
-    use rand_core::{Rng, SeedableRng};
+    use rand::rngs::SysRng;
+    use rand_core::{Rng, SeedableRng, UnwrapErr};
     use statrs::distribution::{Binomial, Discrete, DiscreteCDF};
 
     struct MixMatrixStats {
@@ -1346,5 +1348,14 @@ mod tests {
 
         assert!(mean_rank >= 2040.0, "Mean rank too low: {:.2}", mean_rank);
         assert!(std_dev <= 2.0, "Too much variation: {:.2}", std_dev);
+    }
+    #[test]
+    fn test_for_profiling() {
+        let mut prng = TripleMixPrng::<NotReproducible>::from_rng(&mut UnwrapErr(SysRng));
+        let mut buffer = vec![0u64; 2048];
+        for _ in 0..2048 {
+            prng.fill(&mut buffer);
+            black_box(&buffer);
+        }
     }
 }
