@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773870518173,
+  "lastUpdate": 1773870540789,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -43566,6 +43566,156 @@ window.BENCHMARK_DATA = {
             "value": 79,
             "range": "± 1",
             "unit": "cycles/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "81cd6e0a4c26542b62c940b4b5172851a0c4a9d1",
+          "message": "Bump actions/upload-artifact from 4.6.2 to 7.0.0 (#76)\n\nBumps [actions/upload-artifact](https://github.com/actions/upload-artifact) from 4.6.2 to 7.0.0.\n- [Release notes](https://github.com/actions/upload-artifact/releases)\n- [Commits](https://github.com/actions/upload-artifact/compare/ea165f8d65b6e75b540449e92b4886f43607fa02...bbbca2ddaa5d8feaa63e36b76fdaad77386f024f)\n\n---\nupdated-dependencies:\n- dependency-name: actions/upload-artifact\n  dependency-version: 7.0.0\n  dependency-type: direct:production\n  update-type: version-update:semver-major\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\nCo-authored-by: Chris Hennick <4961925+Pr0methean@users.noreply.github.com>",
+          "timestamp": "2026-03-18T21:15:07Z",
+          "tree_id": "27e6a6e69ce98765b896cbf5a9c6ca764e0ee6c9",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/81cd6e0a4c26542b62c940b4b5172851a0c4a9d1"
+        },
+        "date": 1773870538578,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 8434,
+            "range": "± 534",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 8268,
+            "range": "± 655",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 8994,
+            "range": "± 1710",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 670952,
+            "range": "± 104073",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 41,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 10857,
+            "range": "± 3276",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 10487,
+            "range": "± 2737",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 10355,
+            "range": "± 2049",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 703232,
+            "range": "± 190099",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 44,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/8",
+            "value": 2298,
+            "range": "± 575",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/16",
+            "value": 2274,
+            "range": "± 729",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/32",
+            "value": 2245,
+            "range": "± 585",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/64",
+            "value": 2409,
+            "range": "± 469",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/72",
+            "value": 2540,
+            "range": "± 857",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/128",
+            "value": 2621,
+            "range": "± 717",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/256",
+            "value": 2963,
+            "range": "± 707",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/288",
+            "value": 2944,
+            "range": "± 484",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/512",
+            "value": 3682,
+            "range": "± 806",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/fork",
+            "value": 3045,
+            "range": "± 387",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: core/fill_blocks",
+            "value": 37,
+            "range": "± 4",
+            "unit": "ns/iter"
           }
         ]
       }
