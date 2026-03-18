@@ -68,7 +68,7 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
         });
         group.finish();
         const U64_ITERATIONS: usize = 8;
-        let mut group = c.benchmark_group(formatcp!("{PLATFORM}: next_u64"));
+        let mut group = c.benchmark_group(format!("{PLATFORM}:{name}: next_u64"));
         group.throughput(Throughput::Bytes((size_of::<u64>() * U64_ITERATIONS) as u64));
         group.bench_function("TripleMixPrng", move |b| {
             b.iter(|| {
