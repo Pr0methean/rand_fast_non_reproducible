@@ -22,8 +22,7 @@ jobs:
     strategy:
       matrix:
         feature-flag: [ "--no-default-features", "--all-features" ]
-        # FIXME: Add macos-latest once https://github.com/bluss/matrixmultiply/issues/97 is fixed
-        os: [ ubuntu-latest, ubuntu-24.04-arm, macos-26-intel, windows-latest, windows-11-arm ]
+        os: [ ubuntu-latest, ubuntu-24.04-arm, macos-26-intel, macos-latest, windows-latest, windows-11-arm ]
       fail-fast: false
     steps:
     - name: Harden the runner (Audit all outbound calls)

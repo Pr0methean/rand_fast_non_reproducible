@@ -269,12 +269,6 @@ pub(crate) fn mix(
     w_hi: Simd64,
     i: Simd64,
 ) -> (Simd64, Simd64) {
-    const AVALANCHE_MULTIPLIERS_1: Simd64 = Simd::from_array([
-        0x6659fd93,
-        0x1fbdd5b9,
-        0x1ce4e5b9,
-        0xccc0e578,
-    ]);
     const AVALANCHE_MULTIPLIERS_2: Simd64 = Simd::from_array([
         0xde82ef95,
         0x963ee407,
