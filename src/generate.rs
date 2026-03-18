@@ -311,7 +311,6 @@ pub(crate) fn mix(
     // ============================================================
     // Stage 1 MULs (start early, DO NOT consume yet)
     // ============================================================
-    let (md, _) = simd_mulsmall(a ^ rotl(b, 13), AVALANCHE_MULTIPLIERS_1);
     let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
 
     // -------------------------
@@ -329,7 +328,7 @@ pub(crate) fn mix(
     let mut a2 = a;
     let mut b2 = b;
 
-    a2 = rotl(a2 + md.rotate_elements_left::<1>(), 43);
+    a2 = rotl(a2 + mc.rotate_elements_left::<1>(), 43);
     b2 = rotl(b2 ^ mc.rotate_elements_right::<1>(), 11);
 
     // Cross-mix domains
@@ -353,10 +352,10 @@ pub(crate) fn mix(
     // ============================================================
     // Final consumption of ma/mb
     // ============================================================
-    let c3 = mc + md.rotate_elements_right::<1>();
+    let c3 = mc + ma.rotate_elements_right::<1>();
     let a4 = rotl(ma.rotate_elements_left::<1>(), 43);
     let b4 = rotl(ma ^ c3.rotate_elements_left::<2>(), 11);
-    let d4 = md ^ a4.rotate_elements_right::<2>();
+    let d4 = mc ^ ma.rotate_elements_right::<2>();
 
     // -------------------------
     // Output combiners (unchanged structure)
