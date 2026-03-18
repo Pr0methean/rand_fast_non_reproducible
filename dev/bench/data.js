@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773870540789,
+  "lastUpdate": 1773870556193,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -43715,6 +43715,156 @@ window.BENCHMARK_DATA = {
             "name": "aarch64:macos: core/fill_blocks",
             "value": 37,
             "range": "± 4",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "81cd6e0a4c26542b62c940b4b5172851a0c4a9d1",
+          "message": "Bump actions/upload-artifact from 4.6.2 to 7.0.0 (#76)\n\nBumps [actions/upload-artifact](https://github.com/actions/upload-artifact) from 4.6.2 to 7.0.0.\n- [Release notes](https://github.com/actions/upload-artifact/releases)\n- [Commits](https://github.com/actions/upload-artifact/compare/ea165f8d65b6e75b540449e92b4886f43607fa02...bbbca2ddaa5d8feaa63e36b76fdaad77386f024f)\n\n---\nupdated-dependencies:\n- dependency-name: actions/upload-artifact\n  dependency-version: 7.0.0\n  dependency-type: direct:production\n  update-type: version-update:semver-major\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\nCo-authored-by: Chris Hennick <4961925+Pr0methean@users.noreply.github.com>",
+          "timestamp": "2026-03-18T21:15:07Z",
+          "tree_id": "27e6a6e69ce98765b896cbf5a9c6ca764e0ee6c9",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/81cd6e0a4c26542b62c940b4b5172851a0c4a9d1"
+        },
+        "date": 1773870549130,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 12845,
+            "range": "± 225",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 12876,
+            "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 12874,
+            "range": "± 48",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 821806,
+            "range": "± 9834",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 69,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 12829,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 15522,
+            "range": "± 33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 15557,
+            "range": "± 273",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 821488,
+            "range": "± 16249",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 69,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/8",
+            "value": 2333,
+            "range": "± 39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/16",
+            "value": 2324,
+            "range": "± 43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/32",
+            "value": 2324,
+            "range": "± 34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/64",
+            "value": 2323,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/72",
+            "value": 2293,
+            "range": "± 34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/128",
+            "value": 2592,
+            "range": "± 56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/256",
+            "value": 2868,
+            "range": "± 62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/288",
+            "value": 2818,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/512",
+            "value": 3388,
+            "range": "± 302",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/fork",
+            "value": 2909,
+            "range": "± 87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: core/fill_blocks",
+            "value": 53,
+            "range": "± 1",
             "unit": "ns/iter"
           }
         ]
