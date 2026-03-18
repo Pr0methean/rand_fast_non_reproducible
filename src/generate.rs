@@ -287,12 +287,6 @@ pub(crate) fn mix(
         0x133111eb,
         0xee677775,
     ]);
-    const AVALANCHE_MULTIPLIERS_4: Simd64 = Simd::from_array([
-        0x23a44bbd,
-        0xf721ad1b,
-        0x839097d9,
-        0xb7b3671f
-    ]);
     let i_rotated = rotl(i, 29);
 
     let mut a = w_lo;
@@ -346,7 +340,6 @@ pub(crate) fn mix(
     // Stage 2 MULs (again start early)
     // ============================================================
     let (ma, _) = simd_mulsmall(c2 + d2, AVALANCHE_MULTIPLIERS_3);
-    let (mb, _) = simd_mulsmall(d2 ^ c2, AVALANCHE_MULTIPLIERS_4);
 
     // -------------------------
     // More independent mixing while MUL latency resolves
@@ -361,8 +354,8 @@ pub(crate) fn mix(
     // Final consumption of ma/mb
     // ============================================================
     let c3 = mc + md.rotate_elements_right::<1>();
-    let a4 = rotl(ma - mb.rotate_elements_left::<1>(), 43);
-    let b4 = rotl(mb ^ c3.rotate_elements_left::<2>(), 11);
+    let a4 = rotl(ma.rotate_elements_left::<1>(), 43);
+    let b4 = rotl(ma ^ c3.rotate_elements_left::<2>(), 11);
     let d4 = md ^ a4.rotate_elements_right::<2>();
 
     // -------------------------
