@@ -323,7 +323,7 @@ pub(crate) fn mix(
     let mut b2 = b;
 
     a2 = rotl(a2 + mc.rotate_elements_left::<1>(), 43);
-    b2 = rotl(b2 ^ mc.rotate_elements_right::<1>(), 11);
+    b2 = rotl(b2 ^ mc.rotate_elements_right::<1>(), 13);
 
     // Cross-mix domains
     c2 ^= a2.rotate_elements_left::<2>();
@@ -347,15 +347,15 @@ pub(crate) fn mix(
     // Final consumption of ma/mb
     // ============================================================
     let c3 = mc + ma.rotate_elements_right::<1>();
-    let a4 = rotl(ma.rotate_elements_left::<1>(), 43);
-    let b4 = rotl(ma ^ c3.rotate_elements_left::<2>(), 11);
+    let a4 = rotl(ma.rotate_elements_left::<1>(), 21);
+    let b4 = rotl(ma ^ c3.rotate_elements_left::<2>(), 49);
     let d4 = mc ^ ma.rotate_elements_left::<2>();
 
     // -------------------------
     // Output combiners (unchanged structure)
     // -------------------------
-    let adr = rotl(a4 + d, 41);
-    let bcr = rotl(b4 ^ c3, 25);
+    let adr = rotl(a4 + d, 39);
+    let bcr = rotl(b4 ^ c3, 11);
     let bxd = b4 + d4;
     let axc = a4 ^ c3;
 
