@@ -300,40 +300,82 @@ pub(crate) fn mix(
     let mut b = t ^ i;
     let mut c = x_in + i_rotated;
 
-    // Round 1 - Full ARX (Lane local)
+    // -------------------------
+    // Round 1 (lane-local ARX)
+    // -------------------------
     a = a + b; d ^= a; d = rotl(d, 7);
     c = c + d; b ^= c; b = rotl(b, 17);
 
-    // Round 2 - Cross-lane swizzled mixing
+    // -------------------------
+    // Round 2 (cross-lane)
+    // -------------------------
     a = a + b.rotate_elements_left::<1>();
     d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
     c = c + d.rotate_elements_right::<2>();
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
+    // ============================================================
+    // Stage 1 MULs (start early, DO NOT consume yet)
+    // ============================================================
     let (md, _) = simd_mulsmall(a ^ rotl(b, 13), AVALANCHE_MULTIPLIERS_1);
     let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
 
-    let c2 = mc + md.rotate_elements_right::<1>();
-    let a2 = rotl(a - md.rotate_elements_left::<1>(), 43);
-    let b2 = rotl(b ^ c2.rotate_elements_left::<2>(), 11);
-    let d2 = md ^ a2.rotate_elements_right::<2>();
+    // -------------------------
+    // Independent mixing on (c, d) while MUL latency resolves
+    // -------------------------
+    let mut c2 = c;
+    let mut d2 = d;
 
+    c2 = c2 + d2.rotate_elements_right::<1>();
+    d2 = rotl(d2 ^ c2.rotate_elements_left::<1>(), 23);
+
+    // ============================================================
+    // Now consume md/mc (latency mostly hidden)
+    // ============================================================
+    let mut a2 = a;
+    let mut b2 = b;
+
+    a2 = rotl(a2 + md.rotate_elements_left::<1>(), 43);
+    b2 = rotl(b2 ^ mc.rotate_elements_right::<1>(), 11);
+
+    // Cross-mix domains
+    c2 ^= a2.rotate_elements_left::<2>();
+    d2 += b2.rotate_elements_right::<2>();
+
+    // ============================================================
+    // Stage 2 MULs (again start early)
+    // ============================================================
     let (ma, _) = simd_mulsmall(c2 + d2, AVALANCHE_MULTIPLIERS_3);
-    let (mb, _) = simd_mulsmall(a2 ^ b2, AVALANCHE_MULTIPLIERS_4);
+    let (mb, _) = simd_mulsmall(d2 ^ c2, AVALANCHE_MULTIPLIERS_4);
 
-    // Round 3 - Final cross-lane spread
+    // -------------------------
+    // More independent mixing while MUL latency resolves
+    // -------------------------
+    let mut a3 = a2;
+    let mut b3 = b2;
+
+    a3 ^= b3.rotate_elements_left::<1>();
+    b3 += a3.rotate_elements_right::<1>();
+
+    // ============================================================
+    // Final consumption of ma/mb
+    // ============================================================
     let c3 = mc + md.rotate_elements_right::<1>();
-    let a3 = rotl(ma - mb.rotate_elements_left::<1>(), 43);
-    let b3 = rotl(mb ^ c3.rotate_elements_left::<2>(), 11);
-    let d3 = md ^ a3.rotate_elements_right::<2>();
+    let a4 = rotl(ma - mb.rotate_elements_left::<1>(), 43);
+    let b4 = rotl(mb ^ c3.rotate_elements_left::<2>(), 11);
+    let d4 = md ^ a4.rotate_elements_right::<2>();
 
-    // Output combiners (note reuse of d from round 2!)
-    let adr = rotl(a3 + d, 41);
-    let bcr = rotl(b3 ^ c3, 25);
-    let bxd = b3 + d3;
-    let axc = a3 ^ c3;
+    // -------------------------
+    // Output combiners (unchanged structure)
+    // -------------------------
+    let adr = rotl(a4 + d, 41);
+    let bcr = rotl(b4 ^ c3, 25);
+    let bxd = b4 + d4;
+    let axc = a4 ^ c3;
+
     let y = bxd - adr;
     let x = axc ^ bcr;
+
 
     (x, y)
 }
