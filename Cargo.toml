@@ -41,6 +41,10 @@ harness = false  # Suppress use of libtest harness, since we're using criterion
 lto = "fat"
 codegen-units = 1
 
+[profile.release-with-debug]
+inherits = "release"
+debug = true
+
 [profile.test]
 opt-level = 3
 
