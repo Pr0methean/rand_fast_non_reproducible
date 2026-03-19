@@ -28,10 +28,11 @@ fn main() {
         let seed = get_random_seed();
         prng = TripleMixPrng::from(seed);
     }
+    let mut stdout = stdout().lock();
     loop {
         let mut buffer = [0u8; 1 << 16];
         prng.fill_bytes(&mut buffer);
-        if let Err(e) = stdout().write_all(&buffer) {
+        if let Err(e) = stdout.write_all(&buffer) {
             eprintln!("Error writing to stdout: {}", e);
             return;
         }
