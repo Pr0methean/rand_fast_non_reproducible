@@ -337,22 +337,22 @@ pub(crate) fn mix(
     // ============================================================
     // Stage 2 MULs (again start early)
     // ============================================================
+    let (ma, _) = simd_mulsmall(c2 + d2, AVALANCHE_MULTIPLIERS_3);
 
     // -------------------------
     // More independent mixing while MUL latency resolves
     // -------------------------
-    let tx = t_raw + x_raw;
     let mut a3 = a2;
     let mut b3 = b2;
 
     a3 ^= b3.rotate_elements_left::<1>();
-    b3 += tx.rotate_elements_right::<1>();
-    let (ma, _) = simd_mulsmall(c2 + d2, AVALANCHE_MULTIPLIERS_3);
+    b3 += a3.rotate_elements_right::<1>();
 
     // ============================================================
     // Final consumption of ma/mb
     // ============================================================
-    let c3 = b3 + ma.rotate_elements_right::<1>();
+    let tx = t_raw + x_raw;
+    let c3 = mc + ma.rotate_elements_right::<1>();
     let a4 = rotl(ma.rotate_elements_left::<1>(), 21);
     let b4 = rotl(ma ^ c3.rotate_elements_left::<2>(), 49);
     let d4 = mc ^ tx.rotate_elements_left::<2>();
