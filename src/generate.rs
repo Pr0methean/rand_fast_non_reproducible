@@ -155,6 +155,7 @@ impl TripleMixSimdCore {
 
             // Interleave MWC state updates with PCG output multiplier latency
             let mwc_borrow = mwc_carry.simd_lt(mwc_kx_lo).to_simd().cast();
+            let pcg_raw = pcg_state_hi + pcg_state_lo;
             let mwc_next_state = mwc_carry - mwc_kx_lo;
             let mwc_next_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
 
@@ -164,6 +165,7 @@ impl TripleMixSimdCore {
             // TinyMT Step 5: Final output and transition prep
             let tm_out = tm_y ^ ((tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT));
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
+            let tm_raw = tm_x + tm_y;
             let pcg_output = (pcg_m >> pcg_rot) | (pcg_m << (Simd64::splat(64) - pcg_rot));
             let tm_next_0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             let tm_next_1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
@@ -174,6 +176,8 @@ impl TripleMixSimdCore {
                 tm_out,
                 mwc_next_carry,
                 i_mixed,
+                pcg_raw,
+                tm_raw
             );
 
             block[0..4].copy_from_slice(&x.to_array());
@@ -268,6 +272,8 @@ pub(crate) fn mix(
     t: Simd64,
     w_hi: Simd64,
     i: Simd64,
+    x_raw: Simd64,
+    t_raw: Simd64,
 ) -> (Simd64, Simd64) {
     const AVALANCHE_MULTIPLIERS_2: Simd64 = Simd::from_array([
         0xde82ef95,
@@ -282,9 +288,8 @@ pub(crate) fn mix(
         0xee677775,
     ]);
     let i_rotated = rotl(i, 29);
-
-    let mut a = w_lo;
-    let mut d = w_hi;
+    let mut a = w_lo + x_raw;
+    let mut d = w_hi ^ t_raw;
     let mut b = t ^ i;
     let mut c = x_in + i_rotated;
 
@@ -297,9 +302,9 @@ pub(crate) fn mix(
     // -------------------------
     // Round 2 (cross-lane)
     // -------------------------
-    a = a + b.rotate_elements_left::<1>();
+    a = a + x_raw.rotate_elements_left::<1>();
     d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
-    c = c + d.rotate_elements_left::<2>();
+    c = c + t_raw.rotate_elements_left::<2>();
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
     // ============================================================
@@ -346,10 +351,11 @@ pub(crate) fn mix(
     // ============================================================
     // Final consumption of ma/mb
     // ============================================================
+    let tx = t_raw + x_raw;
     let c3 = mc + ma.rotate_elements_right::<1>();
     let a4 = rotl(ma.rotate_elements_left::<1>(), 21);
     let b4 = rotl(ma ^ c3.rotate_elements_left::<2>(), 49);
-    let d4 = mc ^ ma.rotate_elements_left::<2>();
+    let d4 = mc ^ tx.rotate_elements_left::<2>();
 
     // -------------------------
     // Output combiners (unchanged structure)
@@ -361,8 +367,6 @@ pub(crate) fn mix(
 
     let y = bxd - adr;
     let x = axc ^ bcr;
-
-
     (x, y)
 }
 
@@ -401,11 +405,11 @@ mod tests {
         min_col_weight: usize,
     }
 
-    fn evaluate_mix_matrix(mix_input: [u64; 20]) -> MixMatrixStats {
+    fn evaluate_mix_matrix(mix_input: [u64; 28]) -> MixMatrixStats {
         let (base_input, base_out0, base_out1) = mix_from_flat_array(mix_input);
-        let mut xor_matrix = BitMatrix::<u64>::zeros(512, 1280);
+        let mut xor_matrix = BitMatrix::<u64>::zeros(512, 7 * 256);
         let mut i = 0;
-        for variable_idx in 0..5 {
+        for variable_idx in 0..7 {
             for lane_idx in 0..SIMD_WIDTH {
                 for bit_idx in 0..64 {
                     let mut modified_input = base_input.clone();
@@ -416,6 +420,8 @@ mod tests {
                         modified_input[2],
                         modified_input[3],
                         modified_input[4],
+                        modified_input[5],
+                        modified_input[6],
                     );
                     let (out_xor_0, out_xor_1) = (mod_out0 ^ base_out0, mod_out1 ^ base_out1);
                     let mut j = 0;
@@ -463,13 +469,15 @@ mod tests {
         }
     }
 
-    fn mix_from_flat_array(mix_input: [u64; 20]) -> ([Simd64; 5], Simd64, Simd64) {
+    fn mix_from_flat_array(mix_input: [u64; 28]) -> ([Simd64; 7], Simd64, Simd64) {
         let base_input = [
             Simd::from_array(mix_input[0..4].try_into().unwrap()),
             Simd::from_array(mix_input[4..8].try_into().unwrap()),
             Simd::from_array(mix_input[8..12].try_into().unwrap()),
             Simd::from_array(mix_input[12..16].try_into().unwrap()),
             Simd::from_array(mix_input[16..20].try_into().unwrap()),
+            Simd::from_array(mix_input[20..24].try_into().unwrap()),
+            Simd::from_array(mix_input[24..28].try_into().unwrap()),
         ];
         let (base_out0, base_out1) = mix(
             base_input[0],
@@ -477,6 +485,8 @@ mod tests {
             base_input[2],
             base_input[3],
             base_input[4],
+            base_input[5],
+            base_input[6],
         );
         (base_input, base_out0, base_out1)
     }
@@ -488,7 +498,7 @@ mod tests {
         stdev: f64,
     }
 
-    fn evaluate_second_order_derivatives(mix_input: [u64; 20]) -> SecondDerivativeStats {
+    fn evaluate_second_order_derivatives(mix_input: [u64; 28]) -> SecondDerivativeStats {
         let (base_input, base_out0, base_out1) = mix_from_flat_array(mix_input);
         let mut weights = Vec::new();
         for var_idx_1 in 0..5 {
@@ -507,6 +517,8 @@ mod tests {
                                         modified_input[2],
                                         modified_input[3],
                                         modified_input[4],
+                                        modified_input[5],
+                                        modified_input[6],
                                     );
                                     let (out_xor_0, out_xor_1) =
                                         (mod_out0 ^ base_out0, mod_out1 ^ base_out1);
@@ -527,6 +539,8 @@ mod tests {
                                     modified_input[2],
                                     modified_input[3],
                                     modified_input[4],
+                                    modified_input[5],
+                                    modified_input[6],
                                 );
                                 let (out_xor_0, out_xor_1) =
                                     (mod_out0 ^ base_out0, mod_out1 ^ base_out1);
@@ -564,8 +578,8 @@ mod tests {
     #[test]
     fn test_mix_matrix_random_inputs() {
         let mut rng = rng();
-        let mut mix_input = [0u64; 20];
-        let sigma = ((512 * 1280) as f64 * 0.25).sqrt();
+        let mut mix_input = [0u64; 28];
+        let sigma = ((512 * 7*256 ) as f64 * 0.25).sqrt();
         for _ in 0..5 {
             rng.fill(&mut mix_input);
             let MixMatrixStats {
@@ -573,7 +587,7 @@ mod tests {
                 min_row_weight,
                 min_col_weight,
             } = evaluate_mix_matrix(mix_input);
-            let z = (total_weight as f64 - (0.5 * 512.0 * 1280.0)) / sigma;
+            let z = (total_weight as f64 - (0.5 * 512.0 * 7.0 * 256.0)) / sigma;
             assert!(
                 min_col_weight >= 160,
                 "Min column weight {min_col_weight} too low"
@@ -590,7 +604,7 @@ mod tests {
     #[test]
     fn test_second_derivative_random_inputs() {
         let mut rng = rng();
-        let mut random_inputs = [0u64; 20];
+        let mut random_inputs = [0u64; 28];
         for _ in 0..5 {
             rng.fill(&mut random_inputs);
             let SecondDerivativeStats {
@@ -610,7 +624,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn test_mix_matrix_proptest(mix_input: [u64; 20]) {
+        fn test_mix_matrix_proptest(mix_input: [u64; 28]) {
             let MixMatrixStats { total_weight, min_row_weight, min_col_weight } =
                 evaluate_mix_matrix(mix_input);
             prop_assert!(min_col_weight >= 160);
@@ -621,7 +635,7 @@ mod tests {
         }
 
         #[test]
-        fn test_second_derivative_proptest(mix_input: [u64; 20]) {
+        fn test_second_derivative_proptest(mix_input: [u64; 28]) {
             let SecondDerivativeStats { min, max, mean, stdev } = evaluate_second_order_derivatives(mix_input);
             assert!(min >= 140, "Min weight {min} too low");
             assert!(max <= 372, "Max weight {max} too high");
