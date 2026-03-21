@@ -287,87 +287,69 @@ pub(crate) fn mix(
         0x133111eb,
         0xee677775,
     ]);
-    let i_rotated = rotl(i, 29);
-    let mut a = w_lo + x_raw;
-    let mut d = w_hi ^ t_raw;
-    let mut b = t ^ i;
-    let mut c = x_in + i_rotated;
 
-    // -------------------------
+    // Reuse input registers where possible - we don't need originals after use
+    let mut a = w_lo + x_raw;      // w_lo can be reused after this
+    let mut d = w_hi ^ t_raw;      // w_hi can be reused after this
+    let mut b = t ^ i;              // t and i can be reused
+    let mut c = x_in + rotl(i, 29); // x_in can be reused after this
+
     // Round 1 (lane-local ARX)
-    // -------------------------
-    a = a + b; d ^= a; d = rotl(d, 7);
-    c = c + d; b ^= c; b = rotl(b, 17);
+    a = a + b;
+    d ^= a;
+    d = rotl(d, 7);
+    c = c + d;
+    b ^= c;
+    b = rotl(b, 17);
 
-    // -------------------------
-    // Round 2 (cross-lane)
-    // -------------------------
+    // Round 2 (cross-lane) - compute rotations on the fly to save registers
+    // Instead of storing x_raw_l1, compute and use immediately
     a = a + x_raw.rotate_elements_left::<1>();
+
+    // Chain operations to reuse temporaries
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
+
     d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
+
     c = c + t_raw.rotate_elements_left::<2>();
 
-    // ============================================================
-    // Stage 1 MULs (start early, DO NOT consume yet)
-    // ============================================================
+    // Stage 1 MULs - start early
     let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
 
-    // -------------------------
-    // Independent mixing on (c, d) while MUL latency resolves
-    // -------------------------
-    let mut c2 = c;
-    let mut d2 = d;
+    // Independent mixing on (c, d) - reuse c register for result
+    let d_rotated = d.rotate_elements_right::<1>();
+    c = c + d_rotated;  // c now holds c2
+    d = rotl(d ^ c.rotate_elements_left::<1>(), 23);
 
-    c2 = c2 + d2.rotate_elements_right::<1>();
-    d2 = rotl(d2 ^ c2.rotate_elements_left::<1>(), 23);
+    // Consume mc - compute rotations on the fly to minimize register usage
+    let a_temp = rotl(a + mc.rotate_elements_left::<1>(), 43);
+    let b_temp = rotl(b ^ mc.rotate_elements_right::<1>(), 13);
+    a = a_temp;  // Reassign to original registers
+    b = b_temp;
 
-    // ============================================================
-    // Now consume md/mc (latency mostly hidden)
-    // ============================================================
-    let mut a2 = a;
-    let mut b2 = b;
+    // Cross-mix domains - compute and use immediately
+    c ^= a.rotate_elements_left::<2>();
+    d += b.rotate_elements_left::<2>();
 
-    a2 = rotl(a2 + mc.rotate_elements_left::<1>(), 43);
-    b2 = rotl(b2 ^ mc.rotate_elements_right::<1>(), 13);
+    // Stage 2 MULs - start early
+    let (ma, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
 
-    // Cross-mix domains
-    c2 ^= a2.rotate_elements_left::<2>();
-    d2 += b2.rotate_elements_left::<2>();
-
-    // ============================================================
-    // Stage 2 MULs (again start early)
-    // ============================================================
-    let (ma, _) = simd_mulsmall(c2 + d2, AVALANCHE_MULTIPLIERS_3);
-
-    // -------------------------
-    // More independent mixing while MUL latency resolves
-    // -------------------------
-    let mut a3 = a2;
-    let mut b3 = b2;
-
-    a3 ^= b3.rotate_elements_left::<1>();
-    b3 += a3.rotate_elements_right::<1>();
-
-    // ============================================================
-    // Final consumption of ma/mb
-    // ============================================================
+    // Final consumption - compute directly without extra temporaries
     let tx = t_raw + x_raw;
-    let c3 = mc + ma.rotate_elements_right::<1>();
-    let a4 = rotl(ma.rotate_elements_left::<1>(), 21);
-    let b4 = rotl(ma ^ c3.rotate_elements_left::<2>(), 49);
-    let d4 = mc ^ tx.rotate_elements_left::<2>();
 
-    // -------------------------
-    // Output combiners (unchanged structure)
-    // -------------------------
-    let adr = rotl(a4 + d, 39);
-    let bcr = rotl(b4 ^ c3, 11);
-    let bxd = b4 + d4;
-    let axc = a4 ^ c3;
+    // Chain final calculations to minimize live registers
+    let ma_rotated = ma.rotate_elements_right::<1>();
+    let c_final = mc + ma_rotated;
 
-    let y = bxd - adr;
-    let x = axc ^ bcr;
-    (x, y)
+    let a_final = rotl(ma.rotate_elements_left::<1>(), 21);
+    let b_final = rotl(ma ^ c_final.rotate_elements_left::<2>(), 49);
+    let d_final = mc ^ tx.rotate_elements_left::<2>();
+
+    // Output combiners - compute directly
+    let adr = rotl(a_final + d, 39);
+    let bcr = rotl(b_final ^ c_final, 11);
+
+    (a_final ^ c_final ^ bcr, (b_final + d_final) - adr)
 }
 
 impl Generator for TripleMixSimdCore {
