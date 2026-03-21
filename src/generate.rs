@@ -332,7 +332,7 @@ pub(crate) fn mix(
 
     // Cross-mix domains
     c2 ^= a2.rotate_elements_left::<2>();
-    d2 += b2.rotate_elements_right::<2>();
+    d2 += b2.rotate_elements_left::<2>();
 
     // ============================================================
     // Stage 2 MULs (again start early)
