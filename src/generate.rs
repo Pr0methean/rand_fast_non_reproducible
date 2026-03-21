@@ -303,9 +303,9 @@ pub(crate) fn mix(
     // Round 2 (cross-lane)
     // -------------------------
     a = a + x_raw.rotate_elements_left::<1>();
+    b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
     d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
     c = c + t_raw.rotate_elements_left::<2>();
-    b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
 
     // ============================================================
     // Stage 1 MULs (start early, DO NOT consume yet)
