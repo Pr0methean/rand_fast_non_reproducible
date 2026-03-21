@@ -308,18 +308,16 @@ pub(crate) fn mix(
 
     // Chain operations to reuse temporaries
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
-
-    d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
-
     c = c + t_raw.rotate_elements_left::<2>();
+    d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
 
     // Stage 1 MULs - start early
     let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
 
     // Independent mixing on (c, d) - reuse c register for result
     let d_rotated = d.rotate_elements_right::<1>();
-    c = c + d_rotated;  // c now holds c2
     d = rotl(d ^ c.rotate_elements_left::<1>(), 23);
+    c = c + d_rotated;  // c now holds c2
 
     // Consume mc - compute rotations on the fly to minimize register usage
     let a_temp = rotl(a + mc.rotate_elements_left::<1>(), 43);
@@ -339,9 +337,8 @@ pub(crate) fn mix(
 
     // Chain final calculations to minimize live registers
     let ma_rotated = ma.rotate_elements_right::<1>();
-    let c_final = mc + ma_rotated;
-
     let a_final = rotl(ma.rotate_elements_left::<1>(), 21);
+    let c_final = mc + ma_rotated;
     let b_final = rotl(ma ^ c_final.rotate_elements_left::<2>(), 49);
     let d_final = mc ^ tx.rotate_elements_left::<2>();
 
