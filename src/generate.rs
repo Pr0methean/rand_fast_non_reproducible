@@ -288,11 +288,11 @@ pub(crate) fn mix(
         0xee677775,
     ]);
 
-    // Reuse input registers where possible - we don't need originals after use
-    let mut a = w_lo + x_raw;      // w_lo can be reused after this
-    let mut d = w_hi ^ t_raw;      // w_hi can be reused after this
-    let mut b = t ^ i;              // t and i can be reused
-    let mut c = x_in + rotl(i, 29); // x_in can be reused after this
+    let i_rotated = rotl(i, 29);
+    let mut a = w_lo + x_raw;
+    let mut d = w_hi ^ t_raw;
+    let mut b = t ^ i;
+    let mut c = x_in + i_rotated;
 
     // Round 1 (lane-local ARX)
     a = a + b;
@@ -302,51 +302,46 @@ pub(crate) fn mix(
     b ^= c;
     b = rotl(b, 17);
 
-    // Round 2 (cross-lane) - compute rotations on the fly to save registers
-    // Instead of storing x_raw_l1, compute and use immediately
+    // Round 2 (cross-lane)
     a = a + x_raw.rotate_elements_left::<1>();
-
-    // Chain operations to reuse temporaries
     b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
-    c = c + t_raw.rotate_elements_left::<2>();
     d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
+    c = c + t_raw.rotate_elements_left::<2>();
 
-    // Stage 1 MULs - start early
+    // Stage 1 MULs
     let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
 
-    // Independent mixing on (c, d) - reuse c register for result
-    let d_rotated = d.rotate_elements_right::<1>();
-    d = rotl(d ^ c.rotate_elements_left::<1>(), 23);
-    c = c + d_rotated;  // c now holds c2
+    // Independent mixing on (c, d)
+    let c2 = c + d.rotate_elements_right::<1>();
+    let d2 = rotl(d ^ c2.rotate_elements_left::<1>(), 23);
 
-    // Consume mc - compute rotations on the fly to minimize register usage
-    let a_temp = rotl(a + mc.rotate_elements_left::<1>(), 43);
-    let b_temp = rotl(b ^ mc.rotate_elements_right::<1>(), 13);
-    a = a_temp;  // Reassign to original registers
-    b = b_temp;
+    // Consume mc and cross-mix
+    let a2 = rotl(a + mc.rotate_elements_left::<1>(), 43);
+    let b2 = rotl(b ^ mc.rotate_elements_right::<1>(), 13);
+    let c3 = c2 ^ a2.rotate_elements_left::<2>();
+    let d3 = d2 + b2.rotate_elements_left::<2>();
 
-    // Cross-mix domains - compute and use immediately
-    c ^= a.rotate_elements_left::<2>();
-    d += b.rotate_elements_left::<2>();
+    // Stage 2 MULs
+    let (ma, _) = simd_mulsmall(c3 + d3, AVALANCHE_MULTIPLIERS_3);
 
-    // Stage 2 MULs - start early
-    let (ma, _) = simd_mulsmall(c + d, AVALANCHE_MULTIPLIERS_3);
+    // Independent mixing on (a2, b2) - these become a3, b3
+    // let a3 = a2 ^ b2.rotate_elements_left::<1>();
+    // let b3 = b2 + a3.rotate_elements_right::<1>();
 
-    // Final consumption - compute directly without extra temporaries
+    // Final consumption - uses a3, b3, ma, mc, and d3
     let tx = t_raw + x_raw;
+    let c4 = mc + ma.rotate_elements_right::<1>();
+    let a4 = rotl(ma.rotate_elements_left::<1>(), 21);
+    let b4 = rotl(ma ^ c4.rotate_elements_left::<2>(), 49);
+    let d4 = mc ^ tx.rotate_elements_left::<2>();
 
-    // Chain final calculations to minimize live registers
-    let ma_rotated = ma.rotate_elements_right::<1>();
-    let a_final = rotl(ma.rotate_elements_left::<1>(), 21);
-    let c_final = mc + ma_rotated;
-    let b_final = rotl(ma ^ c_final.rotate_elements_left::<2>(), 49);
-    let d_final = mc ^ tx.rotate_elements_left::<2>();
+    // Output combiners
+    let adr = rotl(a4 + d3, 39);
+    let bcr = rotl(b4 ^ c4, 11);
+    let bxd = b4 + d4;
+    let axc = a4 ^ c4;
 
-    // Output combiners - compute directly
-    let adr = rotl(a_final + d, 39);
-    let bcr = rotl(b_final ^ c_final, 11);
-
-    (a_final ^ c_final ^ bcr, (b_final + d_final) - adr)
+    (axc ^ bcr, bxd - adr)
 }
 
 impl Generator for TripleMixSimdCore {
@@ -1339,8 +1334,8 @@ mod tests {
             );
         }
 
-        assert!(mean_rank >= 2040.0, "Mean rank too low: {:.2}", mean_rank);
-        assert!(std_dev <= 2.0, "Too much variation: {:.2}", std_dev);
+        assert!(mean_rank >= 2043.0, "Mean rank too low: {:.2}", mean_rank);
+        assert!(std_dev <= 1.0, "Too much variation: {:.2}", std_dev);
     }
     #[test]
     fn test_for_profiling() {
