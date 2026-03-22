@@ -266,6 +266,14 @@ fn rotl(x: Simd64, k: u64) -> Simd64 {
 }
 
 #[inline(always)]
+fn mix3(x: Simd64, y: Simd64, z: Simd64) -> (Simd64, Simd64, Simd64) {
+    let (mxy, cxy) = simd_mulsmall(x, y >> 32);
+    let (myz, cyz) = simd_mulsmall(y, z >> 32);
+    let (mzx, czx) = simd_mulsmall(z, x >> 32);
+    (x ^ (myz + czx), y ^ (mzx + cxy), z ^ (mxy + cyz))
+}
+
+#[inline(always)]
 pub(crate) fn mix(
     w_lo: Simd64,
     x_in: Simd64,
@@ -275,73 +283,35 @@ pub(crate) fn mix(
     x_raw: Simd64,
     t_raw: Simd64,
 ) -> (Simd64, Simd64) {
-    const AVALANCHE_MULTIPLIERS_2: Simd64 = Simd::from_array([
-        0xde82ef95,
-        0x963ee407,
-        0x1e98df25,
-        0x27d4eb4f,
+    const FEISTEL_CONSTANT_1: Simd64 = Simd::from_array([
+        0x9E3779B97F4A7C15,
+        0x2767f0b153d27b7f,
+        0xf06ad7ae9717877e,
+        0x626e33b8d04b4331,
     ]);
-    const AVALANCHE_MULTIPLIERS_3: Simd64 = Simd::from_array([
-        0xce559b5b,
-        0xacc9d61b,
-        0x133111eb,
-        0xee677775,
+    const FEISTEL_CONSTANT_2: Simd64 = Simd::from_array([
+        0xf39cc0605cedc834,
+        0x0347045b5bf1827f,
+        0x85839d6effbd7dc6,
+        0xbbf73c790d94f79d,
     ]);
-
-    let i_rotated = rotl(i, 29);
-    let mut a = w_lo + x_raw;
-    let mut d = w_hi ^ t_raw;
-    let mut b = t ^ i;
-    let mut c = x_in + i_rotated;
-
-    // Round 1 (lane-local ARX)
-    a = a + b;
-    d ^= a;
-    d = rotl(d, 7);
-    c = c + d;
-    b ^= c;
-    b = rotl(b, 17);
-
-    // Round 2 (cross-lane)
-    a = a + x_raw.rotate_elements_left::<1>();
-    b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
-    d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
-    c = c + t_raw.rotate_elements_left::<2>();
-
-    // Stage 1 MULs
-    let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
-
-    // Independent mixing on (c, d)
-    let c2 = c + d.rotate_elements_right::<1>();
-    let d2 = rotl(d ^ c2.rotate_elements_left::<1>(), 23);
-
-    // Consume mc and cross-mix
-    let a2 = rotl(a + mc.rotate_elements_left::<1>(), 43);
-    let b2 = rotl(b ^ mc.rotate_elements_right::<1>(), 13);
-    let c3 = c2 ^ a2.rotate_elements_left::<2>();
-    let d3 = d2 + b2.rotate_elements_left::<2>();
-
-    // Stage 2 MULs
-    let (ma, _) = simd_mulsmall(c3 + d3, AVALANCHE_MULTIPLIERS_3);
-
-    // Independent mixing on (a2, b2) - these become a3, b3
-    let a3 = a2 ^ b2.rotate_elements_left::<1>();
-    let b3 = b2 + a3.rotate_elements_right::<1>();
-
-    // Final consumption - uses a3, b3, ma, mc, and d3
-    let tx = t_raw + x_raw;
-    let c4 = mc + ma.rotate_elements_right::<1>();
-    let a4 = rotl(ma.rotate_elements_left::<1>(), 21);
-    let b4 = rotl(ma ^ c4.rotate_elements_left::<2>(), 49);
-    let d4 = mc ^ tx.rotate_elements_left::<2>();
-
-    // Output combiners
-    let adr = rotl(a4 + d3, 39);
-    let bcr = rotl(b3 ^ c4, 11);
-    let bxd = b4 + d4;
-    let axc = a3 ^ c4;
-
-    (axc ^ bcr, bxd - adr)
+    let a = FEISTEL_CONSTANT_1;
+    let b = FEISTEL_CONSTANT_2;
+    let c = i;
+    let (mut a, mut b, mut c) = mix3(a + x_in, b + t, c ^ w_hi);
+    a = rotl(a.rotate_elements_left::<1>(), 13);
+    b = rotl(b, 31);
+    c = rotl(c.rotate_elements_left::<2>(), 23);
+    let (mut a, mut b, mut c) = mix3(a + t_raw, b ^ w_lo, c + x_raw);
+    a = rotl(a.rotate_elements_left::<2>(), 11);
+    b = rotl(b.rotate_elements_left::<1>(), 43);
+    c = rotl(c, 29);
+    let (mut a, mut b, mut c) = mix3(a + w_hi, b + i, c + w_lo);
+    a = rotl(a, 38);
+    b = rotl(b.rotate_elements_left::<2>(), 17);
+    c = rotl(c.rotate_elements_left::<1>(), 19);
+    let (a, b, c) = mix3(a - b, b - c, c - a);
+    (a + (b | c), b + (a & c))
 }
 
 impl Generator for TripleMixSimdCore {
@@ -567,7 +537,7 @@ mod tests {
                 "Min column weight {min_col_weight} too low"
             );
             assert!(
-                min_row_weight >= 384,
+                min_row_weight >= 800,
                 "Min row weight {min_row_weight} too low"
             );
             assert!(z >= -3.0, "Total weight {total_weight} (z={z}) too low");
