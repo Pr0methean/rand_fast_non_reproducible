@@ -325,8 +325,8 @@ pub(crate) fn mix(
     let (ma, _) = simd_mulsmall(c3 + d3, AVALANCHE_MULTIPLIERS_3);
 
     // Independent mixing on (a2, b2) - these become a3, b3
-    // let a3 = a2 ^ b2.rotate_elements_left::<1>();
-    // let b3 = b2 + a3.rotate_elements_right::<1>();
+    let a3 = a2 ^ b2.rotate_elements_left::<1>();
+    let b3 = b2 + a3.rotate_elements_right::<1>();
 
     // Final consumption - uses a3, b3, ma, mc, and d3
     let tx = t_raw + x_raw;
@@ -337,9 +337,9 @@ pub(crate) fn mix(
 
     // Output combiners
     let adr = rotl(a4 + d3, 39);
-    let bcr = rotl(b4 ^ c4, 11);
+    let bcr = rotl(b3 ^ c4, 11);
     let bxd = b4 + d4;
-    let axc = a4 ^ c4;
+    let axc = a3 ^ c4;
 
     (axc ^ bcr, bxd - adr)
 }
