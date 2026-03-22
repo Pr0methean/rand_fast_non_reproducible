@@ -5,7 +5,7 @@ use core::simd::num::SimdUint;
 use core::simd::Simd;
 use core::slice::from_mut;
 use rand_core::block::Generator;
-use std::simd::Select;
+use std::simd::{Select, ToBytes};
 
 #[cfg(all(
     target_arch = "x86_64",
@@ -259,18 +259,75 @@ pub(crate) const SIMD_WIDTH: usize = 4;
 pub(crate) const OUTPUTS_PER_STEP: usize = 2;
 
 pub(crate) type Simd64 = Simd<u64, SIMD_WIDTH>;
+type Simd32 = Simd<u32, { SIMD_WIDTH * 2 }>;
 
+// You already have this from the previous step
 #[inline(always)]
-fn rotl(x: Simd64, k: u64) -> Simd64 {
-    (x << Simd::splat(k)) | (x >> Simd::splat(64 - k))
+fn mix3_single_mul(x: Simd64, y: Simd64, z: Simd64) -> (Simd64, Simd64, Simd64) {
+    // (same as previously provided)
+    let x32: Simd32 = Simd32::from_ne_bytes(x.to_ne_bytes());
+    let y32: Simd32 = Simd32::from_ne_bytes(y.to_ne_bytes());
+    let z32: Simd32 = Simd32::from_ne_bytes(z.to_ne_bytes());
+
+    #[inline(always)]
+    fn mul_lo_hi_epu32(a: Simd32, b: Simd32) -> Simd64 {
+        // On AVX2, this maps to _mm256_mul_epu32: multiplies even lanes of a and b.
+        // Extract even lanes manually and widen to u64
+        let a_even: Simd<u64, 4> = Simd::from_array([
+            a[0] as u64,
+            a[2] as u64,
+            a[4] as u64,
+            a[6] as u64,
+        ]);
+        let b_even: Simd<u64, 4> = Simd::from_array([
+            b[0] as u64,
+            b[2] as u64,
+            b[4] as u64,
+            b[6] as u64,
+        ]);
+
+        a_even * b_even
+  }
+
+    // --- single MUL layer ---
+    let mxy = mul_lo_hi_epu32(x32, y32);
+    let myz = mul_lo_hi_epu32(y32, z32);
+    let mzx = mul_lo_hi_epu32(z32, x32);
+
+    // --- asymmetric injection ---
+    let mut a = x ^ (myz + rotl(z, 29));
+    let mut b = y ^ (mzx + rotl(x, 41));
+    let mut c = z ^ (mxy + rotl(y, 13));
+
+    // --- ARX expansion ---
+    let t0 = a + rotl(b, 17);
+    let t1 = b + rotl(c, 23);
+    let t2 = c + rotl(a, 31);
+
+    a ^= t1;
+    b ^= t2;
+    c ^= t0;
+
+    // --- second ARX layer ---
+    let u0 = a + rotl(c, 37);
+    let u1 = b + rotl(a, 19);
+    let u2 = c + rotl(b, 43);
+
+    a ^= u1;
+    b ^= u2;
+    c ^= u0;
+
+    // --- final alignment-breaking rotations ---
+    a = rotl(a, 53);
+    b = rotl(b, 27);
+    c = rotl(c, 46);
+
+    (a, b, c)
 }
 
 #[inline(always)]
-fn mix3(x: Simd64, y: Simd64, z: Simd64) -> (Simd64, Simd64, Simd64) {
-    let (mxy, cxy) = simd_mulsmall(x, y >> 32);
-    let (myz, cyz) = simd_mulsmall(y, z >> 32);
-    let (mzx, czx) = simd_mulsmall(z, x >> 32);
-    (x ^ (myz + czx), y ^ (mzx + cxy), z ^ (mxy + cyz))
+fn rotl(x: Simd64, k: u32) -> Simd64 {
+    (x << (k as u64)) | (x >> (64 - k) as u64)
 }
 
 #[inline(always)]
@@ -283,35 +340,58 @@ pub(crate) fn mix(
     x_raw: Simd64,
     t_raw: Simd64,
 ) -> (Simd64, Simd64) {
-    const FEISTEL_CONSTANT_1: Simd64 = Simd::from_array([
-        0x9E3779B97F4A7C15,
-        0x2767f0b153d27b7f,
-        0xf06ad7ae9717877e,
-        0x626e33b8d04b4331,
+    const C1: Simd64 = Simd::from_array([
+        0x9E3779B97F4A7C15, 0x2767F0B153D27B7F,
+        0xF06AD7AE9717877E, 0x626E33B8D04B4331,
     ]);
-    const FEISTEL_CONSTANT_2: Simd64 = Simd::from_array([
-        0xf39cc0605cedc834,
-        0x0347045b5bf1827f,
-        0x85839d6effbd7dc6,
-        0xbbf73c790d94f79d,
+    const C2: Simd64 = Simd::from_array([
+        0xF39CC0605CEDC834, 0x0347045B5BF1827F,
+        0x85839D6EFFBD7DC6, 0xBBF73C790D94F79D,
     ]);
-    let a = FEISTEL_CONSTANT_1;
-    let b = FEISTEL_CONSTANT_2;
-    let c = i;
-    let (mut a, mut b, mut c) = mix3(a + x_in, b + t, c ^ w_hi);
-    a = rotl(a.rotate_elements_left::<1>(), 13);
-    b = rotl(b, 31);
-    c = rotl(c.rotate_elements_left::<2>(), 23);
-    let (mut a, mut b, mut c) = mix3(a + t_raw, b ^ w_lo, c + x_raw);
-    a = rotl(a.rotate_elements_left::<2>(), 11);
-    b = rotl(b.rotate_elements_left::<1>(), 43);
-    c = rotl(c, 29);
-    let (mut a, mut b, mut c) = mix3(a + w_hi, b + i, c + w_lo);
-    a = rotl(a, 38);
-    b = rotl(b.rotate_elements_left::<2>(), 17);
-    c = rotl(c.rotate_elements_left::<1>(), 19);
-    let (a, b, c) = mix3(a - b, b - c, c - a);
-    (a + (b | c), b + (a & c))
+
+    // =========================================================
+    // Round 1 (strong dispersion, no mod-32 collisions)
+    // =========================================================
+    let (mut a, mut b, mut c) = mix3_single_mul(C1 + x_in, C2 + t, i ^ w_hi);
+    a = rotl(a.rotate_elements_left::<1>(), 21);
+    b = rotl(b, 37);
+    c = rotl(c.rotate_elements_left::<2>(), 46);
+
+    // =========================================================
+    // Round 2 (introduce raw inputs + asymmetry)
+    // =========================================================
+    let (mut a, mut b, mut c) = mix3_single_mul(a + t_raw, b ^ w_lo, c + x_raw);
+    a = rotl(a.rotate_elements_left::<2>(), 9);
+    b = rotl(b.rotate_elements_left::<1>(), 27);
+    c = rotl(c, 41);
+
+    // --- asymmetric kicker (critical for ≥160) ---
+    a ^= rotl(b, 7);
+    b ^= rotl(c, 11);
+    c ^= rotl(a, 19);
+
+    // =========================================================
+    // Round 3 (high-bit mixing emphasis)
+    // =========================================================
+    let (mut a, mut b, mut c) = mix3_single_mul(a + w_hi, b + i, c + w_lo);
+    a = rotl(a, 53);
+    b = rotl(b.rotate_elements_left::<2>(), 14);
+    c = rotl(c.rotate_elements_left::<1>(), 33);
+
+    // =========================================================
+    // Final non-symmetric Feistel (breaks linear cycles)
+    // =========================================================
+    let (a, b, c) = mix3_single_mul(
+        a - rotl(b, 7),
+        b - rotl(c, 13),
+        c - rotl(a, 29),
+    );
+
+    // Slightly asymmetric output combine
+    let out0 = a + (b | rotl(c, 17));
+    let out1 = b + (c ^ rotl(a, 23));
+
+    (out0, out1)
 }
 
 impl Generator for TripleMixSimdCore {
