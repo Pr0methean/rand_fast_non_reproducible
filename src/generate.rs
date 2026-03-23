@@ -275,118 +275,6 @@ fn rotl32(x: Simd32, r: u32) -> Simd32 {
 }
 
 #[inline(always)]
-fn mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
-    // Extract even lanes: 0,2,4,6
-    let a_even = Simd64::from_array([
-        a[0] as u64,
-        a[2] as u64,
-        a[4] as u64,
-        a[6] as u64,
-    ]);
-
-    let b_even = Simd64::from_array([
-        b[0] as u64,
-        b[2] as u64,
-        b[4] as u64,
-        b[6] as u64,
-    ]);
-
-    // Extract odd lanes: 1,3,5,7
-    let a_odd = Simd64::from_array([
-        a[1] as u64,
-        a[3] as u64,
-        a[5] as u64,
-        a[7] as u64,
-    ]);
-
-    let b_odd = Simd64::from_array([
-        b[1] as u64,
-        b[3] as u64,
-        b[5] as u64,
-        b[7] as u64,
-    ]);
-
-    let prod_even = a_even * b_even;
-    let prod_odd  = a_odd  * b_odd;
-
-    let pe = prod_even.to_array();
-    let po = prod_odd.to_array();
-
-    // Reconstruct interleaved results
-    let lo = Simd32::from_array([
-        pe[0] as u32,
-        po[0] as u32,
-        pe[1] as u32,
-        po[1] as u32,
-        pe[2] as u32,
-        po[2] as u32,
-        pe[3] as u32,
-        po[3] as u32,
-    ]);
-
-    let hi = Simd32::from_array([
-        (pe[0] >> 32) as u32,
-        (po[0] >> 32) as u32,
-        (pe[1] >> 32) as u32,
-        (po[1] >> 32) as u32,
-        (pe[2] >> 32) as u32,
-        (po[2] >> 32) as u32,
-        (pe[3] >> 32) as u32,
-        (po[3] >> 32) as u32,
-    ]);
-
-    (lo, hi)
-}
-
-#[inline(always)]
-fn round3_simd(
-    mut a: Simd32,
-    mut b: Simd32,
-    mut c: Simd32,
-    x0: Simd32,
-    x1: Simd32,
-    x2: Simd32,
-    x3: Simd32,
-    x4: Simd32,
-    x5: Simd32,
-    x6: Simd32,
-) -> (Simd32, Simd32, Simd32) {
-    a += x0;
-    b ^= x1;
-    c += x2;
-
-    a ^= x3;
-    b += x4;
-    c ^= x5;
-
-    let (m0_lo, m0_hi) = mul_lo_hi(a, b);
-    let (m1_lo, m1_hi) = mul_lo_hi(b, c);
-
-    a ^= m1_hi;
-    b ^= m0_lo;
-    c ^= m0_hi;
-
-    a = rotl32(a, 11);
-    b = rotl32(b, 17);
-    c = rotl32(c, 23);
-
-    let (m2_lo, m2_hi) = mul_lo_hi(a, c);
-
-    a += m2_hi;
-    b += m1_lo;
-    c += m2_lo;
-
-    a += x6;
-    b ^= x0;
-    c += x1;
-
-    a = rotl32(a, 19);
-    b = rotl32(b, 29);
-    c = rotl32(c, 13);
-
-    (a, b, c)
-}
-
 pub fn mix(
     x0: Simd64,
     x1: Simd64,
@@ -396,19 +284,133 @@ pub fn mix(
     x5: Simd64,
     x6: Simd64,
 ) -> (Simd64, Simd64, Simd64) {
-    let (x0, x1, x2, x3, x4, x5, x6) = unsafe {
-        transmute((x0, x1, x2, x3, x4, x5, x6))
-    };
+    mix_with_shifts(x0, x1, x2, x3, x4, x5, x6, [7; 21])
+}
+#[inline(always)]
+pub fn mix_with_shifts(
+    x0: Simd64,
+    x1: Simd64,
+    x2: Simd64,
+    x3: Simd64,
+    x4: Simd64,
+    x5: Simd64,
+    x6: Simd64,
+    shifts: [u32; 21]
+) -> (Simd64, Simd64, Simd64) {
+    fn pack_u32x8_to_u64x4(x: Simd<u32, 8>) -> Simd<u64, 4> {
+        let arr = x.to_array();
+        Simd::from_array([
+            (arr[0] as u64) | ((arr[1] as u64) << 32),
+            (arr[2] as u64) | ((arr[3] as u64) << 32),
+            (arr[4] as u64) | ((arr[5] as u64) << 32),
+            (arr[6] as u64) | ((arr[7] as u64) << 32),
+        ])
+    }
 
+    #[inline(always)]
+    fn unpack_u64x4_to_u32x8(x: Simd<u64, 4>) -> Simd<u32, 8> {
+        let arr = x.to_array();
+        Simd::from_array([
+            arr[0] as u32,
+            (arr[0] >> 32) as u32,
+            arr[1] as u32,
+            (arr[1] >> 32) as u32,
+            arr[2] as u32,
+            (arr[2] >> 32) as u32,
+            arr[3] as u32,
+            (arr[3] >> 32) as u32,
+        ])
+    }
+
+    // Convert inputs to u32x8 (portable)
+    let xi = [
+        unpack_u64x4_to_u32x8(x0),
+        unpack_u64x4_to_u32x8(x1),
+        unpack_u64x4_to_u32x8(x2),
+        unpack_u64x4_to_u32x8(x3),
+        unpack_u64x4_to_u32x8(x4),
+        unpack_u64x4_to_u32x8(x5),
+        unpack_u64x4_to_u32x8(x6),
+    ];
+
+    // Initial state vectors
     let mut a = Simd32::splat(0x243f6a88);
     let mut b = Simd32::splat(0x9e3779b9);
     let mut c = Simd32::splat(0xb7e15162);
 
-    (a, b, c) = round3_simd(a, b, c, x0, x1, x2, x3, x4, x5, x6);
-    (a, b, c) = round3_simd(a, b, c, x3, x4, x5, x6, x0, x1, x2);
-    (a, b, c) = round3_simd(a, b, c, x6, x0, x1, x2, x3, x4, x5);
+    // Rotation helper
+    #[inline(always)]
+    fn rotl32(x: Simd32, k: u32) -> Simd32 {
+        (x << Simd32::splat(k)) | (x >> Simd32::splat(32 - k))
+    }
 
-    // simple lane-mixing substitute (portable)
+    // Portable multiply-high + low (per-lane)
+    #[inline(always)]
+    fn mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
+        let a64 = pack_u32x8_to_u64x4(a);
+        let b64 = pack_u32x8_to_u64x4(b);
+        let prod = a64 * b64;
+        let lo = unpack_u64x4_to_u32x8(prod);
+        let hi = unpack_u64x4_to_u32x8(prod >> Simd64::splat(32));
+        (lo, hi)
+    }
+
+    #[inline(always)]
+    fn round3(
+        mut a: Simd32,
+        mut b: Simd32,
+        mut c: Simd32,
+        inputs: &[Simd32; 7],
+        shift1: u32,
+        shift2: u32,
+        shift3: u32,
+        shift4: u32,
+        shift5: u32,
+        shift6: u32,
+    ) -> (Simd32, Simd32, Simd32) {
+        // Mix inputs
+        a += inputs[0];
+        b ^= inputs[1];
+        c += inputs[2];
+
+        a ^= inputs[3];
+        b += inputs[4];
+        c ^= inputs[5];
+
+        // Nonlinear layer
+        let (m0_lo, m0_hi) = mul_lo_hi(a, b);
+        let (m1_lo, m1_hi) = mul_lo_hi(b, c);
+
+        // Cross-lane mixing mid-round (portable substitute for lane diffusion)
+        a ^= m1_hi ^ b.rotate_elements_right::<1>();
+        b ^= m0_lo ^ c.rotate_elements_right::<2>();
+        c ^= m0_hi ^ a.rotate_elements_right::<3>();
+
+        // Rotate
+        a = rotl32(a, shift1);
+        b = rotl32(b, shift2);
+        c = rotl32(c, shift3);
+
+        // Another nonlinear layer
+        let (m2_lo, m2_hi) = mul_lo_hi(a, c);
+        a += m2_hi + inputs[6];
+        b += m1_lo ^ inputs[0];
+        c += m2_lo + inputs[1];
+
+        // Final rotate
+        a = rotl32(a, shift4);
+        b = rotl32(b, shift5);
+        c = rotl32(c, shift6);
+
+        (a, b, c)
+    }
+
+    // Three rounds with rotated inputs
+    (a, b, c) = round3(a, b, c, &xi, shifts[0], shifts[1], shifts[2], shifts[3], shifts[4], shifts[5]);
+    (a, b, c) = round3(a, b, c, &[xi[3], xi[4], xi[5], xi[6], xi[0], xi[1], xi[2]], shifts[6], shifts[7], shifts[8], shifts[9], shifts[10], shifts[11]);
+    (a, b, c) = round3(a, b, c, &[xi[6], xi[0], xi[1], xi[2], xi[3], xi[4], xi[5]], shifts[12], shifts[13], shifts[14], shifts[15], shifts[16], shifts[17]);
+
+    // Final cross-lane permutation
     let b_perm = b.rotate_elements_right::<2>();
     let c_perm = c.rotate_elements_right::<1>();
 
@@ -416,17 +418,18 @@ pub fn mix(
     b += c_perm;
     c ^= a;
 
+    // Final nonlinear layer
     let (m_lo, m_hi) = mul_lo_hi(a, b);
-
     a ^= m_hi;
     b ^= m_lo;
     c += m_hi;
 
-    a = rotl32(a, 15);
-    b = rotl32(b, 21);
-    c = rotl32(c, 27);
+    a = rotl32(a, shifts[18]);
+    b = rotl32(b, shifts[19]);
+    c = rotl32(c, shifts[20]);
 
-    unsafe { transmute((a, b, c)) }
+    // Convert back to u64x4 by casting and packing
+    (pack_u32x8_to_u64x4(a), pack_u32x8_to_u64x4(b), pack_u32x8_to_u64x4(c))
 }
 
 impl Generator for TripleMixSimdCore {
@@ -464,11 +467,12 @@ mod tests {
         min_col_weight: usize,
     }
 
+    const AVALANCHE_MATRIX_ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
+    const AVALANCHE_MATRIX_COLS: usize = 8 * size_of::<Simd64>() * MIX_INPUTS;
+
     fn evaluate_mix_matrix(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) -> MixMatrixStats {
-        const ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
-        const COLS: usize = 8 * size_of::<Simd64>() * MIX_INPUTS;
         let (base_input, base_out0, base_out1, base_out2) = mix_from_flat_array(mix_input);
-        let mut xor_matrix = BitMatrix::<u64>::zeros(ROWS, COLS);
+        let mut xor_matrix = BitMatrix::<u64>::zeros(AVALANCHE_MATRIX_ROWS, AVALANCHE_MATRIX_COLS);
         let mut i = 0;
         for variable_idx in 0..MIX_INPUTS {
             for lane_idx in 0..SIMD_WIDTH {
@@ -504,13 +508,13 @@ mod tests {
                 }
             }
         }
-        assert_eq!(xor_matrix.clone().to_echelon_form().count_ones(), ROWS);
-        let row_weights = (0..ROWS)
+        assert_eq!(xor_matrix.clone().to_echelon_form().count_ones(), AVALANCHE_MATRIX_ROWS);
+        let row_weights = (0..AVALANCHE_MATRIX_ROWS)
             .map(|row| xor_matrix.row(row).count_ones())
             .collect::<Vec<_>>();
         let min_row_weight = row_weights.iter().copied().min().unwrap();
         let max_row_weight = row_weights.iter().copied().max().unwrap();
-        let col_weights = (0..COLS)
+        let col_weights = (0..AVALANCHE_MATRIX_COLS)
             .map(|col| xor_matrix.col(col).count_ones())
             .collect::<Vec<_>>();
         let min_col_weight = col_weights.iter().copied().min().unwrap();
@@ -646,7 +650,7 @@ mod tests {
     fn test_mix_matrix_random_inputs() {
         let mut rng = rng();
         let mut mix_input = [0u64; SIMD_WIDTH * MIX_INPUTS];
-        let sigma = ((512 * 1280) as f64 * 0.25).sqrt();
+        let sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64 * 0.25).sqrt();
         for _ in 0..MIX_INPUTS {
             rng.fill(&mut mix_input);
             let MixMatrixStats {
@@ -654,13 +658,13 @@ mod tests {
                 min_row_weight,
                 min_col_weight,
             } = evaluate_mix_matrix(mix_input);
-            let z = (total_weight as f64 - (0.5 * 512.0 * 1280.0)) / sigma;
+            let z = (total_weight as f64 - (0.5 * (AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64)) / sigma;
             assert!(
-                min_col_weight >= 160,
+                min_col_weight >= (AVALANCHE_MATRIX_ROWS * 3) / 8,
                 "Min column weight {min_col_weight} too low"
             );
             assert!(
-                min_row_weight >= 384,
+                min_row_weight >= (AVALANCHE_MATRIX_COLS * 3) / 8,
                 "Min row weight {min_row_weight} too low"
             );
             assert!(z >= -3.0, "Total weight {total_weight} (z={z}) too low");
@@ -694,20 +698,20 @@ mod tests {
         fn test_mix_matrix_proptest(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) {
             let MixMatrixStats { total_weight, min_row_weight, min_col_weight } =
                 evaluate_mix_matrix(mix_input);
-            prop_assert!(min_col_weight >= 160);
-            prop_assert!(min_row_weight >= 384);
-            let expected = 512 * 1280 / 2;
-            let deviation = (total_weight as isize - expected as isize).abs();
-            prop_assert!(deviation <= 8192); // ≈1.25% bias
+            prop_assert!(min_col_weight >= (AVALANCHE_MATRIX_ROWS * 3) / 8);
+            prop_assert!(min_row_weight >= (AVALANCHE_MATRIX_COLS * 3) / 8);
+            let expected = AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS / 2;
+            let deviation = (total_weight as isize - expected as isize).unsigned_abs();
+            prop_assert!(deviation * 80 <= expected); // ≈1.25% bias
         }
 
         #[test]
         fn test_second_derivative_proptest(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) {
             let SecondDerivativeStats { min, max, mean, stdev } = evaluate_second_order_derivatives(mix_input);
-            assert!(min >= 140, "Min weight {min} too low");
-            assert!(max <= 372, "Max weight {max} too high");
-            assert!(mean >= 254.0, "Mean weight {mean:.02} too low");
-            assert!(mean <= 258.0, "Mean weight {mean:.02} too high");
+            assert!(min as usize >= (AVALANCHE_MATRIX_ROWS * 5) / 16, "Min weight {min} too low");
+            assert!(max as usize <= (AVALANCHE_MATRIX_ROWS * 11) / 16, "Max weight {max} too high");
+            assert!(mean >= 0.49 * AVALANCHE_MATRIX_ROWS as f64, "Mean weight {mean:.02} too low");
+            assert!(mean <= 0.51 * AVALANCHE_MATRIX_ROWS as f64, "Mean weight {mean:.02} too high");
             assert!(stdev >= 11.0, "Stdev weight {stdev:.02} too low");
             assert!(stdev <= 14.0, "Stdev weight {stdev:.02} too high");
         }
@@ -842,6 +846,7 @@ mod tests {
     #[test]
     fn test_avalanche() {
         const LOW_AVALANCHE_THRESHOLD: u64 = 28 * BLOCK_SIZE as u64;
+        println!("Low-avalanche threshold: {LOW_AVALANCHE_THRESHOLD} bits");
         let mut total_low_avalanche_checks = 0;
         let mut total_checks = 0;
         let bit_flip_distribution = Binomial::new(0.5, (BLOCK_SIZE * 64) as u64).unwrap();
