@@ -4,8 +4,9 @@ use core::simd::num::SimdInt;
 use core::simd::num::SimdUint;
 use core::simd::Simd;
 use core::slice::from_mut;
+use core::mem::transmute;
 use rand_core::block::Generator;
-use std::simd::Select;
+use core::simd::Select;
 
 #[cfg(all(
     target_arch = "x86_64",
@@ -155,6 +156,7 @@ impl TripleMixSimdCore {
 
             // Interleave MWC state updates with PCG output multiplier latency
             let mwc_borrow = mwc_carry.simd_lt(mwc_kx_lo).to_simd().cast();
+            let pcg_raw = pcg_state_hi + pcg_state_lo;
             let mwc_next_state = mwc_carry - mwc_kx_lo;
             let mwc_next_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
 
@@ -164,20 +166,24 @@ impl TripleMixSimdCore {
             // TinyMT Step 5: Final output and transition prep
             let tm_out = tm_y ^ ((tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT));
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
+            let tm_raw = tm_x + tm_y;
             let pcg_output = (pcg_m >> pcg_rot) | (pcg_m << (Simd64::splat(64) - pcg_rot));
             let tm_next_0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             let tm_next_1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
 
-            let (x, y) = mix(
+            let (x, y, z) = mix(
                 mwc_next_state,
                 pcg_output,
                 tm_out,
                 mwc_next_carry,
                 i_mixed,
+                pcg_raw,
+                tm_raw
             );
 
             block[0..4].copy_from_slice(&x.to_array());
             block[4..8].copy_from_slice(&y.to_array());
+            block[8..12].copy_from_slice(&z.to_array());
 
             // Update state
             tm0 = tm_next_0;
@@ -252,9 +258,11 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
 
 pub(crate) const TINYMT64_LANE_MASK: u64 = 0x7fff_ffff_ffff_ffff_u64;
 pub(crate) const SIMD_WIDTH: usize = 4;
-pub(crate) const OUTPUTS_PER_STEP: usize = 2;
+const MIX_INPUTS: usize = 7;
+pub(crate) const MIX_OUTPUTS: usize = 3;
 
 pub(crate) type Simd64 = Simd<u64, SIMD_WIDTH>;
+type Simd32 = Simd<u32, { SIMD_WIDTH * 2 }>;
 
 #[inline(always)]
 fn rotl(x: Simd64, k: u64) -> Simd64 {
@@ -262,108 +270,163 @@ fn rotl(x: Simd64, k: u64) -> Simd64 {
 }
 
 #[inline(always)]
-pub(crate) fn mix(
-    w_lo: Simd64,
-    x_in: Simd64,
-    t: Simd64,
-    w_hi: Simd64,
-    i: Simd64,
-) -> (Simd64, Simd64) {
-    const AVALANCHE_MULTIPLIERS_2: Simd64 = Simd::from_array([
-        0xde82ef95,
-        0x963ee407,
-        0x1e98df25,
-        0x27d4eb4f,
+fn rotl32(x: Simd32, r: u32) -> Simd32 {
+    (x << Simd::splat(r)) | (x >> Simd::splat(32 - r))
+}
+
+#[inline(always)]
+fn mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
+    // Extract even lanes: 0,2,4,6
+    let a_even = Simd64::from_array([
+        a[0] as u64,
+        a[2] as u64,
+        a[4] as u64,
+        a[6] as u64,
     ]);
-    const AVALANCHE_MULTIPLIERS_3: Simd64 = Simd::from_array([
-        0xce559b5b,
-        0xacc9d61b,
-        0x133111eb,
-        0xee677775,
+
+    let b_even = Simd64::from_array([
+        b[0] as u64,
+        b[2] as u64,
+        b[4] as u64,
+        b[6] as u64,
     ]);
-    let i_rotated = rotl(i, 29);
 
-    let mut a = w_lo;
-    let mut d = w_hi;
-    let mut b = t ^ i;
-    let mut c = x_in + i_rotated;
+    // Extract odd lanes: 1,3,5,7
+    let a_odd = Simd64::from_array([
+        a[1] as u64,
+        a[3] as u64,
+        a[5] as u64,
+        a[7] as u64,
+    ]);
 
-    // -------------------------
-    // Round 1 (lane-local ARX)
-    // -------------------------
-    a = a + b; d ^= a; d = rotl(d, 7);
-    c = c + d; b ^= c; b = rotl(b, 17);
+    let b_odd = Simd64::from_array([
+        b[1] as u64,
+        b[3] as u64,
+        b[5] as u64,
+        b[7] as u64,
+    ]);
 
-    // -------------------------
-    // Round 2 (cross-lane)
-    // -------------------------
-    a = a + b.rotate_elements_left::<1>();
-    d = rotl(d ^ a.rotate_elements_right::<1>(), 37);
-    c = c + d.rotate_elements_left::<2>();
-    b = rotl(b ^ c.rotate_elements_left::<1>(), 19);
+    let prod_even = a_even * b_even;
+    let prod_odd  = a_odd  * b_odd;
 
-    // ============================================================
-    // Stage 1 MULs (start early, DO NOT consume yet)
-    // ============================================================
-    let (mc, _) = simd_mulsmall(b + rotl(a, 31), AVALANCHE_MULTIPLIERS_2);
+    let pe = prod_even.to_array();
+    let po = prod_odd.to_array();
 
-    // -------------------------
-    // Independent mixing on (c, d) while MUL latency resolves
-    // -------------------------
-    let mut c2 = c;
-    let mut d2 = d;
+    // Reconstruct interleaved results
+    let lo = Simd32::from_array([
+        pe[0] as u32,
+        po[0] as u32,
+        pe[1] as u32,
+        po[1] as u32,
+        pe[2] as u32,
+        po[2] as u32,
+        pe[3] as u32,
+        po[3] as u32,
+    ]);
 
-    c2 = c2 + d2.rotate_elements_right::<1>();
-    d2 = rotl(d2 ^ c2.rotate_elements_left::<1>(), 23);
+    let hi = Simd32::from_array([
+        (pe[0] >> 32) as u32,
+        (po[0] >> 32) as u32,
+        (pe[1] >> 32) as u32,
+        (po[1] >> 32) as u32,
+        (pe[2] >> 32) as u32,
+        (po[2] >> 32) as u32,
+        (pe[3] >> 32) as u32,
+        (po[3] >> 32) as u32,
+    ]);
 
-    // ============================================================
-    // Now consume md/mc (latency mostly hidden)
-    // ============================================================
-    let mut a2 = a;
-    let mut b2 = b;
+    (lo, hi)
+}
 
-    a2 = rotl(a2 + mc.rotate_elements_left::<1>(), 43);
-    b2 = rotl(b2 ^ mc.rotate_elements_right::<1>(), 13);
+#[inline(always)]
+fn round3_simd(
+    mut a: Simd32,
+    mut b: Simd32,
+    mut c: Simd32,
+    x0: Simd32,
+    x1: Simd32,
+    x2: Simd32,
+    x3: Simd32,
+    x4: Simd32,
+    x5: Simd32,
+    x6: Simd32,
+) -> (Simd32, Simd32, Simd32) {
+    a += x0;
+    b ^= x1;
+    c += x2;
 
-    // Cross-mix domains
-    c2 ^= a2.rotate_elements_left::<2>();
-    d2 += b2.rotate_elements_right::<2>();
+    a ^= x3;
+    b += x4;
+    c ^= x5;
 
-    // ============================================================
-    // Stage 2 MULs (again start early)
-    // ============================================================
-    let (ma, _) = simd_mulsmall(c2 + d2, AVALANCHE_MULTIPLIERS_3);
+    let (m0_lo, m0_hi) = mul_lo_hi(a, b);
+    let (m1_lo, m1_hi) = mul_lo_hi(b, c);
 
-    // -------------------------
-    // More independent mixing while MUL latency resolves
-    // -------------------------
-    let mut a3 = a2;
-    let mut b3 = b2;
+    a ^= m1_hi;
+    b ^= m0_lo;
+    c ^= m0_hi;
 
-    a3 ^= b3.rotate_elements_left::<1>();
-    b3 += a3.rotate_elements_right::<1>();
+    a = rotl32(a, 11);
+    b = rotl32(b, 17);
+    c = rotl32(c, 23);
 
-    // ============================================================
-    // Final consumption of ma/mb
-    // ============================================================
-    let c3 = mc + ma.rotate_elements_right::<1>();
-    let a4 = rotl(ma.rotate_elements_left::<1>(), 21);
-    let b4 = rotl(ma ^ c3.rotate_elements_left::<2>(), 49);
-    let d4 = mc ^ ma.rotate_elements_left::<2>();
+    let (m2_lo, m2_hi) = mul_lo_hi(a, c);
 
-    // -------------------------
-    // Output combiners (unchanged structure)
-    // -------------------------
-    let adr = rotl(a4 + d, 39);
-    let bcr = rotl(b4 ^ c3, 11);
-    let bxd = b4 + d4;
-    let axc = a4 ^ c3;
+    a += m2_hi;
+    b += m1_lo;
+    c += m2_lo;
 
-    let y = bxd - adr;
-    let x = axc ^ bcr;
+    a += x6;
+    b ^= x0;
+    c += x1;
 
+    a = rotl32(a, 19);
+    b = rotl32(b, 29);
+    c = rotl32(c, 13);
 
-    (x, y)
+    (a, b, c)
+}
+
+pub fn mix(
+    x0: Simd64,
+    x1: Simd64,
+    x2: Simd64,
+    x3: Simd64,
+    x4: Simd64,
+    x5: Simd64,
+    x6: Simd64,
+) -> (Simd64, Simd64, Simd64) {
+    let (x0, x1, x2, x3, x4, x5, x6) = unsafe {
+        transmute((x0, x1, x2, x3, x4, x5, x6))
+    };
+
+    let mut a = Simd32::splat(0x243f6a88);
+    let mut b = Simd32::splat(0x9e3779b9);
+    let mut c = Simd32::splat(0xb7e15162);
+
+    (a, b, c) = round3_simd(a, b, c, x0, x1, x2, x3, x4, x5, x6);
+    (a, b, c) = round3_simd(a, b, c, x3, x4, x5, x6, x0, x1, x2);
+    (a, b, c) = round3_simd(a, b, c, x6, x0, x1, x2, x3, x4, x5);
+
+    // simple lane-mixing substitute (portable)
+    let b_perm = b.rotate_elements_right::<2>();
+    let c_perm = c.rotate_elements_right::<1>();
+
+    a ^= b_perm;
+    b += c_perm;
+    c ^= a;
+
+    let (m_lo, m_hi) = mul_lo_hi(a, b);
+
+    a ^= m_hi;
+    b ^= m_lo;
+    c += m_hi;
+
+    a = rotl32(a, 15);
+    b = rotl32(b, 21);
+    c = rotl32(c, 27);
+
+    unsafe { transmute((a, b, c)) }
 }
 
 impl Generator for TripleMixSimdCore {
@@ -377,7 +440,7 @@ impl Generator for TripleMixSimdCore {
 
 #[cfg(test)]
 mod tests {
-    use crate::generate::{mix, Simd64, OUTPUTS_PER_STEP, SIMD_WIDTH};
+    use crate::generate::{mix, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::NotReproducible;
     use crate::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
     use bytemuck::cast_slice_mut;
@@ -401,23 +464,27 @@ mod tests {
         min_col_weight: usize,
     }
 
-    fn evaluate_mix_matrix(mix_input: [u64; 20]) -> MixMatrixStats {
-        let (base_input, base_out0, base_out1) = mix_from_flat_array(mix_input);
-        let mut xor_matrix = BitMatrix::<u64>::zeros(512, 1280);
+    fn evaluate_mix_matrix(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) -> MixMatrixStats {
+        const ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
+        const COLS: usize = 8 * size_of::<Simd64>() * MIX_INPUTS;
+        let (base_input, base_out0, base_out1, base_out2) = mix_from_flat_array(mix_input);
+        let mut xor_matrix = BitMatrix::<u64>::zeros(ROWS, COLS);
         let mut i = 0;
-        for variable_idx in 0..5 {
+        for variable_idx in 0..MIX_INPUTS {
             for lane_idx in 0..SIMD_WIDTH {
                 for bit_idx in 0..64 {
                     let mut modified_input = base_input.clone();
                     modified_input[variable_idx][lane_idx] ^= 1u64 << bit_idx;
-                    let (mod_out0, mod_out1) = mix(
+                    let (mod_out0, mod_out1, mod_out2) = mix(
                         modified_input[0],
                         modified_input[1],
                         modified_input[2],
                         modified_input[3],
                         modified_input[4],
+                        modified_input[5],
+                        modified_input[6]
                     );
-                    let (out_xor_0, out_xor_1) = (mod_out0 ^ base_out0, mod_out1 ^ base_out1);
+                    let (out_xor_0, out_xor_1, out_xor_2) = (mod_out0 ^ base_out0, mod_out1 ^ base_out1, mod_out2 ^ base_out2);
                     let mut j = 0;
                     for out_lane_idx in 0..SIMD_WIDTH {
                         for out_bit_idx in 0..64 {
@@ -428,18 +495,22 @@ mod tests {
                             xor_matrix.set(j, i, (out_xor_1[out_lane_idx] >> out_bit_idx) & 1 != 0);
                             j += 1;
                         }
+                        for out_bit_idx in 0..64 {
+                            xor_matrix.set(j, i, (out_xor_2[out_lane_idx] >> out_bit_idx) & 1 != 0);
+                            j += 1;
+                        }
                     }
                     i += 1;
                 }
             }
         }
-        assert_eq!(xor_matrix.clone().to_echelon_form().count_ones(), 512);
-        let row_weights = (0..512)
+        assert_eq!(xor_matrix.clone().to_echelon_form().count_ones(), ROWS);
+        let row_weights = (0..ROWS)
             .map(|row| xor_matrix.row(row).count_ones())
             .collect::<Vec<_>>();
         let min_row_weight = row_weights.iter().copied().min().unwrap();
         let max_row_weight = row_weights.iter().copied().max().unwrap();
-        let col_weights = (0..1280)
+        let col_weights = (0..COLS)
             .map(|col| xor_matrix.col(col).count_ones())
             .collect::<Vec<_>>();
         let min_col_weight = col_weights.iter().copied().min().unwrap();
@@ -463,22 +534,26 @@ mod tests {
         }
     }
 
-    fn mix_from_flat_array(mix_input: [u64; 20]) -> ([Simd64; 5], Simd64, Simd64) {
-        let base_input = [
+    fn mix_from_flat_array(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) -> ([Simd64; MIX_INPUTS], Simd64, Simd64, Simd64) {
+        let input_simds = [
             Simd::from_array(mix_input[0..4].try_into().unwrap()),
             Simd::from_array(mix_input[4..8].try_into().unwrap()),
             Simd::from_array(mix_input[8..12].try_into().unwrap()),
             Simd::from_array(mix_input[12..16].try_into().unwrap()),
             Simd::from_array(mix_input[16..20].try_into().unwrap()),
+            Simd::from_array(mix_input[20..24].try_into().unwrap()),
+            Simd::from_array(mix_input[24..28].try_into().unwrap()),
         ];
-        let (base_out0, base_out1) = mix(
-            base_input[0],
-            base_input[1],
-            base_input[2],
-            base_input[3],
-            base_input[4],
+        let (base_out0, base_out1, base_out2) = mix(
+            input_simds[0],
+            input_simds[1],
+            input_simds[2],
+            input_simds[3],
+            input_simds[4],
+            input_simds[5],
+            input_simds[6]
         );
-        (base_input, base_out0, base_out1)
+        (input_simds, base_out0, base_out1, base_out2)
     }
 
     struct SecondDerivativeStats {
@@ -488,11 +563,11 @@ mod tests {
         stdev: f64,
     }
 
-    fn evaluate_second_order_derivatives(mix_input: [u64; 20]) -> SecondDerivativeStats {
-        let (base_input, base_out0, base_out1) = mix_from_flat_array(mix_input);
+    fn evaluate_second_order_derivatives(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) -> SecondDerivativeStats {
+        let (base_input, base_out0, base_out1, base_out_2) = mix_from_flat_array(mix_input);
         let mut weights = Vec::new();
-        for var_idx_1 in 0..5 {
-            for var_idx_2 in var_idx_1..5 {
+        for var_idx_1 in 0..MIX_INPUTS {
+            for var_idx_2 in var_idx_1..MIX_INPUTS {
                 for lane_idx_1 in 0..SIMD_WIDTH {
                     for lane_idx_2 in lane_idx_1..SIMD_WIDTH {
                         if lane_idx_1 == lane_idx_2 && var_idx_1 == var_idx_2 {
@@ -501,18 +576,21 @@ mod tests {
                                     let mut modified_input = base_input;
                                     modified_input[var_idx_1][lane_idx_1] ^=
                                         1 << bit_idx_1 | 1 << bit_idx_2;
-                                    let (mod_out0, mod_out1) = mix(
+                                    let (mod_out0, mod_out1, mod_out2) = mix(
                                         modified_input[0],
                                         modified_input[1],
                                         modified_input[2],
                                         modified_input[3],
                                         modified_input[4],
+                                        modified_input[5],
+                                        modified_input[6]
                                     );
-                                    let (out_xor_0, out_xor_1) =
-                                        (mod_out0 ^ base_out0, mod_out1 ^ base_out1);
+                                    let (out_xor_0, out_xor_1, out_xor_2) =
+                                        (mod_out0 ^ base_out0, mod_out1 ^ base_out1, mod_out2 ^ base_out_2);
                                     weights.push(
                                         out_xor_0.count_ones().reduce_sum()
-                                            + out_xor_1.count_ones().reduce_sum(),
+                                            + out_xor_1.count_ones().reduce_sum()
+                                            + out_xor_2.count_ones().reduce_sum(),
                                     );
                                 }
                             }
@@ -521,18 +599,21 @@ mod tests {
                                 let mut modified_input = base_input;
                                 modified_input[var_idx_1][lane_idx_1] ^= 1 << bit_idx;
                                 modified_input[var_idx_2][lane_idx_2] ^= 1 << bit_idx;
-                                let (mod_out0, mod_out1) = mix(
+                                let (mod_out0, mod_out1, mod_out2) = mix(
                                     modified_input[0],
                                     modified_input[1],
                                     modified_input[2],
                                     modified_input[3],
                                     modified_input[4],
+                                    modified_input[5],
+                                    modified_input[6]
                                 );
-                                let (out_xor_0, out_xor_1) =
-                                    (mod_out0 ^ base_out0, mod_out1 ^ base_out1);
+                                let (out_xor_0, out_xor_1, out_xor_2) =
+                                    (mod_out0 ^ base_out0, mod_out1 ^ base_out1, mod_out2 ^ base_out_2);
                                 weights.push(
                                     out_xor_0.count_ones().reduce_sum()
-                                        + out_xor_1.count_ones().reduce_sum(),
+                                        + out_xor_1.count_ones().reduce_sum()
+                                        + out_xor_2.count_ones().reduce_sum(),
                                 );
                             }
                         }
@@ -564,9 +645,9 @@ mod tests {
     #[test]
     fn test_mix_matrix_random_inputs() {
         let mut rng = rng();
-        let mut mix_input = [0u64; 20];
+        let mut mix_input = [0u64; SIMD_WIDTH * MIX_INPUTS];
         let sigma = ((512 * 1280) as f64 * 0.25).sqrt();
-        for _ in 0..5 {
+        for _ in 0..MIX_INPUTS {
             rng.fill(&mut mix_input);
             let MixMatrixStats {
                 total_weight,
@@ -590,8 +671,8 @@ mod tests {
     #[test]
     fn test_second_derivative_random_inputs() {
         let mut rng = rng();
-        let mut random_inputs = [0u64; 20];
-        for _ in 0..5 {
+        let mut random_inputs = [0u64; SIMD_WIDTH * MIX_INPUTS];
+        for _ in 0..MIX_INPUTS {
             rng.fill(&mut random_inputs);
             let SecondDerivativeStats {
                 min,
@@ -610,7 +691,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn test_mix_matrix_proptest(mix_input: [u64; 20]) {
+        fn test_mix_matrix_proptest(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) {
             let MixMatrixStats { total_weight, min_row_weight, min_col_weight } =
                 evaluate_mix_matrix(mix_input);
             prop_assert!(min_col_weight >= 160);
@@ -621,7 +702,7 @@ mod tests {
         }
 
         #[test]
-        fn test_second_derivative_proptest(mix_input: [u64; 20]) {
+        fn test_second_derivative_proptest(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) {
             let SecondDerivativeStats { min, max, mean, stdev } = evaluate_second_order_derivatives(mix_input);
             assert!(min >= 140, "Min weight {min} too low");
             assert!(max <= 372, "Max weight {max} too high");
@@ -776,7 +857,7 @@ mod tests {
             let mut count: u64 = 0;
             let mut flips_per_bit = [[[0; 64]; SIMD_WIDTH]; 8];
             let mut core1 = core;
-            let mut output1 = [[Simd64::splat(0); OUTPUTS_PER_STEP]; ITERATIONS];
+            let mut output1 = [[Simd64::splat(0); MIX_OUTPUTS]; ITERATIONS];
             core1.fill_blocks(cast_slice_mut(&mut output1));
             let mut min_field = 0;
             let mut min_lane = 0;
@@ -846,13 +927,13 @@ mod tests {
                         if !core2.is_valid() {
                             continue;
                         }
-                        let mut output2 = [[Simd64::splat(0); OUTPUTS_PER_STEP]; ITERATIONS];
+                        let mut output2 = [[Simd64::splat(0); MIX_OUTPUTS]; ITERATIONS];
                         core2.fill_blocks(cast_slice_mut(&mut output2));
                         for i in 0..ITERATIONS {
                             let mut flips = 0;
                             let first_output1 = Simd::splat(output1[i][0][0]);
                             let first_output2 = Simd::splat(output2[i][0][0]);
-                            for vec_idx in 0..OUTPUTS_PER_STEP {
+                            for vec_idx in 0..MIX_OUTPUTS {
                                 let xor = output1[i][vec_idx] ^ output2[i][vec_idx];
                                 let sub_same = (output1[i][vec_idx] - output2[i][vec_idx])
                                     .simd_eq(first_output1 - first_output2);

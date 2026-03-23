@@ -309,7 +309,7 @@ impl TripleMixSimdCore {
 #[cfg(test)]
 mod tests {
     use crate::TripleMixPrng;
-    use crate::generate::{OUTPUTS_PER_STEP, SIMD_WIDTH};
+    use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::{DefaultReproducibility, NotReproducible};
     use crate::seed::{DEFAULT_SEED_SIZE, get_base_kmac};
     use core::hint::black_box;
@@ -323,7 +323,7 @@ mod tests {
 
     #[test]
     fn test_fork_independence_descendants() {
-        const SAMPLES_PER_FORK: usize = OUTPUTS_PER_STEP * SIMD_WIDTH * 4;
+        const SAMPLES_PER_FORK: usize = MIX_OUTPUTS * SIMD_WIDTH * 4;
         const FORKS: usize = 64;
         #[cfg(not(feature = "no_std"))]
         let mut previous_outputs =

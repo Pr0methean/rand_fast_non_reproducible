@@ -77,6 +77,131 @@ unsafe fn mul_small_avx2(x: __m256i, kvec: __m256i) -> (__m256i, __m256i) {
     }
 }
 
+#[inline(always)]
+fn rotl32<const R: i32>(x: __m256i) -> __m256i where [(); (32 - R) as usize]: {
+    unsafe {
+        _mm256_or_si256(
+            _mm256_slli_epi32(x, R),
+            _mm256_srli_epi32(x, 32 - R),
+        )
+    }
+}
+
+#[inline(always)]
+fn mul_lo_hi_epu32(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
+    unsafe {
+        let lo = _mm256_mul_epu32(a, b);
+
+        let a_hi = _mm256_srli_epi64(a, 32);
+        let b_hi = _mm256_srli_epi64(b, 32);
+        let hi = _mm256_mul_epu32(a_hi, b_hi);
+
+        let lo = _mm256_shuffle_epi32(lo, 0b11011000);
+        let hi = _mm256_shuffle_epi32(hi, 0b11011000);
+
+        (lo, hi)
+    }
+}
+
+#[inline(always)]
+fn round3(
+    mut a: __m256i,
+    mut b: __m256i,
+    mut c: __m256i,
+    x0: __m256i,
+    x1: __m256i,
+    x2: __m256i,
+    x3: __m256i,
+    x4: __m256i,
+    x5: __m256i,
+    x6: __m256i,
+) -> (__m256i, __m256i, __m256i) {
+    unsafe {
+        // --- Injection (intentionally asymmetric) ---
+        a = _mm256_add_epi32(a, x0);
+        b = _mm256_xor_si256(b, x1);
+        c = _mm256_add_epi32(c, x2);
+
+        a = _mm256_xor_si256(a, x3);
+        b = _mm256_add_epi32(b, x4);
+        c = _mm256_xor_si256(c, x5);
+
+        // --- First nonlinear layer ---
+        let (m0_lo, m0_hi) = mul_lo_hi_epu32(a, b);
+        let (m1_lo, m1_hi) = mul_lo_hi_epu32(b, c);
+
+        a = _mm256_xor_si256(a, m1_hi);
+        b = _mm256_xor_si256(b, m0_lo);
+        c = _mm256_xor_si256(c, m0_hi);
+
+        // --- Rotations (distinct) ---
+        a = rotl32::<11>(a);
+        b = rotl32::<17>(b);
+        c = rotl32::<23>(c);
+
+        // --- Second nonlinear layer (cross-coupled) ---
+        let (m2_lo, m2_hi) = mul_lo_hi_epu32(a, c);
+
+        a = _mm256_add_epi32(a, m2_hi);
+        b = _mm256_add_epi32(b, m1_lo);
+        c = _mm256_add_epi32(c, m2_lo);
+
+        // --- Final injection ---
+        a = _mm256_add_epi32(a, x6);
+        b = _mm256_xor_si256(b, x0);
+        c = _mm256_add_epi32(c, x1);
+
+        // --- Final rotations ---
+        a = rotl32::<19>(a);
+        b = rotl32::<29>(b);
+        c = rotl32::<13>(c);
+
+        (a, b, c)
+    }
+}
+
+#[inline(always)]
+pub fn mix7x3_avx2(
+    x0: __m256i,
+    x1: __m256i,
+    x2: __m256i,
+    x3: __m256i,
+    x4: __m256i,
+    x5: __m256i,
+    x6: __m256i,
+) -> (__m256i, __m256i, __m256i) {
+    unsafe {
+        let mut a = _mm256_set1_epi32(0x243f6a88);
+        let mut b = _mm256_set1_epi32(0x9e3779b9u32 as i32);
+        let mut c = _mm256_set1_epi32(0xb7e15162u32 as i32);
+
+        // 3 rounds with permuted inputs
+        (a, b, c) = round3(a, b, c, x0, x1, x2, x3, x4, x5, x6);
+        (a, b, c) = round3(a, b, c, x3, x4, x5, x6, x0, x1, x2);
+        (a, b, c) = round3(a, b, c, x6, x0, x1, x2, x3, x4, x5);
+
+        // --- Finalization (only cross-lane phase) ---
+        let b_perm = _mm256_permute4x64_epi64(b, 0b01001110);
+        let c_perm = _mm256_permute4x64_epi64(c, 0b10110001);
+
+        a = _mm256_xor_si256(a, b_perm);
+        b = _mm256_add_epi32(b, c_perm);
+        c = _mm256_xor_si256(c, a);
+
+        let (m_lo, m_hi) = mul_lo_hi_epu32(a, b);
+
+        a = _mm256_xor_si256(a, m_hi);
+        b = _mm256_xor_si256(b, m_lo);
+        c = _mm256_add_epi32(c, m_hi);
+
+        a = rotl32::<15>(a);
+        b = rotl32::<21>(b);
+        c = rotl32::<27>(c);
+
+        (a, b, c)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

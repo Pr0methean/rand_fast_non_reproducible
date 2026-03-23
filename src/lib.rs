@@ -1,5 +1,7 @@
 #![feature(portable_simd)]
+#![feature(generic_const_exprs)]
 #![allow(long_running_const_eval)]
+#![allow(incomplete_features)]
 #[cfg(all(
     target_arch = "x86_64",
     target_feature = "avx2",
@@ -24,7 +26,7 @@ use generate::Simd64;
 use rand_core::TryRng;
 use rand_core::block::BlockRng;
 use reproducibility::Reproducibility;
-use crate::generate::{OUTPUTS_PER_STEP, SIMD_WIDTH};
+use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH};
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -146,4 +148,4 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> [TripleMixPrng<R>; 5] {
 
 const MAJOR_VERSION: &str = env!("CARGO_PKG_VERSION_MAJOR");
 const MINOR_VERSION: &str = env!("CARGO_PKG_VERSION_MINOR");
-pub const BLOCK_SIZE: usize = OUTPUTS_PER_STEP * SIMD_WIDTH;
+pub const BLOCK_SIZE: usize = MIX_OUTPUTS * SIMD_WIDTH;
