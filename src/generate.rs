@@ -59,8 +59,8 @@ impl TripleMixSimdCore {
         let (p2_lo, p2_hi) = simd_mulsmall(a_low, b_hi);
 
         // p2 * 2^32 = p2_hi * 2^96 + p2_lo * 2^32
-        let p2_shifted_lo = p2_lo << Simd64::splat(32);
-        let p2_shifted_hi = (p2_hi << Simd64::splat(32)) | (p2_lo >> Simd64::splat(32));
+        let p2_shifted_lo = p2_lo << 32;
+        let p2_shifted_hi = (p2_hi << 32) | (p2_lo >> 32);
 
         // low sum = p1_lo + p2_shifted_lo
         let (low_sum, carry1) = Self::add128_with_carry(p1_lo, p2_shifted_lo, Simd64::splat(0));
@@ -258,7 +258,7 @@ pub(crate) type Simd64 = Simd<u64, SIMD_WIDTH>;
 
 #[inline(always)]
 fn rotl(x: Simd64, k: u64) -> Simd64 {
-    (x << Simd::splat(k)) | (x >> Simd::splat(64 - k))
+    (x << k) | (x >> (64 - k))
 }
 
 #[inline(always)]
