@@ -4,7 +4,6 @@ use core::simd::num::SimdInt;
 use core::simd::num::SimdUint;
 use core::simd::Simd;
 use core::slice::from_mut;
-use core::mem::transmute;
 use rand_core::block::Generator;
 use core::simd::Select;
 
@@ -258,7 +257,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
 
 pub(crate) const TINYMT64_LANE_MASK: u64 = 0x7fff_ffff_ffff_ffff_u64;
 pub(crate) const SIMD_WIDTH: usize = 4;
-const MIX_INPUTS: usize = 7;
+pub(crate) const MIX_INPUTS: usize = 7;
 pub(crate) const MIX_OUTPUTS: usize = 3;
 
 pub(crate) type Simd64 = Simd<u64, SIMD_WIDTH>;
@@ -443,7 +442,8 @@ impl Generator for TripleMixSimdCore {
 
 #[cfg(test)]
 mod tests {
-    use crate::generate::{mix, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIMD_WIDTH};
+    use genetic_algorithm::strategy::prelude::{Evolve, HillClimb};
+use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::NotReproducible;
     use crate::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
     use bytemuck::cast_slice_mut;
@@ -452,6 +452,15 @@ mod tests {
     use core::simd::Simd;
     use std::hint::black_box;
     use fsum::FSum;
+    use genetic_algorithm::crossover::CrossoverSinglePoint;
+    use genetic_algorithm::fitness::{Fitness, FitnessChromosome, FitnessValue};
+    use genetic_algorithm::genotype::{Genotype, RangeGenotype};
+    use genetic_algorithm::mutate::{MutateMultiGene, MutateSingleGene};
+    use genetic_algorithm::select::SelectElite;
+    use genetic_algorithm::strategy::evolve::EvolveReporterSimple;
+    use genetic_algorithm::strategy::hill_climb::HillClimbReporterSimple;
+    use genetic_algorithm::strategy::Strategy;
+    use genetic_algorithm::strategy::StrategyAction::Crossover;
     use gf2::{BitMatrix, BitStore};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
@@ -471,6 +480,9 @@ mod tests {
     const AVALANCHE_MATRIX_COLS: usize = 8 * size_of::<Simd64>() * MIX_INPUTS;
 
     fn evaluate_mix_matrix(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) -> MixMatrixStats {
+        evaluate_mix_matrix_with_shifts(mix_input, [7; 21])
+    }
+    fn evaluate_mix_matrix_with_shifts(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS], shifts: [u32; 21]) -> MixMatrixStats {
         let (base_input, base_out0, base_out1, base_out2) = mix_from_flat_array(mix_input);
         let mut xor_matrix = BitMatrix::<u64>::zeros(AVALANCHE_MATRIX_ROWS, AVALANCHE_MATRIX_COLS);
         let mut i = 0;
@@ -479,14 +491,15 @@ mod tests {
                 for bit_idx in 0..64 {
                     let mut modified_input = base_input.clone();
                     modified_input[variable_idx][lane_idx] ^= 1u64 << bit_idx;
-                    let (mod_out0, mod_out1, mod_out2) = mix(
+                    let (mod_out0, mod_out1, mod_out2) = mix_with_shifts(
                         modified_input[0],
                         modified_input[1],
                         modified_input[2],
                         modified_input[3],
                         modified_input[4],
                         modified_input[5],
-                        modified_input[6]
+                        modified_input[6],
+                        shifts
                     );
                     let (out_xor_0, out_xor_1, out_xor_2) = (mod_out0 ^ base_out0, mod_out1 ^ base_out1, mod_out2 ^ base_out2);
                     let mut j = 0;
@@ -519,18 +532,22 @@ mod tests {
             .collect::<Vec<_>>();
         let min_col_weight = col_weights.iter().copied().min().unwrap();
         let max_col_weight = col_weights.iter().copied().max().unwrap();
-        println!("min_row_weight={min_row_weight}, max_row_weight={max_row_weight}");
+        // println!("min_row_weight={min_row_weight}, max_row_weight={max_row_weight}");
+        /*
         println!("Row weights:");
         for row_chunk in row_weights.chunks_exact(64) {
             println!("{:>4?} = {:>6}", row_chunk, row_chunk.iter().sum::<usize>());
         }
-        println!("min_col_weight={min_col_weight}, max_col_weight={max_col_weight}");
+         */
+        // println!("min_col_weight={min_col_weight}, max_col_weight={max_col_weight}");
+        /*
         println!("Column weights:");
         for col_chunk in col_weights.chunks_exact(64) {
             println!("{:>4?} = {:>6}", col_chunk, col_chunk.iter().sum::<usize>());
         }
+         */
         let total_weight = row_weights.into_iter().sum::<usize>();
-        println!("Total weight: {total_weight}");
+        // println!("Total weight: {total_weight}");
         MixMatrixStats {
             total_weight,
             min_row_weight,
@@ -1435,13 +1452,61 @@ mod tests {
         assert!(mean_rank >= 2040.0, "Mean rank too low: {:.2}", mean_rank);
         assert!(std_dev <= 2.0, "Too much variation: {:.2}", std_dev);
     }
+
     #[test]
-    fn test_for_profiling() {
-        let mut prng = TripleMixPrng::<NotReproducible>::from_rng(&mut UnwrapErr(SysRng));
-        let mut buffer = vec![0u64; 2048];
-        for _ in 0..2048 {
-            prng.fill(&mut buffer);
-            black_box(&buffer);
+    fn find_optimal_shifts() {
+        const NUM_INPUTS: usize = 20;
+        let genotype = RangeGenotype::builder()
+            .with_genes_size(21)
+            .with_allele_range(1u32..=31)
+            .build()
+            .unwrap();
+        let mut rng = rng();
+        let mut mix_input = [[0u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS];
+        for input in mix_input.iter_mut() {
+            rng.fill(input);
         }
+        #[derive(Copy, Clone, Debug)]
+        struct MinRowWeightFitness {
+            mix_input: [[u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS]
+        }
+        impl Fitness for MinRowWeightFitness {
+            type Genotype = RangeGenotype<u32>;
+
+            fn calculate_for_chromosome(&mut self, chromosome: &FitnessChromosome<Self>, genotype: &Self::Genotype) -> Option<FitnessValue> {
+                let mut min_min_row_weight = usize::MAX;
+                let mut min_min_col_weight = usize::MAX;
+                let mut total_min_weight = 0;
+                let mut total_total_weight = 0usize;
+                for input in self.mix_input.iter() {
+                    let MixMatrixStats {
+                        total_weight,
+                        min_row_weight,
+                        min_col_weight,
+                    } = evaluate_mix_matrix_with_shifts(*input, *chromosome.genes.as_array()?);
+                    min_min_row_weight = min_min_row_weight.min(min_row_weight);
+                    min_min_col_weight = min_min_col_weight.min(min_col_weight);
+                    total_min_weight += min_row_weight;
+                    total_total_weight += total_weight;
+                }
+                println!("{:02?}: min_min_row_weight: {}, min_min_col_weight: {}, total_min_weight: {}, total_total_weight: {}", chromosome.genes, min_min_row_weight, min_min_col_weight, total_min_weight, total_total_weight);
+                FitnessValue::try_from(min_min_row_weight * 1_000_000_000 + total_min_weight * 100_000 + min_min_col_weight + total_total_weight).ok()
+            }
+        }
+        let results = Evolve::builder()
+            .with_mutate(MutateMultiGene::new(2, 0.3))
+            .with_crossover(CrossoverSinglePoint::new(0.7, 0.7))
+            .with_select(SelectElite::new(0.3, 0.0625))
+            .with_target_population_size(256)
+            .with_genotype(genotype)
+            .with_fitness(MinRowWeightFitness {mix_input})
+            .with_fitness_cache(1 << 16)                         // enable caching of fitness values (LRU size 1000), only works when genes_hash is stored in chromosome. Only useful for long stale runs
+            .with_par_fitness(true)
+            .with_target_fitness_score(480_000_000_000)
+            .with_max_stale_generations(1 << 16)
+            .with_reporter(EvolveReporterSimple::new(4))
+            .call()
+            .unwrap();
+        println!("{:?}", results.best_genes_and_fitness_score());
     }
 }
