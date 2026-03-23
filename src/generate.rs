@@ -273,20 +273,20 @@ fn mix3_single_mul(x: Simd64, y: Simd64, z: Simd64) -> (Simd64, Simd64, Simd64) 
     fn mul_lo_hi_epu32(a: Simd32, b: Simd32) -> Simd64 {
         // On AVX2, this maps to _mm256_mul_epu32: multiplies even lanes of a and b.
         // Extract even lanes manually and widen to u64
-        let a_even: Simd<u64, 4> = Simd::from_array([
+        let a_even: Simd64 = Simd::from_array([
             a[0] as u64,
             a[2] as u64,
             a[4] as u64,
             a[6] as u64,
         ]);
-        let b_even: Simd<u64, 4> = Simd::from_array([
+        let b_even: Simd64 = Simd::from_array([
             b[0] as u64,
             b[2] as u64,
             b[4] as u64,
             b[6] as u64,
         ]);
 
-        a_even * b_even
+        a_even * &b_even
   }
 
     // --- single MUL layer ---
