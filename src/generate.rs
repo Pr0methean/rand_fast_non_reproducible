@@ -1490,7 +1490,7 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
                     total_total_weight += total_weight;
                 }
                 println!("{:02?}: min_min_row_weight: {}, min_min_col_weight: {}, total_min_weight: {}, total_total_weight: {}", chromosome.genes, min_min_row_weight, min_min_col_weight, total_min_weight, total_total_weight);
-                FitnessValue::try_from(min_min_row_weight * 1_000_000_000 + total_min_weight * 100_000 + min_min_col_weight + total_total_weight).ok()
+                FitnessValue::try_from(min_min_row_weight * 10_000_000_000 + total_min_weight * 100_000 + min_min_col_weight + total_total_weight).ok()
             }
         }
         let results = Evolve::builder()
