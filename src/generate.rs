@@ -455,7 +455,7 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
     use genetic_algorithm::crossover::CrossoverSinglePoint;
     use genetic_algorithm::fitness::{Fitness, FitnessChromosome, FitnessValue};
     use genetic_algorithm::genotype::{Genotype, RangeGenotype};
-    use genetic_algorithm::mutate::{MutateMultiGene, MutateSingleGene};
+    use genetic_algorithm::mutate::{MutateMultiGene, MutateMultiGeneDynamic, MutateSingleGene};
     use genetic_algorithm::select::SelectElite;
     use genetic_algorithm::strategy::evolve::EvolveReporterSimple;
     use genetic_algorithm::strategy::hill_climb::HillClimbReporterSimple;
@@ -1494,7 +1494,7 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
             }
         }
         let results = Evolve::builder()
-            .with_mutate(MutateMultiGene::new(2, 0.3))
+            .with_mutate(MutateMultiGeneDynamic::new(2, 0.05, 256))
             .with_crossover(CrossoverSinglePoint::new(0.7, 0.7))
             .with_select(SelectElite::new(0.3, 0.0625))
             .with_target_population_size(256)
