@@ -451,6 +451,7 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
     use core::simd::num::SimdUint;
     use core::simd::Simd;
     use std::hint::black_box;
+    use dashmap::DashMap;
     use fsum::FSum;
     use genetic_algorithm::crossover::CrossoverSinglePoint;
     use genetic_algorithm::fitness::{Fitness, FitnessChromosome, FitnessValue};
@@ -464,6 +465,7 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
     use gf2::{BitMatrix, BitStore};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
+    use once_cell::sync::Lazy;
     use proptest::{prelude::any, prop_assert, proptest};
     use rand::{rng, RngExt};
     use rand::rngs::SysRng;
@@ -1456,29 +1458,31 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
     #[test]
     fn find_optimal_shifts() {
         const NUM_INPUTS: usize = 20;
+        static MIX_INPUT: Lazy<DashMap<usize, [[u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS]>> = Lazy::new(DashMap::new);
         let genotype = RangeGenotype::builder()
             .with_genes_size(21)
             .with_allele_range(1u32..=31)
             .build()
             .unwrap();
-        let mut rng = rng();
-        let mut mix_input = [[0u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS];
-        for input in mix_input.iter_mut() {
-            rng.fill(input);
-        }
         #[derive(Copy, Clone, Debug)]
-        struct MinRowWeightFitness {
-            mix_input: [[u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS]
-        }
+        struct MinRowWeightFitness;
         impl Fitness for MinRowWeightFitness {
             type Genotype = RangeGenotype<u32>;
-
             fn calculate_for_chromosome(&mut self, chromosome: &FitnessChromosome<Self>, genotype: &Self::Genotype) -> Option<FitnessValue> {
+                let age = chromosome.age();
+                let mix_input = MIX_INPUT.entry(age).or_insert_with(|| {
+                    let mut input = [[0u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS];
+                    let mut rng = rng();
+                    for one_input in input.iter_mut() {
+                        rng.fill(one_input);
+                    }
+                    input
+                });
                 let mut min_min_row_weight = usize::MAX;
                 let mut min_min_col_weight = usize::MAX;
                 let mut total_min_weight = 0;
                 let mut total_total_weight = 0usize;
-                for input in self.mix_input.iter() {
+                for input in mix_input.iter() {
                     let MixMatrixStats {
                         total_weight,
                         min_row_weight,
@@ -1493,17 +1497,17 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
                 FitnessValue::try_from(min_min_row_weight * 10_000_000_000 + total_min_weight * 100_000 + min_min_col_weight + total_total_weight).ok()
             }
         }
+
         let (result, other_species) = Evolve::builder()
-            .with_mutate(MutateMultiGeneDynamic::new(3, 0.05, 192))
+            .with_mutate(MutateMultiGeneDynamic::new(3, 0.05, 96))
             .with_crossover(CrossoverSinglePoint::new(0.7, 0.7))
             .with_select(SelectElite::new(0.3, 0.0625))
-            .with_target_population_size(256)
+            .with_target_population_size(128)
             .with_genotype(genotype)
-            .with_fitness(MinRowWeightFitness {mix_input})
-            .with_fitness_cache(1 << 20)                         // enable caching of fitness values (LRU size 1000), only works when genes_hash is stored in chromosome. Only useful for long stale runs
+            .with_fitness(MinRowWeightFitness)
             .with_par_fitness(true)
             .with_target_fitness_score(5_000_000_000_000)
-            .with_max_stale_generations(1 << 14)
+            .with_max_stale_generations(256)
             .with_reporter(EvolveReporterSimple::new(4))
             .call_par_speciated(10)
             .unwrap();
