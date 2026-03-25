@@ -1493,8 +1493,8 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
                 FitnessValue::try_from(min_min_row_weight * 10_000_000_000 + total_min_weight * 100_000 + min_min_col_weight + total_total_weight).ok()
             }
         }
-        let results = Evolve::builder()
-            .with_mutate(MutateMultiGeneDynamic::new(2, 0.05, 256))
+        let (result, other_species) = Evolve::builder()
+            .with_mutate(MutateMultiGeneDynamic::new(3, 0.05, 256))
             .with_crossover(CrossoverSinglePoint::new(0.7, 0.7))
             .with_select(SelectElite::new(0.3, 0.0625))
             .with_target_population_size(256)
@@ -1507,6 +1507,9 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
             .with_reporter(EvolveReporterSimple::new(4))
             .call_par_speciated(10)
             .unwrap();
-        println!("{:?}", results.best_genes_and_fitness_score());
+        println!("BEST: {:?}", result.best_genes_and_fitness_score());
+        for species in other_species.into_iter() {
+            println!("{:?}", species.best_genes_and_fitness_score());
+        }
     }
 }
