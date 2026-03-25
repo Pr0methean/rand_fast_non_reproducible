@@ -318,11 +318,11 @@ pub fn mix(
             not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
         )))]
         {
-            let a64 = pack_u32x8_to_u64x4(a);
-            let b64 = pack_u32x8_to_u64x4(b);
+            let a64: Simd64 = cast(a);
+            let b64: Simd64 = cast(b);
             let prod = a64 * b64;
-            let lo = unpack_u64x4_to_u32x8(prod);
-            let hi = unpack_u64x4_to_u32x8(prod >> Simd64::splat(32));
+            let lo = cast(prod);
+            let hi = cast(prod >> Simd64::splat(32));
             (lo, hi)
         }
     }
