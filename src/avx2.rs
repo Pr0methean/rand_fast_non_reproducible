@@ -88,7 +88,7 @@ fn rotl32<const R: i32>(x: __m256i) -> __m256i where [(); (32 - R) as usize]: {
 }
 
 #[inline(always)]
-fn mul_lo_hi_epu32(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
+pub(crate) fn mul_lo_hi_epu32(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
     unsafe {
         let lo = _mm256_mul_epu32(a, b);
 

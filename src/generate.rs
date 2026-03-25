@@ -4,10 +4,9 @@ use core::simd::num::SimdInt;
 use core::simd::num::SimdUint;
 use core::simd::Simd;
 use core::slice::from_mut;
-use core::mem::transmute;
 use rand_core::block::Generator;
 use core::simd::Select;
-
+use bytemuck::cast;
 #[cfg(all(
     target_arch = "x86_64",
     target_feature = "avx2",
@@ -284,19 +283,6 @@ pub fn mix(
     x5: Simd64,
     x6: Simd64,
 ) -> (Simd64, Simd64, Simd64) {
-    mix_with_shifts(x0, x1, x2, x3, x4, x5, x6, [7; 21])
-}
-#[inline(always)]
-pub fn mix_with_shifts(
-    x0: Simd64,
-    x1: Simd64,
-    x2: Simd64,
-    x3: Simd64,
-    x4: Simd64,
-    x5: Simd64,
-    x6: Simd64,
-    shifts: [u32; 21]
-) -> (Simd64, Simd64, Simd64) {
     fn pack_u32x8_to_u64x4(x: Simd<u32, 8>) -> Simd<u64, 4> {
         let arr = x.to_array();
         Simd::from_array([
@@ -324,19 +310,14 @@ pub fn mix_with_shifts(
 
     // Convert inputs to u32x8 (portable)
     let xi = [
-        unpack_u64x4_to_u32x8(x0),
-        unpack_u64x4_to_u32x8(x1),
-        unpack_u64x4_to_u32x8(x2),
-        unpack_u64x4_to_u32x8(x3),
-        unpack_u64x4_to_u32x8(x4),
-        unpack_u64x4_to_u32x8(x5),
-        unpack_u64x4_to_u32x8(x6),
+        cast(x0),
+        cast(x1),
+        cast(x2),
+        cast(x3),
+        cast(x4),
+        cast(x5),
+        cast(x6),
     ];
-
-    // Initial state vectors
-    let mut a = Simd32::splat(0x243f6a88);
-    let mut b = Simd32::splat(0x9e3779b9);
-    let mut c = Simd32::splat(0xb7e15162);
 
     // Rotation helper
     #[inline(always)]
@@ -347,12 +328,43 @@ pub fn mix_with_shifts(
     // Portable multiply-high + low (per-lane)
     #[inline(always)]
     fn mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
-        let a64 = pack_u32x8_to_u64x4(a);
-        let b64 = pack_u32x8_to_u64x4(b);
-        let prod = a64 * b64;
-        let lo = unpack_u64x4_to_u32x8(prod);
-        let hi = unpack_u64x4_to_u32x8(prod >> Simd64::splat(32));
-        (lo, hi)
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
+        ))]
+        {
+            let (lo, hi) = avx2::mul_lo_hi_epu32(cast(a), cast(b));
+            (cast(lo), cast(hi))
+        }
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
+        )))]
+        {
+            let a64 = pack_u32x8_to_u64x4(a);
+            let b64 = pack_u32x8_to_u64x4(b);
+            let prod = a64 * b64;
+            let lo = unpack_u64x4_to_u32x8(prod);
+            let hi = unpack_u64x4_to_u32x8(prod >> Simd64::splat(32));
+            (lo, hi)
+        }
+    }
+    
+        #[inline(always)]
+    fn perm1(x: Simd32) -> Simd32 {
+        x.rotate_elements_left::<1>()
+    }
+    
+    #[inline(always)]
+    fn perm2(x: Simd32) -> Simd32 {
+        x.rotate_elements_right::<3>()
+    }
+    
+    #[inline(always)]
+    fn perm3(x: Simd32) -> Simd32 {
+        x.rotate_elements_left::<5>()
     }
 
     #[inline(always)]
@@ -360,7 +372,7 @@ pub fn mix_with_shifts(
         mut a: Simd32,
         mut b: Simd32,
         mut c: Simd32,
-        inputs: &[Simd32; 7],
+        x: &[Simd32; 7],
         shift1: u32,
         shift2: u32,
         shift3: u32,
@@ -368,36 +380,40 @@ pub fn mix_with_shifts(
         shift5: u32,
         shift6: u32,
     ) -> (Simd32, Simd32, Simd32) {
-        // Mix inputs
-        a += inputs[0];
-        b ^= inputs[1];
-        c += inputs[2];
+        a ^= perm1(b);
+        b += perm2(c);
+        c ^= perm3(a);
 
-        a ^= inputs[3];
-        b += inputs[4];
-        c ^= inputs[5];
+        // --- Input injection ---
+        a += x[0];
+        b ^= x[1];
+        c += x[2];
 
-        // Nonlinear layer
+        a ^= x[3];
+        b += x[4];
+        c ^= x[5];
+
+        // --- First nonlinear layer ---
         let (m0_lo, m0_hi) = mul_lo_hi(a, b);
         let (m1_lo, m1_hi) = mul_lo_hi(b, c);
 
-        // Cross-lane mixing mid-round (portable substitute for lane diffusion)
-        a ^= m1_hi ^ b.rotate_elements_right::<1>();
-        b ^= m0_lo ^ c.rotate_elements_right::<2>();
-        c ^= m0_hi ^ a.rotate_elements_right::<3>();
+        a ^= m1_hi + perm2(b);
+        b ^= m0_lo ^ perm3(c);
+        c ^= m0_hi + perm1(a);
 
-        // Rotate
+        // --- Rotate ---
         a = rotl32(a, shift1);
         b = rotl32(b, shift2);
         c = rotl32(c, shift3);
 
-        // Another nonlinear layer
+        // --- Second nonlinear layer ---
         let (m2_lo, m2_hi) = mul_lo_hi(a, c);
-        a += m2_hi + inputs[6];
-        b += m1_lo ^ inputs[0];
-        c += m2_lo + inputs[1];
 
-        // Final rotate
+        a += m2_hi ^ x[6];
+        b += m1_lo + perm1(a);
+        c += m2_lo ^ perm2(b);
+
+        // --- Final rotate ---
         a = rotl32(a, shift4);
         b = rotl32(b, shift5);
         c = rotl32(c, shift6);
@@ -405,31 +421,30 @@ pub fn mix_with_shifts(
         (a, b, c)
     }
 
-    // Three rounds with rotated inputs
-    (a, b, c) = round3(a, b, c, &xi, shifts[0], shifts[1], shifts[2], shifts[3], shifts[4], shifts[5]);
-    (a, b, c) = round3(a, b, c, &[xi[3], xi[4], xi[5], xi[6], xi[0], xi[1], xi[2]], shifts[6], shifts[7], shifts[8], shifts[9], shifts[10], shifts[11]);
-    (a, b, c) = round3(a, b, c, &[xi[6], xi[0], xi[1], xi[2], xi[3], xi[4], xi[5]], shifts[12], shifts[13], shifts[14], shifts[15], shifts[16], shifts[17]);
+    let mut a = Simd32::splat(0x243f6a88);
+    let mut b = Simd32::splat(0x9e3779b9);
+    let mut c = Simd32::splat(0xb7e15162);
 
-    // Final cross-lane permutation
-    let b_perm = b.rotate_elements_right::<2>();
-    let c_perm = c.rotate_elements_right::<1>();
+    (a, b, c) = round3(a, b, c, &xi, 7, 19, 26, 11, 23, 31);
+    (a, b, c) = round3(a, b, c, &[xi[3], xi[4], xi[5], xi[6], xi[0], xi[1], xi[2]], 5, 17, 29, 9, 21, 27);
+    (a, b, c) = round3(a, b, c, &[xi[6], xi[0], xi[1], xi[2], xi[3], xi[4], xi[5]], 3, 13, 25, 15, 27, 9);
 
-    a ^= b_perm;
-    b += c_perm;
-    c ^= a;
+    a = rotl32(a, 17);
+    b = rotl32(b, 7);
+    c = rotl32(c, 23);
 
-    // Final nonlinear layer
+    // --- Strong final cross-lane avalanche ---
+    a ^= perm2(b);
+    b += perm3(c);
+
     let (m_lo, m_hi) = mul_lo_hi(a, b);
+    c ^= perm1(a);
     a ^= m_hi;
-    b ^= m_lo;
-    c += m_hi;
-
-    a = rotl32(a, shifts[18]);
-    b = rotl32(b, shifts[19]);
-    c = rotl32(c, shifts[20]);
+    b += m_lo.rotate_elements_left::<1>();
+    c += m_hi ^ perm2(a);
 
     // Convert back to u64x4 by casting and packing
-    (pack_u32x8_to_u64x4(a), pack_u32x8_to_u64x4(b), pack_u32x8_to_u64x4(c))
+    (cast(a), cast(b), cast(c))
 }
 
 impl Generator for TripleMixSimdCore {
@@ -684,10 +699,10 @@ mod tests {
                 mean,
                 stdev,
             } = evaluate_second_order_derivatives(random_inputs);
-            assert!(min >= 150, "Min weight {min} too low");
-            assert!(max <= 362, "Max weight {max} too high");
-            assert!(mean >= 254.0, "Mean weight {mean:.02} too low");
-            assert!(mean <= 258.0, "Mean weight {mean:.02} too high");
+            assert!(min >= (MIX_OUTPUTS as u64 * 96), "Min weight {min} too low");
+            assert!(max <= (MIX_OUTPUTS as u64 * 160), "Max weight {max} too high");
+            assert!(mean >= (MIX_OUTPUTS as f64 * 127.0), "Mean weight {mean:.02} too low");
+            assert!(mean <= (MIX_OUTPUTS as f64 * 129.0), "Mean weight {mean:.02} too high");
             assert!(stdev >= 11.0, "Stdev weight {stdev:.02} too low");
             assert!(stdev <= 14.0, "Stdev weight {stdev:.02} too high");
         }
