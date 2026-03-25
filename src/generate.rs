@@ -283,31 +283,6 @@ pub fn mix(
     x5: Simd64,
     x6: Simd64,
 ) -> (Simd64, Simd64, Simd64) {
-    fn pack_u32x8_to_u64x4(x: Simd<u32, 8>) -> Simd<u64, 4> {
-        let arr = x.to_array();
-        Simd::from_array([
-            (arr[0] as u64) | ((arr[1] as u64) << 32),
-            (arr[2] as u64) | ((arr[3] as u64) << 32),
-            (arr[4] as u64) | ((arr[5] as u64) << 32),
-            (arr[6] as u64) | ((arr[7] as u64) << 32),
-        ])
-    }
-
-    #[inline(always)]
-    fn unpack_u64x4_to_u32x8(x: Simd<u64, 4>) -> Simd<u32, 8> {
-        let arr = x.to_array();
-        Simd::from_array([
-            arr[0] as u32,
-            (arr[0] >> 32) as u32,
-            arr[1] as u32,
-            (arr[1] >> 32) as u32,
-            arr[2] as u32,
-            (arr[2] >> 32) as u32,
-            arr[3] as u32,
-            (arr[3] >> 32) as u32,
-        ])
-    }
-
     // Convert inputs to u32x8 (portable)
     let xi = [
         cast(x0),
