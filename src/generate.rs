@@ -1502,7 +1502,7 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
             .with_fitness(MinRowWeightFitness {mix_input})
             .with_fitness_cache(1 << 20)                         // enable caching of fitness values (LRU size 1000), only works when genes_hash is stored in chromosome. Only useful for long stale runs
             .with_par_fitness(true)
-            .with_target_fitness_score(4_800_000_000_000)
+            .with_target_fitness_score(5_000_000_000_000)
             .with_max_stale_generations(1 << 16)
             .with_reporter(EvolveReporterSimple::new(4))
             .call()
