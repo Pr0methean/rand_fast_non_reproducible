@@ -326,21 +326,6 @@ pub fn mix(
             (lo, hi)
         }
     }
-    
-        #[inline(always)]
-    fn perm1(x: Simd32) -> Simd32 {
-        x.rotate_elements_left::<1>()
-    }
-    
-    #[inline(always)]
-    fn perm2(x: Simd32) -> Simd32 {
-        x.rotate_elements_right::<3>()
-    }
-    
-    #[inline(always)]
-    fn perm3(x: Simd32) -> Simd32 {
-        x.rotate_elements_left::<5>()
-    }
 
     #[inline(always)]
     fn round3(
@@ -355,9 +340,9 @@ pub fn mix(
         shift5: u32,
         shift6: u32,
     ) -> (Simd32, Simd32, Simd32) {
-        a ^= perm1(b);
-        b += perm2(c);
-        c ^= perm3(a);
+        a ^= b.rotate_elements_left::<1>();
+        b += c.rotate_elements_right::<3>();
+        c ^= a.rotate_elements_left::<3>();
 
         // --- Input injection ---
         a += x[0];
@@ -372,9 +357,9 @@ pub fn mix(
         let (m0_lo, m0_hi) = mul_lo_hi(a, b);
         let (m1_lo, m1_hi) = mul_lo_hi(b, c);
 
-        a ^= m1_hi + perm2(b);
-        b ^= m0_lo ^ perm3(c);
-        c ^= m0_hi + perm1(a);
+        a ^= m1_hi + b.rotate_elements_right::<3>();
+        b ^= m0_lo ^ c.rotate_elements_left::<3>();
+        c ^= m0_hi + a.rotate_elements_left::<1>();
 
         // --- Rotate ---
         a = rotl32(a, shift1);
@@ -385,8 +370,8 @@ pub fn mix(
         let (m2_lo, m2_hi) = mul_lo_hi(a, c);
 
         a += m2_hi ^ x[6];
-        b += m1_lo + perm1(a);
-        c += m2_lo ^ perm2(b);
+        b += m1_lo + a.rotate_elements_left::<1>();
+        c += m2_lo ^ b.rotate_elements_right::<3>();
 
         // --- Final rotate ---
         a = rotl32(a, shift4);
@@ -409,14 +394,15 @@ pub fn mix(
     c = rotl32(c, 23);
 
     // --- Strong final cross-lane avalanche ---
-    a ^= perm2(b);
-    b += perm3(c);
+    a ^= b.rotate_elements_right::<3>();
+    b += c.rotate_elements_left::<3>();
 
     let (m_lo, m_hi) = mul_lo_hi(a, b);
-    c ^= perm1(a);
-    a ^= m_hi;
-    b += m_lo.rotate_elements_left::<1>();
-    c += m_hi ^ perm2(a);
+    c ^= a.rotate_elements_left::<1>();
+    let cross = m_lo ^ m_hi.rotate_elements_right::<1>();
+    a += m_hi ^ b.rotate_elements_right::<3>() ^ cross;
+    b += m_lo ^ c.rotate_elements_left::<3>() ^ cross;
+    c += m_hi ^ a.rotate_elements_right::<3>() ^ cross;
 
     // Convert back to u64x4 by casting and packing
     (cast(a), cast(b), cast(c))
