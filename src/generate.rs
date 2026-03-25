@@ -1469,31 +1469,32 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
             type Genotype = RangeGenotype<u32>;
             fn calculate_for_chromosome(&mut self, chromosome: &FitnessChromosome<Self>, genotype: &Self::Genotype) -> Option<FitnessValue> {
                 let age = chromosome.age();
-                let mix_input = MIX_INPUT.with(|m| m.borrow_mut().entry(age).or_insert_with(|| {
-                    let mut input = [[0u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS];
-                    let mut rng = rng();
-                    for one_input in input.iter_mut() {
-                        rng.fill(one_input);
+                MIX_INPUT.with(|m| {
+                    let mut min_min_row_weight = usize::MAX;
+                    let mut min_min_col_weight = usize::MAX;
+                    let mut total_min_weight = 0;
+                    let mut total_total_weight = 0usize;
+                    for input in m.borrow_mut().entry(age).or_insert_with(|| {
+                        let mut input = [[0u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS];
+                        let mut rng = rng();
+                        for one_input in input.iter_mut() {
+                            rng.fill(one_input);
+                        }
+                        input
+                    }) {
+                        let MixMatrixStats {
+                            total_weight,
+                            min_row_weight,
+                            min_col_weight,
+                        } = evaluate_mix_matrix_with_shifts(*input, *chromosome.genes.as_array()?);
+                        min_min_row_weight = min_min_row_weight.min(min_row_weight);
+                        min_min_col_weight = min_min_col_weight.min(min_col_weight);
+                        total_min_weight += min_row_weight;
+                        total_total_weight += total_weight;
                     }
-                    input
-                }));
-                let mut min_min_row_weight = usize::MAX;
-                let mut min_min_col_weight = usize::MAX;
-                let mut total_min_weight = 0;
-                let mut total_total_weight = 0usize;
-                for input in mix_input.iter() {
-                    let MixMatrixStats {
-                        total_weight,
-                        min_row_weight,
-                        min_col_weight,
-                    } = evaluate_mix_matrix_with_shifts(*input, *chromosome.genes.as_array()?);
-                    min_min_row_weight = min_min_row_weight.min(min_row_weight);
-                    min_min_col_weight = min_min_col_weight.min(min_col_weight);
-                    total_min_weight += min_row_weight;
-                    total_total_weight += total_weight;
-                }
-                println!("{:02?}: min_min_row_weight: {}, min_min_col_weight: {}, total_min_weight: {}, total_total_weight: {}", chromosome.genes, min_min_row_weight, min_min_col_weight, total_min_weight, total_total_weight);
-                FitnessValue::try_from(min_min_row_weight * 10_000_000_000 + total_min_weight * 100_000 + min_min_col_weight + total_total_weight).ok()
+                    println!("{:02?}: min_min_row_weight: {}, min_min_col_weight: {}, total_min_weight: {}, total_total_weight: {}", chromosome.genes, min_min_row_weight, min_min_col_weight, total_min_weight, total_total_weight);
+                    FitnessValue::try_from(min_min_row_weight * 10_000_000_000 + total_min_weight * 100_000 + min_min_col_weight + total_total_weight).ok()
+                })
             }
         }
 
