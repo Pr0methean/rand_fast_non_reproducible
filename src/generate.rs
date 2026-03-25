@@ -442,7 +442,8 @@ impl Generator for TripleMixSimdCore {
 
 #[cfg(test)]
 mod tests {
-    use genetic_algorithm::strategy::prelude::{Evolve, HillClimb};
+    use std::borrow::BorrowMut;
+use genetic_algorithm::strategy::prelude::{Evolve, HillClimb};
 use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::NotReproducible;
     use crate::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
@@ -450,26 +451,22 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;
     use core::simd::Simd;
-    use std::hint::black_box;
-    use dashmap::DashMap;
+    use std::cell::{Ref, RefCell};
+    use std::collections::HashMap;
     use fsum::FSum;
     use genetic_algorithm::crossover::CrossoverSinglePoint;
     use genetic_algorithm::fitness::{Fitness, FitnessChromosome, FitnessValue};
     use genetic_algorithm::genotype::{Genotype, RangeGenotype};
-    use genetic_algorithm::mutate::{MutateMultiGene, MutateMultiGeneDynamic, MutateSingleGene};
+    use genetic_algorithm::mutate::{MutateMultiGeneDynamic, MutateSingleGene};
     use genetic_algorithm::select::SelectElite;
     use genetic_algorithm::strategy::evolve::EvolveReporterSimple;
-    use genetic_algorithm::strategy::hill_climb::HillClimbReporterSimple;
     use genetic_algorithm::strategy::Strategy;
-    use genetic_algorithm::strategy::StrategyAction::Crossover;
     use gf2::{BitMatrix, BitStore};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
-    use once_cell::sync::Lazy;
     use proptest::{prelude::any, prop_assert, proptest};
     use rand::{rng, RngExt};
-    use rand::rngs::SysRng;
-    use rand_core::{Rng, SeedableRng, UnwrapErr};
+    use rand_core::{Rng, SeedableRng};
     use statrs::distribution::{Binomial, Discrete, DiscreteCDF};
 
     struct MixMatrixStats {
@@ -1458,7 +1455,9 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
     #[test]
     fn find_optimal_shifts() {
         const NUM_INPUTS: usize = 20;
-        static MIX_INPUT: Lazy<DashMap<usize, [[u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS]>> = Lazy::new(DashMap::new);
+        thread_local! {
+            static MIX_INPUT: RefCell<HashMap<usize, [[u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS]>> = RefCell::new(HashMap::new());
+        }
         let genotype = RangeGenotype::builder()
             .with_genes_size(21)
             .with_allele_range(1u32..=31)
@@ -1470,14 +1469,14 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
             type Genotype = RangeGenotype<u32>;
             fn calculate_for_chromosome(&mut self, chromosome: &FitnessChromosome<Self>, genotype: &Self::Genotype) -> Option<FitnessValue> {
                 let age = chromosome.age();
-                let mix_input = MIX_INPUT.entry(age).or_insert_with(|| {
+                let mix_input = MIX_INPUT.with(|m| m.borrow_mut().entry(age).or_insert_with(|| {
                     let mut input = [[0u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS];
                     let mut rng = rng();
                     for one_input in input.iter_mut() {
                         rng.fill(one_input);
                     }
                     input
-                });
+                }));
                 let mut min_min_row_weight = usize::MAX;
                 let mut min_min_col_weight = usize::MAX;
                 let mut total_min_weight = 0;
@@ -1505,11 +1504,10 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
             .with_target_population_size(128)
             .with_genotype(genotype)
             .with_fitness(MinRowWeightFitness)
-            .with_par_fitness(true)
             .with_target_fitness_score(5_000_000_000_000)
             .with_max_stale_generations(256)
             .with_reporter(EvolveReporterSimple::new(4))
-            .call_par_speciated(10)
+            .call_par_speciated(8)
             .unwrap();
         println!("BEST: {:?}", result.best_genes_and_fitness_score());
         for species in other_species.into_iter() {
