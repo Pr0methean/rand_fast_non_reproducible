@@ -1493,14 +1493,16 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
                         total_total_weight += total_weight;
                     }
                     let score = min_min_row_weight * 10_000_000_000 + total_min_weight * 100_000 + min_min_col_weight + total_total_weight;
-                    println!("{}: {:02?}: min_min_row_weight: {}, min_min_col_weight: {}, total_min_weight: {}, total_total_weight: {}, score: {}",
-                            std::thread::current().id().as_u64(),
-                            chromosome.genes,
-                            min_min_row_weight,
-                            min_min_col_weight,
-                            total_min_weight,
-                            total_total_weight,
-                            score);
+                    if score >= 4_300_000_000_000 {
+                        println!("{}: {:02?}: min_min_row_weight: {}, min_min_col_weight: {}, total_min_weight: {}, total_total_weight: {}, score: {}",
+                                 std::thread::current().id().as_u64(),
+                                 chromosome.genes,
+                                 min_min_row_weight,
+                                 min_min_col_weight,
+                                 total_min_weight,
+                                 total_total_weight,
+                                 score);
+                    }
                     FitnessValue::try_from(score).ok()
                 })
             }
