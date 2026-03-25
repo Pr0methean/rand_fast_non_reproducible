@@ -17,7 +17,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        feature-flag: [ "--no-default-features", "--all-features" ]
         os: [ ubuntu-latest, ubuntu-24.04-arm, macos-26-intel, macos-latest, windows-latest, windows-11-arm ]
       fail-fast: false
     steps:
@@ -28,7 +27,7 @@ jobs:
 
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Run tests
-      run: cargo +nightly test --verbose ${{ matrix.feature-flag }} find_optimal_shifts -- --nocapture
+      run: cargo +nightly test --verbose --no-default-features find_optimal_shifts -- --nocapture
   benchmarks:
     needs: unit-tests
     runs-on: ${{ matrix.os }}

@@ -1,5 +1,6 @@
 #![feature(portable_simd)]
 #![feature(generic_const_exprs)]
+#![feature(thread_id_value)]
 #![allow(long_running_const_eval)]
 #![allow(incomplete_features)]
 #[cfg(all(
