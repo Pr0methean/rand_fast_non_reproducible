@@ -382,7 +382,7 @@ pub fn mix_with_shifts(
 
         // Cross-lane mixing mid-round (portable substitute for lane diffusion)
         a ^= m1_hi ^ b.rotate_elements_right::<1>();
-        b ^= m0_lo ^ c.rotate_elements_right::<2>();
+        b ^= m0_lo ^ c.rotate_elements_left::<2>();
         c ^= m0_hi ^ a.rotate_elements_right::<3>();
 
         // Rotate
