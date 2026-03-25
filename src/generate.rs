@@ -1494,7 +1494,7 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
             }
         }
         let (result, other_species) = Evolve::builder()
-            .with_mutate(MutateMultiGeneDynamic::new(3, 0.05, 256))
+            .with_mutate(MutateMultiGeneDynamic::new(3, 0.05, 192))
             .with_crossover(CrossoverSinglePoint::new(0.7, 0.7))
             .with_select(SelectElite::new(0.3, 0.0625))
             .with_target_population_size(256)
