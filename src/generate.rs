@@ -451,8 +451,11 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;
     use core::simd::Simd;
-    use std::cell::{Ref, RefCell};
+    use std::cell::{LazyCell, Ref, RefCell};
     use std::collections::HashMap;
+    use std::hash::{DefaultHasher, Hasher};
+    use std::thread::LocalKey;
+    use cuckoofilter::CuckooFilter;
     use fsum::FSum;
     use genetic_algorithm::crossover::CrossoverSinglePoint;
     use genetic_algorithm::fitness::{Fitness, FitnessChromosome, FitnessValue};
@@ -1452,12 +1455,21 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
         assert!(std_dev <= 2.0, "Too much variation: {:.2}", std_dev);
     }
 
+    const NUM_EVOLVE_INPUTS: usize = 20;
+    thread_local! {
+        static MIX_INPUT: RefCell<[[u64; SIMD_WIDTH * MIX_INPUTS]; NUM_EVOLVE_INPUTS]> = RefCell::new({
+            let mut inputs = [[0u64; SIMD_WIDTH * MIX_INPUTS]; NUM_EVOLVE_INPUTS];
+            let mut rng = rng();
+            for input in inputs.iter_mut() {
+                rng.fill(input);
+            }
+            inputs
+        });
+        static CUCKOO_FILTER: RefCell<CuckooFilter<DefaultHasher>> = RefCell::new(CuckooFilter::with_capacity(1 << 16));
+    }
+
     #[test]
     fn find_optimal_shifts() {
-        const NUM_INPUTS: usize = 20;
-        thread_local! {
-            static MIX_INPUT: RefCell<HashMap<usize, [[u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS]>> = RefCell::new(HashMap::new());
-        }
         let genotype = RangeGenotype::builder()
             .with_genes_size(21)
             .with_allele_range(1u32..=31)
@@ -1468,30 +1480,30 @@ use crate::generate::{mix, mix_with_shifts, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIM
         impl Fitness for MinRowWeightFitness {
             type Genotype = RangeGenotype<u32>;
             fn calculate_for_chromosome(&mut self, chromosome: &FitnessChromosome<Self>, genotype: &Self::Genotype) -> Option<FitnessValue> {
-                let age = chromosome.age();
-                MIX_INPUT.with(|m| {
-                    let mut min_min_row_weight = usize::MAX;
-                    let mut min_min_col_weight = usize::MAX;
-                    let mut total_min_weight = 0;
-                    let mut total_total_weight = 0usize;
-                    for input in m.borrow_mut().entry(age).or_insert_with(|| {
-                        let mut input = [[0u64; SIMD_WIDTH * MIX_INPUTS]; NUM_INPUTS];
-                        let mut rng = rng();
-                        for one_input in input.iter_mut() {
-                            rng.fill(one_input);
-                        }
-                        input
-                    }) {
-                        let MixMatrixStats {
-                            total_weight,
-                            min_row_weight,
-                            min_col_weight,
-                        } = evaluate_mix_matrix_with_shifts(*input, *chromosome.genes.as_array()?);
-                        min_min_row_weight = min_min_row_weight.min(min_row_weight);
-                        min_min_col_weight = min_min_col_weight.min(min_col_weight);
-                        total_min_weight += min_row_weight;
-                        total_total_weight += total_weight;
-                    }
+                let genes = chromosome.genes();
+                if !matches!(CUCKOO_FILTER.with_borrow_mut(|filter: &mut CuckooFilter<_>| filter.test_and_add(genes)),
+                    Ok(true)) {
+                    let mut rng = rng();
+                    MIX_INPUT.with_borrow_mut(|inputs| for input in inputs.iter_mut() {
+                        rng.fill(input);
+                    });
+                }
+                MIX_INPUT.with_borrow(|inputs| {
+                  let mut min_min_row_weight = usize::MAX;
+                  let mut min_min_col_weight = usize::MAX;
+                  let mut total_min_weight = 0;
+                  let mut total_total_weight = 0usize;
+                  for input in inputs {
+                      let MixMatrixStats {
+                          total_weight,
+                          min_row_weight,
+                          min_col_weight,
+                      } = evaluate_mix_matrix_with_shifts(*input, *chromosome.genes.as_array()?);
+                      min_min_row_weight = min_min_row_weight.min(min_row_weight);
+                      min_min_col_weight = min_min_col_weight.min(min_col_weight);
+                      total_min_weight += min_row_weight;
+                      total_total_weight += total_weight;
+                  }
                     let score = min_min_row_weight * 10_000_000_000 + total_min_weight * 100_000 + min_min_col_weight + total_total_weight;
                     if score >= 4_300_000_000_000 {
                         println!("{}: {:02?}: min_min_row_weight: {}, min_min_col_weight: {}, total_min_weight: {}, total_total_weight: {}, score: {}",
