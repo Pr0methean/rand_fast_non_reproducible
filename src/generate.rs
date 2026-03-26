@@ -448,7 +448,7 @@ impl Generator for TripleMixSimdCore {
 
 #[cfg(test)]
 mod tests {
-    use crate::generate::{mix, Simd32, Simd64, MIX_OUTPUTS, SIMD_WIDTH};
+    use crate::generate::{mix, Simd64, MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::NotReproducible;
     use crate::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
     use bytemuck::cast_slice_mut;
@@ -459,7 +459,7 @@ mod tests {
     use gf2::{BitMatrix, BitStore};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
-    use proptest::{prelude::any, prop_assert, prop_assert_eq, proptest};
+    use proptest::{prelude::any, prop_assert, proptest};
     use rand::{rng, RngExt};
     use rand_core::{Rng, SeedableRng};
     use statrs::distribution::{Binomial, Discrete, DiscreteCDF};
@@ -746,6 +746,7 @@ mod tests {
         ))]
         #[test]
         fn test_mul_lo_hi_proptest(a in any::<[u32; 8]>(), b in any::<[u32; 8]>()) {
+            use crate::generate::Simd32;
             let a_simd = Simd32::from_array(a);
             let b_simd = Simd32::from_array(b);
             let (lo_avx2, hi_avx2) = super::mul_lo_hi(a_simd, b_simd);
