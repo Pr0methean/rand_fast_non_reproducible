@@ -410,22 +410,23 @@ pub fn mix(
 
         (a, b, c)
     }
-
+    let scalar_hi = (scalar >> 32) as u32;
+    let scalar_lo = scalar as u32;
     let mut a = Simd32::splat(0x243f6a88);
-    a[0] ^= (scalar >> 32) as u32;
-    a[7] = a[7].wrapping_add(scalar as u32);
+    let scalar_mix_1 = Simd32::from_array([0, scalar_lo, scalar_hi, 0, scalar_hi, 0, scalar_lo, 0]);
     let mut b = Simd32::splat(0x9e3779b9);
-    b[4] ^= scalar as u32;
+    let scalar_mix_2 = Simd32::from_array([scalar_hi, 0, 0, scalar_hi, 0, scalar_lo, 0, scalar_lo]);
+    a ^= scalar_mix_1;
     let mut c = Simd32::splat(0xb7e15162);
-    c[2] = c[2].wrapping_add((scalar >> 32) as u32);
+    b += scalar_mix_2;
 
     (a, b, c) = round3(a, b, c, &xi, 7, 19, 26, 11, 23, 31);
+    c += scalar_mix_1;
     (a, b, c) = round3(a, b, c, &[xi[3], xi[4], xi[5], xi[6], xi[0], xi[1], xi[2]], 5, 17, 29, 9, 21, 27);
+    a ^= scalar_mix_2;
     (a, b, c) = round3(a, b, c, &[xi[6], xi[0], xi[1], xi[2], xi[3], xi[4], xi[5]], 3, 13, 25, 15, 27, 9);
-
-    a = rotl32(a, 17);
-    b = rotl32(b, 7);
-    c = rotl32(c, 23);
+    a[7] = a[7].wrapping_add(scalar_lo);
+    c[2] = c[2].wrapping_add(scalar_hi);
 
     // --- Strong final cross-lane avalanche ---
     a ^= b.rotate_elements_right::<2>();
@@ -472,15 +473,15 @@ mod tests {
     }
 
     const AVALANCHE_MATRIX_ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
-    const AVALANCHE_MATRIX_COLS: usize = 8 * size_of::<Simd64>() * MIX_INPUTS;
+    const AVALANCHE_MATRIX_COLS: usize = 8 * (size_of::<Simd64>() * MIX_INPUTS + size_of::<u64>());
 
     fn evaluate_mix_matrix(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS + 1]) -> MixMatrixStats {
         let (base_out0, base_out1, base_out2) = mix_from_flat_array(mix_input);
         let mut xor_matrix = BitMatrix::<u64>::zeros(AVALANCHE_MATRIX_ROWS, AVALANCHE_MATRIX_COLS);
         let mut i = 0;
-        for variable_idx in 0..MIX_INPUTS {
+        for variable_idx in 0..(MIX_INPUTS + 1) {
             for lane_idx in 0..SIMD_WIDTH {
-                if variable_idx == 8 && lane_idx > 0 {
+                if variable_idx == MIX_INPUTS && lane_idx > 0 {
                     break;
                 }
                 for bit_idx in 0..64 {
@@ -642,17 +643,23 @@ mod tests {
 
     #[test]
     fn test_mix_matrix_random_inputs() {
+        const ITERATIONS: usize = 10;
         let mut rng = rng();
         let mut mix_input = [0u64; SIMD_WIDTH * MIX_INPUTS + 1];
-        let sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64 * 0.25).sqrt();
-        for _ in 0..MIX_INPUTS {
+        let sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64 * 0.25 - 1.0).sqrt();
+        let mut total_deviation = 0isize;
+        let grand_sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS * ITERATIONS) as f64 * 0.25 - 1.0).sqrt();
+        for _ in 0..ITERATIONS {
             rng.fill(&mut mix_input);
             let MixMatrixStats {
                 total_weight,
                 min_row_weight,
                 min_col_weight,
             } = evaluate_mix_matrix(mix_input);
-            let z = (total_weight as f64 - (0.5 * (AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64)) / sigma;
+            let deviation = 0isize.checked_add_unsigned(total_weight).unwrap()
+                .checked_sub_unsigned((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) / 2).unwrap();
+            total_deviation += deviation;
+            let z = (deviation as f64) / sigma;
             assert!(
                 min_col_weight >= (AVALANCHE_MATRIX_ROWS * 3) / 8,
                 "Min column weight {min_col_weight} too low"
@@ -661,9 +668,12 @@ mod tests {
                 min_row_weight >= (AVALANCHE_MATRIX_COLS * 3) / 8,
                 "Min row weight {min_row_weight} too low"
             );
-            assert!(z >= -3.0, "Total weight {total_weight} (z={z}) too low");
-            assert!(z <= 3.0, "Total weight {total_weight} (z={z}) too high");
+            assert!(z >= -4.0, "Total weight {total_weight} (z={z}) too low");
+            assert!(z <= 4.0, "Total weight {total_weight} (z={z}) too high");
         }
+        let z = (total_deviation as f64)/grand_sigma;
+        assert!(z >= -3.0, "Total deviation {total_deviation} (z={z}) too low");
+        assert!(z <= 3.0, "Total deviation {total_deviation} (z={z}) too high");
     }
 
     #[test]
@@ -696,7 +706,10 @@ mod tests {
             prop_assert!(min_row_weight >= (AVALANCHE_MATRIX_COLS * 3) / 8);
             let expected = AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS / 2;
             let deviation = (total_weight as isize - expected as isize).unsigned_abs();
-            prop_assert!(deviation * 80 <= expected); // ≈1.25% bias
+            let sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64 * 0.25 - 1.0).sqrt();
+            let z = (deviation as f64) / sigma;
+            prop_assert!(z >= -4.0, "Total weight {total_weight} (z={z}) too low");
+            prop_assert!(z <= 4.0, "Total weight {total_weight} (z={z}) too high");
         }
 
         #[test]
