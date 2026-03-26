@@ -376,21 +376,21 @@ pub fn mix(
         let (m0_lo, m0_hi) = mul_lo_hi(a, b);
         let (m1_lo, m1_hi) = mul_lo_hi(b, c);
 
-        a ^= m1_hi + b.rotate_elements_right::<3>();
-        b ^= m0_lo ^ c.rotate_elements_left::<3>();
+        a ^= m1_hi + b.rotate_elements_left::<2>();
+        b ^= m0_lo ^ c.rotate_elements_right::<3>();
         c ^= m0_hi + a.rotate_elements_left::<1>();
 
         // --- Rotate ---
         a = rotl32(a, shift1);
-        b = rotl32(b, shift2);
         c = rotl32(c, shift3);
 
         // --- Second nonlinear layer ---
         let (m2_lo, m2_hi) = mul_lo_hi(a, c);
+        b += m1_lo + a.rotate_elements_right::<2>();
+        b = rotl32(b, shift2);
 
         a += m2_hi ^ x[6];
-        b += m1_lo + a.rotate_elements_left::<1>();
-        c += m2_lo ^ b.rotate_elements_right::<3>();
+        c += m2_lo ^ b.rotate_elements_left::<3>();
 
         // --- Final rotate ---
         a = rotl32(a, shift4);
@@ -413,9 +413,9 @@ pub fn mix(
     c = rotl32(c, 23);
 
     // --- Strong final cross-lane avalanche ---
-    a ^= b.rotate_elements_right::<3>();
+    a ^= b.rotate_elements_right::<2>();
     b += c.rotate_elements_left::<3>();
-    c += b.rotate_elements_right::<2>();
+    c += b.rotate_elements_right::<4>();
 
     // Convert back to u64x4 by casting and packing
     (cast(a), cast(b), cast(c))
