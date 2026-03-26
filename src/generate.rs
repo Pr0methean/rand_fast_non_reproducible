@@ -415,7 +415,7 @@ pub fn mix(
     // --- Strong final cross-lane avalanche ---
     a ^= b.rotate_elements_right::<2>();
     b += c.rotate_elements_left::<3>();
-    c += b.rotate_elements_right::<4>();
+    c += a.rotate_elements_right::<4>();
 
     // Convert back to u64x4 by casting and packing
     (cast(a), cast(b), cast(c))
