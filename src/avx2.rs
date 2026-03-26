@@ -88,6 +88,34 @@ fn rotl32<const R: i32>(x: __m256i) -> __m256i where [(); (32 - R) as usize]: {
 }
 
 #[inline(always)]
+pub unsafe fn mul_lo_hi_interleaved_avx2(
+    a: __m256i,
+    b: __m256i,
+) -> (__m256i, __m256i) {
+    unsafe {
+        // even lanes
+        let even = _mm256_mul_epu32(a, b);
+
+        // odd lanes
+        let a_odd = _mm256_srli_epi64(a, 32);
+        let b_odd = _mm256_srli_epi64(b, 32);
+        let odd = _mm256_mul_epu32(a_odd, b_odd);
+
+        // shuffle each 64-bit product to place low 32 bits in the correct lane
+        let even_lo = _mm256_shuffle_epi32(even, 0b11011000);
+        let odd_lo  = _mm256_shuffle_epi32(odd,  0b11011000);
+
+        // interleave to get full 8-lane lo output
+        let lo = _mm256_blend_epi32(even_lo, _mm256_slli_si256(odd_lo, 4), 0b01010101);
+
+        // interleave to get full 8-lane hi output (high 32 bits if needed)
+        let hi = _mm256_blend_epi32(_mm256_srli_epi64(even, 32), _mm256_srli_epi64(odd, 32), 0b10101010);
+
+        (lo, hi)
+    }
+}
+
+#[inline(always)]
 pub(crate) fn mul_lo_hi_epu32(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
     unsafe {
         let lo = _mm256_mul_epu32(a, b);

@@ -6,6 +6,7 @@ use core::simd::Simd;
 use core::slice::from_mut;
 use rand_core::block::Generator;
 use core::simd::Select;
+use std::simd::simd_swizzle;
 use bytemuck::cast;
 #[cfg(all(
     target_arch = "x86_64",
@@ -274,6 +275,50 @@ fn rotl32(x: Simd32, r: u32) -> Simd32 {
 }
 
 #[inline(always)]
+fn mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
+    ))]
+    {
+        let (lo, hi) = unsafe { avx2::mul_lo_hi_interleaved_avx2(cast(a), cast(b)) };
+        (cast(lo), cast(hi))
+    }
+    #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
+    )))]
+    {
+        portable_mul_lo_hi(a, b)
+    }
+}
+
+#[allow(unused)]
+#[inline(always)]
+fn portable_mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
+    let a64: Simd64 = cast(a);
+    let b64: Simd64 = cast(b);
+    // Even lanes
+    let even = a64 * b64;
+
+    // Odd lanes
+    let a_hi = a64 >> Simd::splat(32);
+    let b_hi = b64 >> Simd::splat(32);
+    let odd = a_hi * b_hi;
+
+    // Reinterpret to u32
+    let even32: Simd32 = cast(even);
+    let odd32:  Simd32 = cast(odd);
+
+    let lo = simd_swizzle!(even32, odd32, [0, 8, 1, 9, 2, 10, 3, 11]);
+    let hi = simd_swizzle!(even32, odd32, [4, 12, 5, 13, 6, 14, 7, 15]);
+
+    (lo, hi)
+}
+
+#[inline(always)]
 pub fn mix(
     x0: Simd64,
     x1: Simd64,
@@ -298,33 +343,6 @@ pub fn mix(
     #[inline(always)]
     fn rotl32(x: Simd32, k: u32) -> Simd32 {
         (x << Simd32::splat(k)) | (x >> Simd32::splat(32 - k))
-    }
-
-    // Portable multiply-high + low (per-lane)
-    #[inline(always)]
-    fn mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
-        #[cfg(all(
-            target_arch = "x86_64",
-            target_feature = "avx2",
-            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
-        ))]
-        {
-            let (lo, hi) = avx2::mul_lo_hi_epu32(cast(a), cast(b));
-            (cast(lo), cast(hi))
-        }
-        #[cfg(not(all(
-            target_arch = "x86_64",
-            target_feature = "avx2",
-            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
-        )))]
-        {
-            let a64: Simd64 = cast(a);
-            let b64: Simd64 = cast(b);
-            let prod = a64 * b64;
-            let lo = cast(prod);
-            let hi = cast(prod >> Simd64::splat(32));
-            (lo, hi)
-        }
     }
 
     #[inline(always)]
@@ -432,9 +450,9 @@ impl Generator for TripleMixSimdCore {
 
 #[cfg(test)]
 mod tests {
-    use crate::generate::{mix, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIMD_WIDTH};
+    use crate::generate::{mix, Simd32, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::NotReproducible;
-    use crate::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
+    use crate::{avx2, TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
     use bytemuck::cast_slice_mut;
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;
@@ -444,7 +462,7 @@ mod tests {
     use gf2::{BitMatrix, BitStore};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
-    use proptest::{prelude::any, prop_assert, proptest};
+    use proptest::{prelude::any, prop_assert, prop_assert_eq, proptest};
     use rand::{rng, RngExt};
     use rand::rngs::SysRng;
     use rand_core::{Rng, SeedableRng, UnwrapErr};
@@ -719,6 +737,20 @@ mod tests {
                 let actual = (lo_arr[i] as u128) | ((hi_arr[i] as u128) << 64);
                 assert_eq!(actual, expected, "simd_mulsmall failed for a={} b={}", a[i], b_u64[i]);
             }
+        }
+
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
+        ))]
+        #[test]
+        fn test_mul_lo_hi_proptest(a in any::<[u32; 8]>(), b in any::<[u32; 8]>()) {
+            let a_simd = Simd32::from_array(a);
+            let b_simd = Simd32::from_array(b);
+            let (lo_avx2, hi_avx2) = super::mul_lo_hi(a_simd, b_simd);
+            let (lo_portable, hi_portable) = super::portable_mul_lo_hi(a_simd, b_simd);
+            prop_assert_eq!((lo_portable, hi_portable), (lo_avx2, hi_avx2));
         }
     }
 
