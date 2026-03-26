@@ -257,7 +257,6 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
 
 pub(crate) const TINYMT64_LANE_MASK: u64 = 0x7fff_ffff_ffff_ffff_u64;
 pub(crate) const SIMD_WIDTH: usize = 4;
-const MIX_INPUTS: usize = 7;
 pub(crate) const MIX_OUTPUTS: usize = 2;
 
 pub(crate) type Simd64 = Simd<u64, SIMD_WIDTH>;
@@ -421,7 +420,7 @@ impl Generator for TripleMixSimdCore {
 
 #[cfg(test)]
 mod tests {
-    use crate::generate::{mix, Simd32, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIMD_WIDTH};
+    use crate::generate::{mix, Simd32, Simd64, MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::NotReproducible;
     use crate::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
     use bytemuck::cast_slice_mut;
@@ -436,6 +435,8 @@ mod tests {
     use rand::{rng, RngExt};
     use rand_core::{Rng, SeedableRng};
     use statrs::distribution::{Binomial, Discrete, DiscreteCDF};
+
+    const MIX_INPUTS: usize = 7;
 
     struct MixMatrixStats {
         total_weight: usize,
