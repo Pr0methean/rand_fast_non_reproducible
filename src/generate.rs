@@ -171,7 +171,7 @@ impl TripleMixSimdCore {
             let tm_next_0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             let tm_next_1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
 
-            let (x, y) = mix(
+            let (x, y, z) = mix(
                 mwc_next_state,
                 pcg_output,
                 tm_out,
@@ -183,6 +183,7 @@ impl TripleMixSimdCore {
 
             block[0..4].copy_from_slice(&x.to_array());
             block[4..8].copy_from_slice(&y.to_array());
+            block[8..12].copy_from_slice(&z.to_array());
 
             // Update state
             tm0 = tm_next_0;
@@ -257,7 +258,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
 
 pub(crate) const TINYMT64_LANE_MASK: u64 = 0x7fff_ffff_ffff_ffff_u64;
 pub(crate) const SIMD_WIDTH: usize = 4;
-pub(crate) const MIX_OUTPUTS: usize = 2;
+pub(crate) const MIX_OUTPUTS: usize = 3;
 
 pub(crate) type Simd64 = Simd<u64, SIMD_WIDTH>;
 type Simd32 = Simd<u32, { SIMD_WIDTH * 2 }>;
@@ -316,7 +317,7 @@ pub fn mix(
     x4: Simd64,
     x5: Simd64,
     x6: Simd64,
-) -> (Simd64, Simd64) {
+) -> (Simd64, Simd64, Simd64) {
     // Convert inputs to u32x8 (portable)
     let xi = [
         cast(x0),
@@ -406,7 +407,7 @@ pub fn mix(
     c += a.rotate_elements_right::<4>();
 
     // Convert back to u64x4 by casting and packing
-    (cast(a ^ c), cast(b + c))
+    (cast(a), cast(b), cast(c))
 }
 
 impl Generator for TripleMixSimdCore {
@@ -448,7 +449,7 @@ mod tests {
     const AVALANCHE_MATRIX_COLS: usize = 8 * size_of::<Simd64>() * MIX_INPUTS;
 
     fn evaluate_mix_matrix(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) -> MixMatrixStats {
-        let (base_input, base_out0, base_out1) = mix_from_flat_array(mix_input);
+        let (base_input, base_out0, base_out1, base_out2) = mix_from_flat_array(mix_input);
         let mut xor_matrix = BitMatrix::<u64>::zeros(AVALANCHE_MATRIX_ROWS, AVALANCHE_MATRIX_COLS);
         let mut i = 0;
         for variable_idx in 0..MIX_INPUTS {
@@ -456,7 +457,7 @@ mod tests {
                 for bit_idx in 0..64 {
                     let mut modified_input = base_input.clone();
                     modified_input[variable_idx][lane_idx] ^= 1u64 << bit_idx;
-                    let (mod_out0, mod_out1) = mix(
+                    let (mod_out0, mod_out1, mod_out2) = mix(
                         modified_input[0],
                         modified_input[1],
                         modified_input[2],
@@ -465,7 +466,7 @@ mod tests {
                         modified_input[5],
                         modified_input[6]
                     );
-                    let (out_xor_0, out_xor_1) = (mod_out0 ^ base_out0, mod_out1 ^ base_out1);
+                    let (out_xor_0, out_xor_1, out_xor_2) = (mod_out0 ^ base_out0, mod_out1 ^ base_out1, mod_out2 ^ base_out2);
                     let mut j = 0;
                     for out_lane_idx in 0..SIMD_WIDTH {
                         for out_bit_idx in 0..64 {
@@ -474,6 +475,10 @@ mod tests {
                         }
                         for out_bit_idx in 0..64 {
                             xor_matrix.set(j, i, (out_xor_1[out_lane_idx] >> out_bit_idx) & 1 != 0);
+                            j += 1;
+                        }
+                        for out_bit_idx in 0..64 {
+                            xor_matrix.set(j, i, (out_xor_2[out_lane_idx] >> out_bit_idx) & 1 != 0);
                             j += 1;
                         }
                     }
@@ -511,7 +516,7 @@ mod tests {
         }
     }
 
-    fn mix_from_flat_array(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) -> ([Simd64; MIX_INPUTS], Simd64, Simd64) {
+    fn mix_from_flat_array(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) -> ([Simd64; MIX_INPUTS], Simd64, Simd64, Simd64) {
         let input_simds = [
             Simd::from_array(mix_input[0..4].try_into().unwrap()),
             Simd::from_array(mix_input[4..8].try_into().unwrap()),
@@ -521,7 +526,7 @@ mod tests {
             Simd::from_array(mix_input[20..24].try_into().unwrap()),
             Simd::from_array(mix_input[24..28].try_into().unwrap()),
         ];
-        let (base_out0, base_out1) = mix(
+        let (base_out0, base_out1, base_out2) = mix(
             input_simds[0],
             input_simds[1],
             input_simds[2],
@@ -530,7 +535,7 @@ mod tests {
             input_simds[5],
             input_simds[6]
         );
-        (input_simds, base_out0, base_out1)
+        (input_simds, base_out0, base_out1, base_out2)
     }
 
     struct SecondDerivativeStats {
@@ -541,7 +546,7 @@ mod tests {
     }
 
     fn evaluate_second_order_derivatives(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS]) -> SecondDerivativeStats {
-        let (base_input, base_out0, base_out1) = mix_from_flat_array(mix_input);
+        let (base_input, base_out0, base_out1, base_out_2) = mix_from_flat_array(mix_input);
         let mut weights = Vec::new();
         for var_idx_1 in 0..MIX_INPUTS {
             for var_idx_2 in var_idx_1..MIX_INPUTS {
@@ -553,7 +558,7 @@ mod tests {
                                     let mut modified_input = base_input;
                                     modified_input[var_idx_1][lane_idx_1] ^=
                                         1 << bit_idx_1 | 1 << bit_idx_2;
-                                    let (mod_out0, mod_out1) = mix(
+                                    let (mod_out0, mod_out1, mod_out2) = mix(
                                         modified_input[0],
                                         modified_input[1],
                                         modified_input[2],
@@ -562,11 +567,12 @@ mod tests {
                                         modified_input[5],
                                         modified_input[6]
                                     );
-                                    let (out_xor_0, out_xor_1) =
-                                        (mod_out0 ^ base_out0, mod_out1 ^ base_out1);
+                                    let (out_xor_0, out_xor_1, out_xor_2) =
+                                        (mod_out0 ^ base_out0, mod_out1 ^ base_out1, mod_out2 ^ base_out_2);
                                     weights.push(
                                         out_xor_0.count_ones().reduce_sum()
                                             + out_xor_1.count_ones().reduce_sum()
+                                            + out_xor_2.count_ones().reduce_sum(),
                                     );
                                 }
                             }
@@ -575,7 +581,7 @@ mod tests {
                                 let mut modified_input = base_input;
                                 modified_input[var_idx_1][lane_idx_1] ^= 1 << bit_idx;
                                 modified_input[var_idx_2][lane_idx_2] ^= 1 << bit_idx;
-                                let (mod_out0, mod_out1) = mix(
+                                let (mod_out0, mod_out1, mod_out2) = mix(
                                     modified_input[0],
                                     modified_input[1],
                                     modified_input[2],
@@ -584,11 +590,12 @@ mod tests {
                                     modified_input[5],
                                     modified_input[6]
                                 );
-                                let (out_xor_0, out_xor_1) =
-                                    (mod_out0 ^ base_out0, mod_out1 ^ base_out1);
+                                let (out_xor_0, out_xor_1, out_xor_2) =
+                                    (mod_out0 ^ base_out0, mod_out1 ^ base_out1, mod_out2 ^ base_out_2);
                                 weights.push(
                                     out_xor_0.count_ones().reduce_sum()
                                         + out_xor_1.count_ones().reduce_sum()
+                                        + out_xor_2.count_ones().reduce_sum(),
                                 );
                             }
                         }
