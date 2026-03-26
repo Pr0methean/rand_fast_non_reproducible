@@ -415,26 +415,7 @@ pub fn mix(
     // --- Strong final cross-lane avalanche ---
     a ^= b.rotate_elements_right::<3>();
     b += c.rotate_elements_left::<3>();
-
-    // --- nonlinear ---
-    let (mut m_lo, mut m_hi) = mul_lo_hi(a, b);
-    
-    // decorrelate product structure
-    m_hi = rotl32(m_hi, 9);
-    m_lo = rotl32(m_lo, 13);
-    
-    // cross-coupling term
-    let cross = m_lo ^ m_hi.rotate_elements_left::<1>();
-    
-    // feedback (all ADD-heavy now)
-    a += m_hi ^ b.rotate_elements_right::<3>() ^ cross;
-    b += m_lo ^ c.rotate_elements_left::<3>() ^ cross;
-    c += m_hi ^ a.rotate_elements_right::<3>() ^ cross;
-    
-    // extra nonlinear diffusion
-    a += m_lo.rotate_elements_left::<1>();
-    b += a.rotate_elements_right::<2>();
-    c += b.rotate_elements_left::<3>();
+    c += b.rotate_elements_right::<2>();
 
     // Convert back to u64x4 by casting and packing
     (cast(a), cast(b), cast(c))
