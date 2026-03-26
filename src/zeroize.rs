@@ -56,6 +56,7 @@ mod tests {
             tm1: Simd64::splat(0),
             mwc_state: Simd64::splat(0),
             mwc_carry: Simd64::splat(0),
+            xoshiro256: [0; 4],
         };
         let mut expected_output = [0u8; BLOCK_SIZE * size_of::<u64>() * 2];
         TripleMixPrng::<DefaultReproducibility>::from_core(zero_core)

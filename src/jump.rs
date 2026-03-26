@@ -115,6 +115,12 @@ impl TripleMixSimdCore {
     const TINYMT_JUMP_128_MAT: [u128; 128] = pow_mat_2_exp(Self::TINYMT_JUMP_MAT, 1);
     // 2^256 == 2^2 mod (2^127 - 1)
     const TINYMT_JUMP_256_MAT: [u128; 128] = pow_mat_2_exp(Self::TINYMT_JUMP_MAT, 2);
+    const XOSHIRO256_JUMP_128: [u64; 4] =             [
+        0x180ec6d33cfd0aba,
+        0xd5a61266f0c9392c,
+        0xa9582618e03fc9aa,
+        0x39abdc4529b1661c
+    ];
 
     fn jump_pcg(&mut self, steps: u128) {
         let mut result = JumpMatrix::identity();
@@ -144,7 +150,7 @@ impl TripleMixSimdCore {
     /// state_lo/state_hi: current state vectors
     /// a: multiplier (per lane)
     /// returns new (state_lo, state_hi)
-    pub fn mwc_jump(state: Simd64, carry: Simd64, steps: u128, k: u64) -> (Simd64, Simd64) {
+    pub(crate) fn mwc_jump(state: Simd64, carry: Simd64, steps: u128, k: u64) -> (Simd64, Simd64) {
         if steps == 0 && k == 0 {
             return (state, carry);
         }
@@ -194,6 +200,28 @@ impl TripleMixSimdCore {
 
         (res_state, res_carry)
     }
+    
+    fn jump_xoshiro_128(state: &mut [u64; 4]) {
+        let mut s0 = 0;
+        let mut s1 = 0;
+        let mut s2 = 0;
+        let mut s3 = 0;
+        for j in Self::XOSHIRO256_JUMP_128 {
+            for b in 0..64 {
+                if (j & 1 << b) != 0 {
+                    s0 ^= state[0];
+                    s1 ^= state[1];
+                    s2 ^= state[2];
+                    s3 ^= state[3];
+                }
+                Self::advance_xoshiro(state);
+            }
+        }
+        state[0] = s0;
+        state[1] = s1;
+        state[2] = s2;
+        state[3] = s3;
+    }
 }
 
 fn mul_mod(mut x: u128, mut y: u128, m: u128) -> u128 {
@@ -232,6 +260,10 @@ impl TripleMixSimdCore {
         self.mwc_carry = new_mwc_carry;
         self.update_t_from_matrix(&t_pow);
         self.jump_pcg(steps);
+        for _ in 0..steps {
+            // FIXME: Linear-time
+            Self::advance_xoshiro(&mut self.xoshiro256);
+        }
     }
 
     #[inline]
@@ -246,6 +278,7 @@ impl TripleMixSimdCore {
         self.mwc_state = new_mwc_state;
         self.mwc_carry = new_mwc_carry;
         self.update_t_from_matrix(&t_pow);
+        Self::jump_xoshiro_128(&mut self.xoshiro256);
     }
 
     #[inline]
@@ -260,6 +293,12 @@ impl TripleMixSimdCore {
         self.mwc_state = new_mwc_state;
         self.mwc_carry = new_mwc_carry;
         self.update_t_from_matrix(&t_pow);
+
+        // Xoshiro256 period is 2^256 - 1, so each multiple of 2^256 is 1 full period (no-op) + 1 step
+        for _ in 0..multiples {
+            // FIXME: Linear-time
+            Self::advance_xoshiro(&mut self.xoshiro256);
+        }
     }
 
     #[inline]

@@ -98,6 +98,7 @@ impl TripleMixSimdCore {
             tm1: Simd64::from_array(SMALLEST_2BIT_POSITIVE),
             mwc_state: Simd64::from_array(SMALLEST_2BIT_POSITIVE),
             mwc_carry: Simd::splat(0),
+            xoshiro256: [0, 0, 0, 1],
         }
     }
 
@@ -116,6 +117,7 @@ impl TripleMixSimdCore {
         let mut tm1 = self.tm1;
         let mut mwc_state = self.mwc_state;
         let mut mwc_carry = self.mwc_carry;
+        let mut xoshiro256 = self.xoshiro256;
 
         const PCG_OUTPUT_MULTIPLIERS: Simd64 = Simd::from_array([
             0xd6e8feb86659fd93,
@@ -128,6 +130,9 @@ impl TripleMixSimdCore {
             let (pcg_prod_hi, pcg_prod_lo) =
                 Self::mul128x64to128(pcg_state_hi, pcg_state_lo, Self::PCG_MULTIPLIERS);
             let (mwc_kx_lo, mwc_kx_hi) = simd_mulsmall(mwc_state, Self::MWC_MULTIPLIER_COMPLEMENTS);
+
+            // Generate scalar xoshiro256** output
+            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
 
             // TinyMT Step 0: Mask and initial XOR
             let tm0_masked = tm0 & Simd::splat(TINYMT64_LANE_MASK);
@@ -171,6 +176,8 @@ impl TripleMixSimdCore {
             let tm_next_0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             let tm_next_1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
 
+            Self::advance_xoshiro(&mut xoshiro256);
+            
             let (x, y, z) = mix(
                 mwc_next_state,
                 pcg_output,
@@ -178,7 +185,8 @@ impl TripleMixSimdCore {
                 mwc_next_carry,
                 i_mixed,
                 pcg_raw,
-                tm_raw
+                tm_raw,
+                xoshiro_out
             );
 
             block[0..4].copy_from_slice(&x.to_array());
@@ -198,6 +206,19 @@ impl TripleMixSimdCore {
         self.tm1 = tm1;
         self.mwc_state = mwc_state;
         self.mwc_carry = mwc_carry;
+        self.xoshiro256 = xoshiro256;
+    }
+
+    pub(crate) fn advance_xoshiro(xoshiro256: &mut [u64; 4]) {
+        let t = xoshiro256[1] << 17;
+        xoshiro256[2] ^= xoshiro256[0];
+        xoshiro256[3] ^= xoshiro256[1];
+        xoshiro256[1] ^= xoshiro256[2];
+        xoshiro256[0] ^= xoshiro256[3];
+
+        xoshiro256[2] ^= t;
+
+        xoshiro256[3] = xoshiro256[3].rotate_left(45);
     }
 }
 
@@ -317,6 +338,7 @@ pub fn mix(
     x4: Simd64,
     x5: Simd64,
     x6: Simd64,
+    scalar: u64,
 ) -> (Simd64, Simd64, Simd64) {
     // Convert inputs to u32x8 (portable)
     let xi = [
@@ -361,13 +383,13 @@ pub fn mix(
         b ^= x[1];
         c += x[2];
 
-        a ^= x[3];
-        b += x[4];
-        c ^= x[5];
-
         a ^= m1_hi + b.rotate_elements_left::<2>();
         b ^= m0_lo ^ c.rotate_elements_right::<3>();
         c ^= m0_hi + a.rotate_elements_left::<1>();
+
+        a ^= x[3];
+        b += x[4];
+        c ^= x[5];
 
         // --- Rotate ---
         a = rotl32(a, shift1);
@@ -390,8 +412,12 @@ pub fn mix(
     }
 
     let mut a = Simd32::splat(0x243f6a88);
+    a[0] ^= (scalar >> 32) as u32;
+    a[7] = a[7].wrapping_add(scalar as u32);
     let mut b = Simd32::splat(0x9e3779b9);
+    b[4] ^= scalar as u32;
     let mut c = Simd32::splat(0xb7e15162);
+    c[2] = c[2].wrapping_add((scalar >> 32) as u32);
 
     (a, b, c) = round3(a, b, c, &xi, 7, 19, 26, 11, 23, 31);
     (a, b, c) = round3(a, b, c, &[xi[3], xi[4], xi[5], xi[6], xi[0], xi[1], xi[2]], 5, 17, 29, 9, 21, 27);
@@ -464,7 +490,8 @@ mod tests {
                         modified_input[3],
                         modified_input[4],
                         modified_input[5],
-                        modified_input[6]
+                        modified_input[6],
+                        0
                     );
                     let (out_xor_0, out_xor_1, out_xor_2) = (mod_out0 ^ base_out0, mod_out1 ^ base_out1, mod_out2 ^ base_out2);
                     let mut j = 0;
@@ -533,7 +560,8 @@ mod tests {
             input_simds[3],
             input_simds[4],
             input_simds[5],
-            input_simds[6]
+            input_simds[6],
+            0
         );
         (input_simds, base_out0, base_out1, base_out2)
     }
@@ -565,15 +593,18 @@ mod tests {
                                         modified_input[3],
                                         modified_input[4],
                                         modified_input[5],
-                                        modified_input[6]
+                                        modified_input[6],
+                                        0
                                     );
                                     let (out_xor_0, out_xor_1, out_xor_2) =
                                         (mod_out0 ^ base_out0, mod_out1 ^ base_out1, mod_out2 ^ base_out_2);
-                                    weights.push(
-                                        out_xor_0.count_ones().reduce_sum()
-                                            + out_xor_1.count_ones().reduce_sum()
-                                            + out_xor_2.count_ones().reduce_sum(),
-                                    );
+                                    let weight = out_xor_0.count_ones().reduce_sum()
+                                        + out_xor_1.count_ones().reduce_sum()
+                                        + out_xor_2.count_ones().reduce_sum();
+                                    if weight < (96 * MIX_OUTPUTS) as u64 {
+                                        println!("Low-weight second derivative: {weight} (var_idx_1={var_idx_1}, var_idx_2={var_idx_2}, lane_idx_1={lane_idx_1}, lane_idx_2={lane_idx_2}, bit_idx_1={bit_idx_1}, bit_idx_2={bit_idx_2})");
+                                    }
+                                weights.push(weight);
                                 }
                             }
                         } else {
@@ -588,15 +619,18 @@ mod tests {
                                     modified_input[3],
                                     modified_input[4],
                                     modified_input[5],
-                                    modified_input[6]
+                                    modified_input[6],
+                                    0
                                 );
                                 let (out_xor_0, out_xor_1, out_xor_2) =
                                     (mod_out0 ^ base_out0, mod_out1 ^ base_out1, mod_out2 ^ base_out_2);
-                                weights.push(
-                                    out_xor_0.count_ones().reduce_sum()
-                                        + out_xor_1.count_ones().reduce_sum()
-                                        + out_xor_2.count_ones().reduce_sum(),
-                                );
+                                let weight = out_xor_0.count_ones().reduce_sum()
+                                + out_xor_1.count_ones().reduce_sum()
+                                + out_xor_2.count_ones().reduce_sum();
+                                if weight < (96 * MIX_OUTPUTS) as u64 {
+                                    println!("Low-weight second derivative: {weight} (var_idx_1={var_idx_1}, var_idx_2={var_idx_2}, lane_idx_1={lane_idx_1}, lane_idx_2={lane_idx_2}, bit_idx={bit_idx})");
+                                }
+                                weights.push(weight);
                             }
                         }
                     }
@@ -853,7 +887,7 @@ mod tests {
             let mut max_flips = 0;
             let mut total_flips: u64 = 0;
             let mut count: u64 = 0;
-            let mut flips_per_bit = [[[0; 64]; SIMD_WIDTH]; 8];
+            let mut flips_per_bit = [[[0; 64]; SIMD_WIDTH]; 9];
             let mut core1 = core;
             let mut output1 = [[Simd64::splat(0); MIX_OUTPUTS]; ITERATIONS];
             core1.fill_blocks(cast_slice_mut(&mut output1));
@@ -920,6 +954,9 @@ mod tests {
                                 arr[lane_idx] ^= 1 << bit_idx;
                                 core2.mwc_carry = Simd64::from_array(arr);
                             }
+                            8 => {
+                                core2.xoshiro256[lane_idx] ^= 1 << bit_idx;
+                            }
                             _ => unreachable!(),
                         }
                         if !core2.is_valid() {
@@ -928,6 +965,10 @@ mod tests {
                         let mut output2 = [[Simd64::splat(0); MIX_OUTPUTS]; ITERATIONS];
                         core2.fill_blocks(cast_slice_mut(&mut output2));
                         for i in 0..ITERATIONS {
+                            if field_idx == 8 && i < 4 {
+                                // xoshiro256 takes 4 blocks to propagate
+                                continue;
+                            }
                             let mut flips = 0;
                             let first_output1 = Simd::splat(output1[i][0][0]);
                             let first_output2 = Simd::splat(output2[i][0][0]);
@@ -944,12 +985,12 @@ mod tests {
                                     assert_eq!(
                                         sub_same.test(cell),
                                         false,
-                                        "Field {field_idx}, lane {lane_idx}, bit {bit_idx}: Same difference between cells 0 and {cell} as before flipping"
+                                        "Field {field_idx}, lane {lane_idx}, bit {bit_idx}, iter {i}: Same difference between cells 0 and {cell} as before flipping"
                                     );
                                     assert_eq!(
                                         xor_same.test(cell),
                                         false,
-                                        "Field {field_idx}, lane {lane_idx}, bit {bit_idx}: Same xor between cells 0 and {cell} as before flipping"
+                                        "Field {field_idx}, lane {lane_idx}, bit {bit_idx}, iter {i}: Same xor between cells 0 and {cell} as before flipping"
                                     );
                                 }
                                 flips += xor.count_ones().reduce_sum();

@@ -11,8 +11,9 @@ The PRNG has the following properties:
 
 * The output block size is 64 bytes (8 u64's).
 * The state size is 256 bytes: 508 bits of identity, 1532 bits of mutable state, 8 bits of overhead.
-* The period is greater than 2<sup>763</sup> - 2<sup>712</sup> - 2<sup>710</sup> blocks, because it's the product of the subgenerators' coprime periods:
+* The period is greater than 2<sup>1019</sup> - 2<sup>968</sup> - 2<sup>966</sup> blocks, because it's the product of the subgenerators' coprime periods:
   * PCG64: 2<sup>128</sup>
+  * Xoshiro256**: 2<sup>256</sup> - 1
   * TinyMT64: 2<sup>127</sup> - 1
   * MCG (lane 0): 2<sup>127</sup> - 742×2<sup>63</sup> - 1
   * MCG (lane 1): 2<sup>127</sup> - 5571×2<sup>63</sup> - 1

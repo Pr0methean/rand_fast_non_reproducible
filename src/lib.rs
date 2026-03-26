@@ -39,6 +39,7 @@ pub struct TripleMixSimdCore {
     pcg_state_hi: Simd64,
     pcg_inc_lo: Simd64,
     pcg_inc_hi: Simd64,
+    xoshiro256: [u64; 4],
 }
 
 impl std::fmt::Debug for TripleMixSimdCore {
@@ -51,6 +52,7 @@ impl std::fmt::Debug for TripleMixSimdCore {
         let x7 = self.pcg_state_lo;
         let x8 = self.pcg_inc_hi;
         let x9 = self.pcg_inc_lo;
+        let x10 = self.xoshiro256;
         f.debug_struct("TripleMixSimdCore")
             .field("pcg_state_lo", &x7.to_array())
             .field("pcg_state_hi", &x6.to_array())
@@ -60,6 +62,7 @@ impl std::fmt::Debug for TripleMixSimdCore {
             .field("tm1", &x4.to_array())
             .field("mwc_state", &x3.to_array())
             .field("mwc_carry", &x2.to_array())
+            .field("xoshiro256", &x10)
             .finish()
     }
 }
@@ -128,6 +131,7 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> [TripleMixPrng<R>; 5] {
         tm1: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
         mwc_state: Simd::splat(0),
         mwc_carry: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
+        xoshiro256: [0, 0, 0, 1],
     });
     let rng3 = TripleMixPrng::from_core(TripleMixSimdCore {
         pcg_state_lo: Simd::splat(u64::MAX),
@@ -138,6 +142,7 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> [TripleMixPrng<R>; 5] {
         tm1: LARGEST_DISTINCT,
         mwc_state: TripleMixSimdCore::MCG_MULTIPLIERS - Simd::splat(2),
         mwc_carry: TripleMixSimdCore::MCG_MULTIPLIERS - Simd::splat(1),
+        xoshiro256: [1, 0, 0, 0],
     });
     let mut seed = [0u8; DEFAULT_SEED_SIZE];
     let rng4 = TripleMixPrng::from(&seed);

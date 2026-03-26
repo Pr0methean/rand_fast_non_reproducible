@@ -120,12 +120,13 @@ impl<R: Reproducibility> TripleMixPrng<R> {
         let mut tm1 = Simd64::splat(0);
         let mut mwc_state = Simd64::splat(0);
         let mut mwc_carry = Simd64::splat(0);
+        let mut xoshiro256 = [0u64; 4];
         for round in 0..4 {
             let mut round_kmac = base.clone();
             round_kmac.update(&R::u128_as_bytes(tweak + ((round as u128) << 126)));
 
             // Update KMAC from right half
-            let mut buffer = [0u64; 16];
+            let mut buffer = [0u64; 18];
             // This loop looks scalar, but modern LLVM will see
             // the fixed 128-bit extract pattern and emit VEXTRACTI128
             // or VPERM2I128 directly into the buffer.
@@ -137,10 +138,11 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             buffer[10..12].copy_from_slice(&tm1.as_array()[2..4]);
             buffer[12..14].copy_from_slice(&mwc_state.as_array()[2..4]);
             buffer[14..16].copy_from_slice(&mwc_carry.as_array()[2..4]);
+            buffer[16..18].copy_from_slice(&xoshiro256[2..4]);
             round_kmac.update(R::cast_u64_slice_as_u8(&buffer).as_ref());
 
             let mut reader = round_kmac.into_xof();
-            let mut f_out = [0u8; 128];
+            let mut f_out = [0u8; 144];
             reader.squeeze(&mut f_out);
 
             // Xor into left half
@@ -162,6 +164,8 @@ impl<R: Reproducibility> TripleMixPrng<R> {
 
             mwc_state ^= d3 & mask;
             mwc_carry ^= d3.rotate_elements_left::<2>() & mask;
+            xoshiro256[0] ^= data.as_ref()[16];
+            xoshiro256[1] ^= data.as_ref()[17];
 
             // Swap: Lanes 0,1 <-> Lanes 2,3
             pcg_state_lo = pcg_state_lo.rotate_elements_left::<2>();
@@ -172,6 +176,7 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             tm1 = tm1.rotate_elements_left::<2>();
             mwc_state = mwc_state.rotate_elements_left::<2>();
             mwc_carry = mwc_carry.rotate_elements_left::<2>();
+            xoshiro256.rotate_left(2);
         }
 
         tm0 &= Simd::splat(TINYMT64_LANE_MASK);
@@ -185,6 +190,7 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             tm1,
             mwc_state,
             mwc_carry,
+            xoshiro256
         }
     }
 
@@ -266,6 +272,10 @@ impl TripleMixSimdCore {
             | (self.pcg_inc_lo & Simd::splat(1)).simd_ne(Simd::splat(1)))
         .any()
         {
+            cold_path();
+            return false;
+        }
+        if (self.xoshiro256[0] | self.xoshiro256[1] | self.xoshiro256[2] | self.xoshiro256[3]) == 0 {
             cold_path();
             return false;
         }
