@@ -300,8 +300,9 @@ fn mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
 fn portable_mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
     let a64: Simd64 = cast(a);
     let b64: Simd64 = cast(b);
-    // Even lanes
-    let even = a64 * b64;
+    let mask32 = Simd64::splat(0xFFFF_FFFF);
+    // Even lanes (lower 32 bits of each 64-bit word)
+    let even = (a64 & mask32) * (b64 & mask32);
 
     // Odd lanes
     let a_hi = a64 >> Simd::splat(32);
@@ -312,8 +313,8 @@ fn portable_mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
     let even32: Simd32 = cast(even);
     let odd32:  Simd32 = cast(odd);
 
-    let lo = simd_swizzle!(even32, odd32, [0, 8, 1, 9, 2, 10, 3, 11]);
-    let hi = simd_swizzle!(even32, odd32, [4, 12, 5, 13, 6, 14, 7, 15]);
+    let lo = simd_swizzle!(even32, odd32, [0, 8, 2, 10, 4, 12, 6, 14]);
+    let hi = simd_swizzle!(even32, odd32, [1, 9, 3, 11, 5, 13, 7, 15]);
 
     (lo, hi)
 }
@@ -452,7 +453,7 @@ impl Generator for TripleMixSimdCore {
 mod tests {
     use crate::generate::{mix, Simd32, Simd64, MIX_INPUTS, MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::NotReproducible;
-    use crate::{avx2, TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
+    use crate::{TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
     use bytemuck::cast_slice_mut;
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;

@@ -101,15 +101,11 @@ pub unsafe fn mul_lo_hi_interleaved_avx2(
         let b_odd = _mm256_srli_epi64(b, 32);
         let odd = _mm256_mul_epu32(a_odd, b_odd);
 
-        // shuffle each 64-bit product to place low 32 bits in the correct lane
-        let even_lo = _mm256_shuffle_epi32(even, 0b11011000);
-        let odd_lo  = _mm256_shuffle_epi32(odd,  0b11011000);
+        // lo[i] = low 32 bits of a[i]*b[i]: even u32 slots from even, odd u32 slots from odd
+        let lo = _mm256_blend_epi32(even, _mm256_slli_epi64(odd, 32), 0b10101010_u32 as i32);
 
-        // interleave to get full 8-lane lo output
-        let lo = _mm256_blend_epi32(even_lo, _mm256_slli_si256(odd_lo, 4), 0b01010101);
-
-        // interleave to get full 8-lane hi output (high 32 bits if needed)
-        let hi = _mm256_blend_epi32(_mm256_srli_epi64(even, 32), _mm256_srli_epi64(odd, 32), 0b10101010);
+        // hi[i] = high 32 bits of a[i]*b[i]: even u32 slots from even>>32, odd u32 slots from odd
+        let hi = _mm256_blend_epi32(_mm256_srli_epi64(even, 32), odd, 0b10101010_u32 as i32);
 
         (lo, hi)
     }
