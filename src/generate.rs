@@ -793,6 +793,7 @@ mod tests {
         }
     }
 
+    #[cfg_attr(miri, ignore)]
     #[test]
     fn test_bit_correlations_and_transitions() {
         const SAMPLE_COUNT: usize = 1 << 22;
@@ -1140,6 +1141,7 @@ mod tests {
             mean.abs() + (var - 64.0).abs() // 64 expected variance for 8x8 ±1
         }
         const PROJECTION_BLOCK: usize = 8; // 8x8 projection
+        #[cfg_attr(miri, ignore)]
         #[test]
         fn test_bitplane_projection() {
             const SAMPLES: usize = 1 << 22; // ~4M outputs
@@ -1163,6 +1165,7 @@ mod tests {
         }
     }
 
+    #[cfg_attr(miri, ignore)]
     #[test]
     fn test_lane_cross_correlation_bitplane() {
         for mut rng in crate::create_rngs::<NotReproducible>() {
@@ -1403,6 +1406,7 @@ mod tests {
         (matrix, column_labels)
     }
 
+    #[cfg_attr(miri, ignore)]
     #[test]
     fn test_4_step_matrix_rank_distribution() {
         let mut rng = rng();
@@ -1456,14 +1460,5 @@ mod tests {
 
         assert!(mean_rank >= 2040.0, "Mean rank too low: {:.2}", mean_rank);
         assert!(std_dev <= 2.0, "Too much variation: {:.2}", std_dev);
-    }
-    #[test]
-    fn test_for_profiling() {
-        let mut prng = TripleMixPrng::<NotReproducible>::from_rng(&mut UnwrapErr(SysRng));
-        let mut buffer = vec![0u64; 2048];
-        for _ in 0..2048 {
-            prng.fill(&mut buffer);
-            black_box(&buffer);
-        }
     }
 }
