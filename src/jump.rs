@@ -115,12 +115,6 @@ impl TripleMixSimdCore {
     const TINYMT_JUMP_128_MAT: [u128; 128] = pow_mat_2_exp(Self::TINYMT_JUMP_MAT, 1);
     // 2^256 == 2^2 mod (2^127 - 1)
     const TINYMT_JUMP_256_MAT: [u128; 128] = pow_mat_2_exp(Self::TINYMT_JUMP_MAT, 2);
-    const XOSHIRO256_JUMP_128: [u64; 4] =             [
-        0x180ec6d33cfd0aba,
-        0xd5a61266f0c9392c,
-        0xa9582618e03fc9aa,
-        0x39abdc4529b1661c
-    ];
 
     fn jump_pcg(&mut self, steps: u128) {
         let mut result = JumpMatrix::identity();
@@ -200,28 +194,6 @@ impl TripleMixSimdCore {
 
         (res_state, res_carry)
     }
-    
-    fn jump_xoshiro_128(state: &mut [u64; 4]) {
-        let mut s0 = 0;
-        let mut s1 = 0;
-        let mut s2 = 0;
-        let mut s3 = 0;
-        for j in Self::XOSHIRO256_JUMP_128 {
-            for b in 0..64 {
-                if (j & 1 << b) != 0 {
-                    s0 ^= state[0];
-                    s1 ^= state[1];
-                    s2 ^= state[2];
-                    s3 ^= state[3];
-                }
-                Self::advance_xoshiro(state);
-            }
-        }
-        state[0] = s0;
-        state[1] = s1;
-        state[2] = s2;
-        state[3] = s3;
-    }
 }
 
 fn mul_mod(mut x: u128, mut y: u128, m: u128) -> u128 {
@@ -260,10 +232,8 @@ impl TripleMixSimdCore {
         self.mwc_carry = new_mwc_carry;
         self.update_t_from_matrix(&t_pow);
         self.jump_pcg(steps);
-        for _ in 0..steps {
-            // FIXME: Linear-time
-            Self::advance_xoshiro(&mut self.xoshiro256);
-        }
+        let x_pow = pow_mat_256(Self::XOSHIRO256_JUMP_MAT, steps);
+        self.xoshiro256 = apply_mat_256(&x_pow, self.xoshiro256);
     }
 
     #[inline]
@@ -278,7 +248,9 @@ impl TripleMixSimdCore {
         self.mwc_state = new_mwc_state;
         self.mwc_carry = new_mwc_carry;
         self.update_t_from_matrix(&t_pow);
-        Self::jump_xoshiro_128(&mut self.xoshiro256);
+        // xoshiro256 period is 2^256-1; jump by multiples * 2^128 steps
+        let x_pow = pow_mat_256(Self::XOSHIRO256_JUMP_128_MAT, multiples);
+        self.xoshiro256 = apply_mat_256(&x_pow, self.xoshiro256);
     }
 
     #[inline]
@@ -293,12 +265,9 @@ impl TripleMixSimdCore {
         self.mwc_state = new_mwc_state;
         self.mwc_carry = new_mwc_carry;
         self.update_t_from_matrix(&t_pow);
-
-        // Xoshiro256 period is 2^256 - 1, so each multiple of 2^256 is 1 full period (no-op) + 1 step
-        for _ in 0..multiples {
-            // FIXME: Linear-time
-            Self::advance_xoshiro(&mut self.xoshiro256);
-        }
+        // 2^256 ≡ 1 mod (2^256 - 1), so multiples * 2^256 ≡ multiples steps
+        let x_pow = pow_mat_256(Self::XOSHIRO256_JUMP_256_MAT, multiples);
+        self.xoshiro256 = apply_mat_256(&x_pow, self.xoshiro256);
     }
 
     #[inline]
@@ -313,6 +282,11 @@ impl TripleMixSimdCore {
         }
     }
     const TINYMT_JUMP_MAT: [u128; 128] = compute_tinymt_mat();
+    const XOSHIRO256_JUMP_MAT: [[u64; 4]; 256] = compute_xoshiro256_mat();
+    // 2^128-step xoshiro matrix, precomputed
+    const XOSHIRO256_JUMP_128_MAT: [[u64; 4]; 256] = pow_mat_256_2_exp(Self::XOSHIRO256_JUMP_MAT, 128);
+    // 2^256 ≡ 1 mod (2^256 - 1), so this equals the 1-step matrix
+    const XOSHIRO256_JUMP_256_MAT: [[u64; 4]; 256] = pow_mat_256_2_exp(Self::XOSHIRO256_JUMP_MAT, 256);
 }
 
 // ============================================================================
@@ -392,11 +366,95 @@ const fn pow_mat_2_exp(mut a: [u128; 128], mut exp: u32) -> [u128; 128] {
     a
 }
 
+// ============================================================================
+// 256-bit GF(2) matrix operations (for xoshiro256)
+// ============================================================================
+
+const fn apply_mat_256(mat: &[[u64; 4]; 256], vec: [u64; 4]) -> [u64; 4] {
+    let mut res = [0u64; 4];
+    let mut i = 0;
+    while i < 256 {
+        let word = i / 64;
+        let bit = i % 64;
+        if (vec[word] >> bit) & 1 != 0 {
+            res[0] ^= mat[i][0];
+            res[1] ^= mat[i][1];
+            res[2] ^= mat[i][2];
+            res[3] ^= mat[i][3];
+        }
+        i += 1;
+    }
+    res
+}
+
+const fn mul_mat_256(a: &[[u64; 4]; 256], b: &[[u64; 4]; 256]) -> [[u64; 4]; 256] {
+    let mut res = [[0u64; 4]; 256];
+    let mut i = 0;
+    while i < 256 {
+        res[i] = apply_mat_256(a, b[i]);
+        i += 1;
+    }
+    res
+}
+
+const fn pow_mat_256(mut a: [[u64; 4]; 256], mut n: u128) -> [[u64; 4]; 256] {
+    // Identity matrix
+    let mut res = [[0u64; 4]; 256];
+    let mut i = 0;
+    while i < 256 {
+        let word = i / 64;
+        let bit = i % 64;
+        res[i][word] = 1u64 << bit;
+        i += 1;
+    }
+    while n > 0 {
+        if n & 1 != 0 {
+            res = mul_mat_256(&a, &res);
+        }
+        a = mul_mat_256(&a, &a);
+        n >>= 1;
+    }
+    res
+}
+
+const fn pow_mat_256_2_exp(mut a: [[u64; 4]; 256], mut exp: u32) -> [[u64; 4]; 256] {
+    while exp > 0 {
+        a = mul_mat_256(&a, &a);
+        exp -= 1;
+    }
+    a
+}
+
+const fn compute_xoshiro256_mat() -> [[u64; 4]; 256] {
+    let mut res = [[0u64; 4]; 256];
+    let mut i = 0;
+    while i < 256 {
+        // Set up basis vector: bit i is set
+        let word = i / 64;
+        let bit = i % 64;
+        let mut state = [0u64; 4];
+        state[word] = 1u64 << bit;
+
+        // Apply one step of advance_xoshiro
+        let t = state[1] << 17;
+        state[2] ^= state[0];
+        state[3] ^= state[1];
+        state[1] ^= state[2];
+        state[0] ^= state[3];
+        state[2] ^= t;
+        state[3] = state[3].rotate_left(45);
+
+        res[i] = state;
+        i += 1;
+    }
+    res
+}
+
 #[cfg(test)]
 mod tests {
     use crate::TripleMixSimdCore;
     use crate::BLOCK_SIZE;
-    use crate::jump::pow_mat_2_exp;
+    use crate::jump::{pow_mat_2_exp, pow_mat_256_2_exp};
     use crate::reproducibility::NotReproducible;
     use rand_core::Rng;
 
@@ -409,6 +467,15 @@ mod tests {
         assert_eq!(
             TripleMixSimdCore::TINYMT_JUMP_256_MAT,
             pow_mat_2_exp(TripleMixSimdCore::TINYMT_JUMP_MAT, 256)
+        );
+        assert_eq!(
+            TripleMixSimdCore::XOSHIRO256_JUMP_128_MAT,
+            pow_mat_256_2_exp(TripleMixSimdCore::XOSHIRO256_JUMP_MAT, 128)
+        );
+        // 2^256 ≡ 1 mod (2^256 - 1), so M^(2^256) should equal M^1
+        assert_eq!(
+            TripleMixSimdCore::XOSHIRO256_JUMP_256_MAT,
+            TripleMixSimdCore::XOSHIRO256_JUMP_MAT,
         );
     }
 
