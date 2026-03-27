@@ -383,12 +383,18 @@ mod tests {
 
     #[test]
     fn test_seed_diffusion_miri_xslow() {
+        #[cfg(not(miri))]
+        const BITS_TO_TEST: usize = 8;
+
+        #[cfg(miri)]
+        const BITS_TO_TEST: usize = 2;
+
         let seed = [0u8; DEFAULT_SEED_SIZE];
         let mut rng1 = TripleMixPrng::<DefaultReproducibility>::from_seed(GenericArray::from(seed));
         let start_val1 = rng1.next_u64();
 
         for byte_index in 0..DEFAULT_SEED_SIZE {
-            for bit_index in 0..=7 {
+            for bit_index in 0..BITS_TO_TEST {
                 let mut seed = [0u8; DEFAULT_SEED_SIZE];
                 seed[byte_index] = 1 << bit_index;
                 let mut rng2 =
