@@ -45,6 +45,19 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         0x9B3C_D8F1_E5A7_4D29,
     ]);
 
+    const PCG_MULT_LO: Simd64 = Simd64::from_array([
+        0x1FC6_5DA5,
+        0x4C95_7F2D,
+        0x8F1C_5E95,
+        0xE5A7_4D29,
+    ]);
+    const PCG_MULT_HI: Simd64 = Simd64::from_array([
+        0x2360_ED05,
+        0x5851_F42D,
+        0xA3E7_9B3D,
+        0x9B3C_D8F1,
+    ]);
+
     /// Multiplies two vectors. Requires that all elements of b be less than 2^32. Returns (low, hi)
 /// halves of result.
 #[inline(always)]
@@ -132,8 +145,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
         let mwc_mult = Self::MWC_MULTIPLIER_COMPLEMENTS;
         let pcg_mult = Self::PCG_MULTIPLIERS;
-        let pcg_mult_lo = pcg_mult & Simd::splat(0xFFFF_FFFF);
-        let pcg_mult_hi = pcg_mult >> 32;
+        let pcg_mult_lo = Self::PCG_MULT_LO;
+        let pcg_mult_hi = Self::PCG_MULT_HI;
 
         for block in blocks {
             // Kick off the highest latency operations (multipliers) early
