@@ -77,27 +77,6 @@ unsafe fn mul_small_avx2(x: __m256i, kvec: __m256i) -> (__m256i, __m256i) {
     }
 }
 
-#[inline(always)]
-pub unsafe fn mul_lo_hi_interleaved_avx2(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
-    unsafe {
-        // even lanes
-        let even = _mm256_mul_epu32(a, b);
-
-        // odd lanes
-        let a_odd = _mm256_srli_epi64(a, 32);
-        let b_odd = _mm256_srli_epi64(b, 32);
-        let odd = _mm256_mul_epu32(a_odd, b_odd);
-
-        // lo[i] = low 32 bits of a[i]*b[i]: even u32 slots from even, odd u32 slots from odd
-        let lo = _mm256_blend_epi32(even, _mm256_slli_epi64(odd, 32), 0b10101010_i32);
-
-        // hi[i] = high 32 bits of a[i]*b[i]: even u32 slots from even>>32, odd u32 slots from odd
-        let hi = _mm256_blend_epi32(_mm256_srli_epi64(even, 32), odd, 0b10101010_i32);
-
-        (lo, hi)
-    }
-}
-
 /// Optimized multi-product: calculates (a*b, b*c) sharing the preparation of 'b'.
 #[inline(always)]
 pub unsafe fn mul_lo_hi_triad_avx2(

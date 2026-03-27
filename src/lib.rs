@@ -2,7 +2,6 @@
 #![feature(generic_const_exprs)]
 #![allow(long_running_const_eval)]
 #![allow(incomplete_features)]
-#![cfg_attr(feature = "jump", allow(long_running_const_eval))]
 #[cfg(all(
     target_arch = "x86_64",
     target_feature = "avx2",
@@ -71,28 +70,6 @@ impl <R: Reproducibility> std::fmt::Debug for TripleMixSimdCore<R> {
 }
 
 impl <R: Reproducibility> TripleMixSimdCore<R> {
-
-    #[inline(always)]
-    pub(crate) fn mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
-        #[cfg(all(
-            target_arch = "x86_64",
-            target_feature = "avx2",
-            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
-        ))]
-        {
-            use bytemuck::cast;
-            let (lo, hi) = unsafe { avx2::mul_lo_hi_interleaved_avx2(cast(a), cast(b)) };
-            (cast(lo), cast(hi))
-        }
-        #[cfg(not(all(
-            target_arch = "x86_64",
-            target_feature = "avx2",
-            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
-        )))]
-        {
-            Self::portable_mul_lo_hi(a, b)
-        }
-    }
 
     #[allow(unused)]
     #[inline(always)]
