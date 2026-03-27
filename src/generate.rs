@@ -452,8 +452,6 @@ pub fn mix(
         27,
         9,
     );
-    a[7] = a[7].wrapping_add(scalar_lo);
-    c[2] = c[2].wrapping_add(scalar_hi);
 
     // --- Strong final cross-lane avalanche ---
     a ^= b.rotate_elements_right::<2>();
@@ -694,7 +692,10 @@ mod tests {
 
     #[test]
     fn test_mix_matrix_random_inputs() {
+        #[cfg(not(miri))]
         const ITERATIONS: usize = 10;
+        #[cfg(miri)]
+        const ITERATIONS: usize = 3;
         let mut rng = rng();
         let mut mix_input = [0u64; SIMD_WIDTH * MIX_INPUTS + 1];
         let sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64 * 0.25 - 1.0).sqrt();
