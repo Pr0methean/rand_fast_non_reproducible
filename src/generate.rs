@@ -312,7 +312,7 @@ mod tests {
     use itertools::Itertools;
     #[cfg(not(miri))]
     use proptest::{prelude::any, prop_assert, proptest};
-    use rand::{RngExt, rng};
+    use rand::RngExt;
     use rand_core::{Rng, SeedableRng};
     use statrs::distribution::{Binomial, Discrete, DiscreteCDF};
 
@@ -326,6 +326,16 @@ mod tests {
 
     const AVALANCHE_MATRIX_ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
     const AVALANCHE_MATRIX_COLS: usize = 8 * (size_of::<Simd64>() * MIX_INPUTS + size_of::<u64>());
+
+    #[cfg(not(miri))]
+    fn rng() -> rand::rngs::ThreadRng {
+        rand::rng()
+    }
+
+    #[cfg(miri)]
+    fn rng() -> rand::rngs::SmallRng {
+        rand::rngs::SmallRng::seed_from_u64(0x0dd_d00d5_1337_c0de)
+    }
 
     fn evaluate_mix_matrix(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS + 1]) -> MixMatrixStats {
         let (base_out0, base_out1, base_out2) = mix_from_flat_array(mix_input);
@@ -516,20 +526,21 @@ mod tests {
         }
     }
 
+    #[cfg(not(miri))]
+    const RANDOM_INPUT_ITERATIONS: usize = 10;
+    #[cfg(miri)]
+    const RANDOM_INPUT_ITERATIONS: usize = 3;
+
     #[test]
     fn test_mix_matrix_random_inputs() {
-        #[cfg(not(miri))]
-        const ITERATIONS: usize = 10;
-        #[cfg(miri)]
-        const ITERATIONS: usize = 3;
         let mut rng = rng();
         let mut mix_input = [0u64; SIMD_WIDTH * MIX_INPUTS + 1];
         let sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64 * 0.25 - 1.0).sqrt();
         let mut total_deviation = 0isize;
         let grand_sigma =
-            ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS * ITERATIONS) as f64 * 0.25 - 1.0)
+            ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS * RANDOM_INPUT_ITERATIONS) as f64 * 0.25 - 1.0)
                 .sqrt();
-        for _ in 0..ITERATIONS {
+        for _ in 0..RANDOM_INPUT_ITERATIONS {
             rng.fill(&mut mix_input);
             let MixMatrixStats {
                 total_weight,
@@ -569,7 +580,7 @@ mod tests {
     fn test_second_derivative_random_inputs() {
         let mut rng = rng();
         let mut random_inputs = [0u64; SIMD_WIDTH * MIX_INPUTS + 1];
-        for _ in 0..MIX_INPUTS {
+        for _ in 0..RANDOM_INPUT_ITERATIONS {
             rng.fill(&mut random_inputs);
             let SecondDerivativeStats {
                 min,
