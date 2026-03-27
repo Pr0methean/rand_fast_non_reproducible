@@ -533,7 +533,7 @@ mod tests {
     }
 
     #[test]
-    fn test_jump_ahead_constants() {
+    fn test_jump_ahead_constants_miri_slow() {
         assert_eq!(
             TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_128_MAT,
             pow_mat_2_exp(TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_MAT, 128)
@@ -554,7 +554,7 @@ mod tests {
     }
 
     #[test]
-    fn test_jump_ahead() {
+    fn test_jump_ahead_miri_xslow() {
         #[cfg(not(miri))]
         const ITERATIONS_AFTER_LEAP: usize = 10_000;
         #[cfg(miri)]

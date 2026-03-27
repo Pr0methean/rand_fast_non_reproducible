@@ -382,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn test_seed_diffusion() {
+    fn test_seed_diffusion_miri_xslow() {
         let seed = [0u8; DEFAULT_SEED_SIZE];
         let mut rng1 = TripleMixPrng::<DefaultReproducibility>::from_seed(GenericArray::from(seed));
         let start_val1 = rng1.next_u64();

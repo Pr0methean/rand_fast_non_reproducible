@@ -431,6 +431,7 @@ mod tests {
     use statrs::distribution::{Binomial, Discrete, DiscreteCDF};
 
     const MIX_INPUTS: usize = 7;
+    const MIX_INPUT_U64S: usize = SIMD_WIDTH * MIX_INPUTS + 1;
 
     struct MixMatrixStats {
         total_weight: usize,
@@ -441,7 +442,7 @@ mod tests {
     const AVALANCHE_MATRIX_ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
     const AVALANCHE_MATRIX_COLS: usize = 8 * (size_of::<Simd64>() * MIX_INPUTS + size_of::<u64>());
 
-    fn evaluate_mix_matrix(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS + 1]) -> MixMatrixStats {
+    fn evaluate_mix_matrix(mix_input: [u64; MIX_INPUT_U64S]) -> MixMatrixStats {
         let (base_out0, base_out1, base_out2) = mix_from_flat_array(mix_input);
         let mut xor_matrix = BitMatrix::<u64>::zeros(AVALANCHE_MATRIX_ROWS, AVALANCHE_MATRIX_COLS);
         let mut i = 0;
@@ -513,7 +514,7 @@ mod tests {
     }
 
     fn mix_from_flat_array(
-        mix_input: [u64; SIMD_WIDTH * MIX_INPUTS + 1],
+        mix_input: [u64; MIX_INPUT_U64S],
     ) -> (Simd64, Simd64, Simd64) {
         let input_simds = [
             Simd::from_array(mix_input[0..4].try_into().unwrap()),
@@ -545,7 +546,7 @@ mod tests {
     }
 
     fn evaluate_second_order_derivatives(
-        mix_input: [u64; SIMD_WIDTH * MIX_INPUTS + 1],
+        mix_input: [u64; MIX_INPUT_U64S],
     ) -> SecondDerivativeStats {
         let (base_out0, base_out1, base_out_2) = mix_from_flat_array(mix_input);
         let mut weights = Vec::new();
@@ -640,7 +641,7 @@ mod tests {
     #[test]
     fn test_mix_matrix_random_inputs() {
         let mut rng = rng();
-        let mut mix_input = [0u64; SIMD_WIDTH * MIX_INPUTS + 1];
+        let mut mix_input = [0u64; MIX_INPUT_U64S];
         let sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64 * 0.25 - 1.0).sqrt();
         let mut total_deviation = 0isize;
         let grand_sigma =
@@ -686,7 +687,7 @@ mod tests {
     #[test]
     fn test_second_derivative_random_inputs() {
         let mut rng = rng();
-        let mut random_inputs = [0u64; SIMD_WIDTH * MIX_INPUTS + 1];
+        let mut random_inputs = [0u64; MIX_INPUT_U64S];
         for _ in 0..RANDOM_INPUT_ITERATIONS {
             rng.fill(&mut random_inputs);
             let SecondDerivativeStats {
@@ -716,7 +717,7 @@ mod tests {
     #[cfg(not(miri))]
     proptest! {
         #[test]
-        fn test_mix_matrix_proptest(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS + 1]) {
+        fn test_mix_matrix_proptest(mix_input: [u64; MIX_INPUT_U64S]) {
             let MixMatrixStats { total_weight, min_row_weight, min_col_weight } =
                 evaluate_mix_matrix(mix_input);
             prop_assert!(min_col_weight >= (AVALANCHE_MATRIX_ROWS * 3) / 8);
@@ -730,7 +731,7 @@ mod tests {
         }
 
         #[test]
-        fn test_second_derivative_proptest(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS + 1]) {
+        fn test_second_derivative_proptest(mix_input: [u64; MIX_INPUT_U64S]) {
             let SecondDerivativeStats { min, max, mean, stdev } = evaluate_second_order_derivatives(mix_input);
             assert!(min as usize >= (AVALANCHE_MATRIX_ROWS * 5) / 16, "Min weight {min} too low");
             assert!(max as usize <= (AVALANCHE_MATRIX_ROWS * 11) / 16, "Max weight {max} too high");
@@ -886,7 +887,7 @@ mod tests {
     }
 
     #[test]
-    fn test_avalanche() {
+    fn test_avalanche_miri_slow() {
         const LOW_AVALANCHE_THRESHOLD: u64 = 28 * BLOCK_SIZE as u64;
         println!("Low-avalanche threshold: {LOW_AVALANCHE_THRESHOLD} bits");
         let mut total_low_avalanche_checks = 0;
@@ -1171,7 +1172,7 @@ mod tests {
         }
         const PROJECTION_BLOCK: usize = 8; // 8x8 projection
         #[test]
-        fn test_bitplane_projection() {
+        fn test_bitplane_projection_miri_xslow() {
             #[cfg(not(miri))]
             const N: usize = 1 << 22;
             #[cfg(miri)]
