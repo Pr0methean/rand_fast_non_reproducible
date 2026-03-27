@@ -323,10 +323,9 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             // --- Rotate ---
             a = rotl32(a, shift1);
             b ^= x[6];
-
+            c ^= rotl32(b, shift4);
             b += m1_lo + a.rotate_elements_right::<4>();
             a += rotl32(c, shift2);
-            c ^= rotl32(b, shift4);
 
             (a, b, c)
         }
