@@ -1,6 +1,7 @@
 use crate::TripleMixSimdCore;
-use bytemuck::cast_slice;
+use bytemuck::{cast, cast_slice};
 use rand_core::block::BlockRng;
+use crate::generate::{Simd32, Simd64};
 
 /// Levels of reproducibility for output of [`TripleMixPrng::fill_bytes`] and output after
 /// fill_bytes has been called.
@@ -12,6 +13,8 @@ pub trait Reproducibility: Clone + Copy {
     fn cast_u64_slice_as_u8(slice: &[u64]) -> Self::U8Slice<'_>;
     fn u64_as_bytes(input: u64) -> [u8; 8];
     fn u128_as_bytes(input: u128) -> [u8; 16];
+    fn simd64_as_simd32(input: Simd64) -> Simd32;
+    fn simd32_as_simd64(input: Simd32) -> Simd64;
 }
 
 #[cfg(feature = "reproducibility_cross_platform")]
@@ -71,6 +74,16 @@ impl Reproducibility for NotReproducible {
     fn u128_as_bytes(input: u128) -> [u8; 16] {
         input.to_ne_bytes()
     }
+
+    #[inline(always)]
+    fn simd64_as_simd32(input: Simd64) -> Simd32 {
+        cast(input)
+    }
+
+    #[inline(always)]
+    fn simd32_as_simd64(input: Simd32) -> Simd64 {
+        cast(input)
+    }
 }
 
 /// Output of the PRNG will be the same as for an instance created with the same seed and receiving
@@ -80,8 +93,9 @@ impl Reproducibility for NotReproducible {
 pub mod same_endianness {
     use crate::TripleMixSimdCore;
     use crate::reproducibility::{Reproducibility, fill_bytes_alignment_aware};
-    use bytemuck::cast_slice;
+    use bytemuck::{cast, cast_slice};
     use rand_core::block::BlockRng;
+    use crate::generate::{Simd32, Simd64};
 
     #[derive(Copy, Clone, Default, Debug)]
     pub struct SameEndianness;
@@ -113,6 +127,16 @@ pub mod same_endianness {
         fn u128_as_bytes(input: u128) -> [u8; 16] {
             input.to_ne_bytes()
         }
+
+        #[inline(always)]
+        fn simd64_as_simd32(input: Simd64) -> Simd32 {
+            cast(input)
+        }
+
+        #[inline(always)]
+        fn simd32_as_simd64(input: Simd32) -> Simd64 {
+            cast(input)
+        }
     }
 
     #[test]
@@ -126,11 +150,13 @@ pub mod same_endianness {
 /// length) on another machine, even if that machine has a different CPU architecture.
 #[cfg(feature = "reproducibility_cross_platform")]
 pub mod cross_platform {
+    use bytemuck::cast;
     use crate::TripleMixSimdCore;
     use crate::reproducibility::{Reproducibility};
     use rand_core::block::BlockRng;
     #[cfg(target_endian = "little")]
     use bytemuck::cast_slice;
+    use crate::generate::{Simd32, Simd64};
     #[cfg(target_endian = "little")]
     use crate::reproducibility::fill_bytes_alignment_aware;
     
@@ -193,6 +219,30 @@ pub mod cross_platform {
         #[inline(always)]
         fn u128_as_bytes(input: u128) -> [u8; 16] {
             input.to_le_bytes()
+        }
+
+        #[cfg(target_endian = "little")]
+        #[inline(always)]
+        fn simd64_as_simd32(input: Simd64) -> Simd32 {
+            cast(input)
+        }
+
+        #[cfg(target_endian = "big")]
+        #[inline(always)]
+        fn simd64_as_simd32(input: Simd64) -> Simd32 {
+            cast(input).reverse()
+        }
+
+        #[cfg(target_endian = "little")]
+        #[inline(always)]
+        fn simd32_as_simd64(input: Simd32) -> Simd64 {
+            cast(input)
+        }
+
+        #[cfg(target_endian = "big")]
+        #[inline(always)]
+        fn simd32_as_simd64(input: Simd32) -> Simd64 {
+            cast(input).reverse()
         }
     }
 

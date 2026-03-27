@@ -285,7 +285,7 @@ pub(crate) const SIMD_WIDTH: usize = 4;
 pub(crate) const MIX_OUTPUTS: usize = 3;
 
 pub(crate) type Simd64 = Simd<u64, SIMD_WIDTH>;
-type Simd32 = Simd<u32, { SIMD_WIDTH * 2 }>;
+pub(crate) type Simd32 = Simd<u32, { SIMD_WIDTH * 2 }>;
 
 #[inline(always)]
 fn mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
