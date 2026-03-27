@@ -143,18 +143,13 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             0x94d049bb133111eb,
         ]);
 
-        let mwc_mult = Self::MWC_MULTIPLIER_COMPLEMENTS;
-        let pcg_mult = Self::PCG_MULTIPLIERS;
-        let pcg_mult_lo = Self::PCG_MULT_LO;
-        let pcg_mult_hi = Self::PCG_MULT_HI;
-
         for block in blocks {
             // Kick off the highest latency operations (multipliers) early
             // a_low * b (where b is pcg_mult)
-            let (p1_lo, p1_hi) = Self::simd_mulsmall(pcg_state_lo, pcg_mult_lo);
-            let (p2_lo, p2_hi) = Self::simd_mulsmall(pcg_state_lo, pcg_mult_hi);
+            let (p1_lo, p1_hi) = Self::simd_mulsmall(pcg_state_lo, Self::PCG_MULT_LO);
+            let (p2_lo, p2_hi) = Self::simd_mulsmall(pcg_state_lo, Self::PCG_MULT_HI);
 
-            let (mwc_kx_lo, mwc_kx_hi) = Self::simd_mulsmall(mwc_state, mwc_mult);
+            let (mwc_kx_lo, mwc_kx_hi) = Self::simd_mulsmall(mwc_state, Self::MWC_MULTIPLIER_COMPLEMENTS);
 
             // Generate scalar xoshiro256** output
             let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
@@ -173,7 +168,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let a_low_b_hi = p1_hi + p2_shifted_hi + carry1;
 
             // a_high * b = a_high * b_lo + a_high * b_hi * 2^32
-            let a_high_b = simd_wrapping_mul(pcg_state_hi, pcg_mult);
+            let a_high_b = simd_wrapping_mul(pcg_state_hi, Self::PCG_MULTIPLIERS);
             let pcg_prod_hi = a_low_b_hi + a_high_b;
             let pcg_prod_lo = low_sum;
 
