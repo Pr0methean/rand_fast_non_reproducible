@@ -36,6 +36,7 @@ unsafe fn mullo_u64x4_avx2(a: __m256i, b: __m256i) -> __m256i {
 
 /// Multiplies two vectors. Requires that all elements of b be less than 2^32. Returns (low, hi)
 /// halves of result.
+#[inline(always)]
 pub fn mul_small(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
     unsafe {
         let a = transmute::<Simd64, __m256i>(a);
