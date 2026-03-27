@@ -518,6 +518,11 @@ mod tests {
 
     #[test]
     fn test_jump_ahead() {
+        #[cfg(not(miri))]
+        const ITERATIONS_AFTER_LEAP: usize = 10_000;
+        #[cfg(miri)]
+        const ITERATIONS_AFTER_LEAP: usize = 4;
+
         for mut prng in crate::create_rngs::<DefaultReproducibility>() {
             let prng_large_jmp = prng.clone();
             let mut prng_jmp = prng.clone();
@@ -573,7 +578,7 @@ mod tests {
             let mut prng_2_256 = prng.clone();
             prng_2_256.advance_2_256(1);
 
-            for _ in 0..10_000 {
+            for _ in 0..ITERATIONS_AFTER_LEAP {
                 // Ensure internal state logic lines up perfectly equivalent.
                 let prng_2_256_u64 = prng_2_256.next_u64();
                 assert_eq!(base_a_for_2_256.next_u64(), prng_2_256_u64);
