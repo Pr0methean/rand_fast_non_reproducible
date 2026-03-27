@@ -25,7 +25,6 @@ use const_format::formatcp;
 use core::convert::Infallible;
 use core::marker::PhantomData;
 use std::simd::{simd_swizzle, Simd};
-use bytemuck::cast;
 use generate::Simd64;
 use rand_core::TryRng;
 use rand_core::block::BlockRng;
@@ -81,6 +80,7 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
             not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
         ))]
         {
+            use bytemuck::cast;
             let (lo, hi) = unsafe { avx2::mul_lo_hi_interleaved_avx2(cast(a), cast(b)) };
             (cast(lo), cast(hi))
         }
