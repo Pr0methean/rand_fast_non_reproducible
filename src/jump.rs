@@ -284,11 +284,9 @@ impl TripleMixSimdCore {
     const TINYMT_JUMP_MAT: [u128; 128] = compute_tinymt_mat();
     const XOSHIRO256_JUMP_MAT: [[u64; 4]; 256] = compute_xoshiro256_mat();
     // 2^128-step xoshiro matrix, precomputed
-    #[allow(long_running_const_eval)]
     const XOSHIRO256_JUMP_128_MAT: [[u64; 4]; 256] =
         pow_mat_256_2_exp(Self::XOSHIRO256_JUMP_MAT, 128);
     // 2^256 ≡ 1 mod (2^256 - 1), so this equals the 1-step matrix
-    #[allow(long_running_const_eval)]
     const XOSHIRO256_JUMP_256_MAT: [[u64; 4]; 256] =
         pow_mat_256_2_exp(Self::XOSHIRO256_JUMP_MAT, 256);
 }

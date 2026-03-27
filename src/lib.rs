@@ -2,6 +2,7 @@
 #![feature(generic_const_exprs)]
 #![allow(long_running_const_eval)]
 #![allow(incomplete_features)]
+#![cfg_attr(feature = "jump", allow(long_running_const_eval))]
 #[cfg(all(
     target_arch = "x86_64",
     target_feature = "avx2",
