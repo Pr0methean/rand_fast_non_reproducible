@@ -127,9 +127,11 @@ pub mod same_endianness {
 #[cfg(feature = "reproducibility_cross_platform")]
 pub mod cross_platform {
     use crate::TripleMixSimdCore;
-    use crate::reproducibility::{Reproducibility, fill_bytes_alignment_aware};
+    use crate::reproducibility::{Reproducibility};
     use bytemuck::cast_slice;
     use rand_core::block::BlockRng;
+    #[cfg(target_endian = "little")]
+    use crate::reproducibility::fill_bytes_alignment_aware;
 
     #[derive(Copy, Clone, Default, Debug)]
     pub struct CrossPlatform;
@@ -221,7 +223,7 @@ pub mod cross_platform {
 }
 
 #[cfg(any(
-    feature = "reproducibility_cross_platform",
+    all(feature = "reproducibility_cross_platform", target_endian = "little"),
     feature = "reproducibility_same_endianness"
 ))]
 #[inline(always)]
