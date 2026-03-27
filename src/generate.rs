@@ -486,6 +486,7 @@ mod tests {
     use gf2::{BitMatrix, BitStore};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
+    #[cfg(not(miri))]
     use proptest::{prelude::any, prop_assert, proptest};
     use rand::{RngExt, rng};
     use rand_core::{Rng, SeedableRng};
@@ -767,6 +768,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(miri))]
     proptest! {
         #[test]
         fn test_mix_matrix_proptest(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS + 1]) {
