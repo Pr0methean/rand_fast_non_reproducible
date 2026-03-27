@@ -107,11 +107,11 @@ impl<R: Reproducibility> SeedableRng for TripleMixPrng<R> {
 }
 
 impl<R: Reproducibility> TripleMixPrng<R> {
-    pub fn into_core(self) -> TripleMixSimdCore {
+    pub fn into_core(self) -> TripleMixSimdCore<R> {
         self.block_core.core
     }
     #[inline(always)]
-    fn permute(base: &Kmac, tweak: u128) -> TripleMixSimdCore {
+    fn permute(base: &Kmac, tweak: u128) -> TripleMixSimdCore<R> {
         let mut pcg_state_lo = Simd64::splat(0);
         let mut pcg_state_hi = Simd64::splat(0);
         let mut pcg_inc_lo = Simd64::splat(0);
@@ -181,7 +181,7 @@ impl<R: Reproducibility> TripleMixPrng<R> {
 
         tm0 &= Simd::splat(TINYMT64_LANE_MASK);
         pcg_inc_lo |= Simd::splat(1);
-        TripleMixSimdCore {
+        TripleMixSimdCore::<R> {
             pcg_state_lo,
             pcg_state_hi,
             pcg_inc_lo,
@@ -191,11 +191,12 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             mwc_state,
             mwc_carry,
             xoshiro256,
+            reproducibility: PhantomData,
         }
     }
 
     #[inline(always)]
-    fn is_distinct(a: &TripleMixSimdCore, b: &TripleMixSimdCore) -> bool {
+    fn is_distinct(a: &TripleMixSimdCore<R>, b: &TripleMixSimdCore<R>) -> bool {
         // Simple distinctness check: Child state != Parent state in any lane combination
         !((a.pcg_state_lo.simd_eq(b.pcg_state_lo)
             & a.pcg_state_hi.simd_eq(b.pcg_state_hi)
@@ -244,7 +245,7 @@ impl<R: Reproducibility> TripleMixPrng<R> {
     }
 
     #[inline(always)]
-    pub(crate) fn from_core(core: TripleMixSimdCore) -> Self {
+    pub(crate) fn from_core(core: TripleMixSimdCore<R>) -> Self {
         Self {
             block_core: BlockRng::new(core),
             reproducibility: PhantomData,
@@ -255,20 +256,20 @@ impl<R: Reproducibility> TripleMixPrng<R> {
     /// testing.
     #[inline(always)]
     pub fn almost_all_zeroes_state() -> Self {
-        TripleMixPrng::from_core(TripleMixSimdCore::almost_all_zeroes_core())
+        TripleMixPrng::from_core(TripleMixSimdCore::<R>::almost_all_zeroes_core())
     }
 }
 
-impl TripleMixSimdCore {
+impl<R: Reproducibility> TripleMixSimdCore<R> {
     #[inline(always)]
-    pub(crate) fn is_valid(self: &TripleMixSimdCore) -> bool {
+    pub(crate) fn is_valid(self: &TripleMixSimdCore<R>) -> bool {
         // Dead-state check
         if ((self.tm0 | self.tm1).simd_eq(Simd::splat(0))
             | (self.mwc_state | self.mwc_carry).simd_eq(Simd::splat(0))
-            | self.mwc_state.simd_ge(TripleMixSimdCore::MCG_MULTIPLIERS)
-            | self.mwc_carry.simd_ge(TripleMixSimdCore::MCG_MULTIPLIERS)
+            | self.mwc_state.simd_ge(TripleMixSimdCore::<R>::MCG_MULTIPLIERS)
+            | self.mwc_carry.simd_ge(TripleMixSimdCore::<R>::MCG_MULTIPLIERS)
             | (self.mwc_state & self.mwc_carry)
-                .simd_eq(TripleMixSimdCore::MCG_MULTIPLIERS - Simd::splat(1))
+                .simd_eq(TripleMixSimdCore::<R>::MCG_MULTIPLIERS - Simd::splat(1))
             | (self.pcg_inc_lo & Simd::splat(1)).simd_ne(Simd::splat(1)))
         .any()
         {
@@ -321,7 +322,7 @@ impl TripleMixSimdCore {
 mod tests {
     use crate::TripleMixPrng;
     use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH};
-    use crate::reproducibility::{DefaultReproducibility, NotReproducible};
+    use crate::reproducibility::DefaultReproducibility;
     use crate::seed::{DEFAULT_SEED_SIZE, get_base_kmac};
     use core::hint::black_box;
     use generic_array::GenericArray;
@@ -341,7 +342,7 @@ mod tests {
             std::collections::HashSet::with_capacity(SAMPLES_PER_FORK * FORKS);
         #[cfg(feature = "no_std")]
         let mut previous_outputs = alloc::collections::BTreeSet::new();
-        for mut prng in crate::create_rngs::<NotReproducible>() {
+        for mut prng in crate::create_rngs::<DefaultReproducibility>() {
             for _ in 0..FORKS {
                 for _ in 0..SAMPLES_PER_FORK {
                     let next = prng.next_u64();
@@ -364,7 +365,7 @@ mod tests {
             std::collections::HashSet::with_capacity(SAMPLES_PER_FORK * FORKS);
         #[cfg(feature = "no_std")]
         let mut previous_outputs = alloc::collections::BTreeSet::new();
-        for mut parent_prng in crate::create_rngs::<NotReproducible>() {
+        for mut parent_prng in crate::create_rngs::<DefaultReproducibility>() {
             for _ in 0..FORKS {
                 let mut prng = parent_prng.fork();
                 for _ in 0..SAMPLES_PER_FORK {
@@ -380,7 +381,7 @@ mod tests {
     #[test]
     fn test_seed_diffusion() {
         let seed = [0u8; DEFAULT_SEED_SIZE];
-        let mut rng1 = TripleMixPrng::<NotReproducible>::from_seed(GenericArray::from(seed));
+        let mut rng1 = TripleMixPrng::<DefaultReproducibility>::from_seed(GenericArray::from(seed));
         let start_val1 = rng1.next_u64();
 
         for byte_index in 0..DEFAULT_SEED_SIZE {
@@ -388,7 +389,7 @@ mod tests {
                 let mut seed = [0u8; DEFAULT_SEED_SIZE];
                 seed[byte_index] = 1 << bit_index;
                 let mut rng2 =
-                    TripleMixPrng::<NotReproducible>::from_seed(GenericArray::from(seed));
+                    TripleMixPrng::<DefaultReproducibility>::from_seed(GenericArray::from(seed));
                 let start_val2 = rng2.next_u64();
                 let flipped_bits = (start_val1 ^ start_val2).count_ones();
                 assert!(
@@ -407,8 +408,8 @@ mod tests {
     #[test]
     fn test_permutation_determinism() {
         let base = get_base_kmac();
-        let p1 = TripleMixPrng::<NotReproducible>::permute(&base, 0);
-        let p2 = TripleMixPrng::<NotReproducible>::permute(&base, 0);
+        let p1 = TripleMixPrng::<DefaultReproducibility>::permute(&base, 0);
+        let p2 = TripleMixPrng::<DefaultReproducibility>::permute(&base, 0);
 
         // Ensure same seed + same tweak = identical state
         assert_eq!(p1.pcg_state_lo.as_array(), p2.pcg_state_lo.as_array());
@@ -418,8 +419,8 @@ mod tests {
     #[test]
     fn test_permutation_uniqueness_tweak() {
         let base = get_base_kmac();
-        let p1 = TripleMixPrng::<NotReproducible>::permute(&base, 0);
-        let p2 = TripleMixPrng::<NotReproducible>::permute(&base, 1);
+        let p1 = TripleMixPrng::<DefaultReproducibility>::permute(&base, 0);
+        let p2 = TripleMixPrng::<DefaultReproducibility>::permute(&base, 1);
 
         // Different tweaks MUST produce different states
         assert_ne!(p1.pcg_state_lo.as_array(), p2.pcg_state_lo.as_array());
@@ -433,7 +434,7 @@ mod tests {
         // Run 1000 permutations and check for any identical full states
         // In a true permutation, collisions are mathematically impossible.
         for i in 0..1000 {
-            let p = TripleMixPrng::<NotReproducible>::permute(&base, i);
+            let p = TripleMixPrng::<DefaultReproducibility>::permute(&base, i);
             let state_snapshot = (
                 p.pcg_state_lo.as_array().clone(),
                 p.pcg_state_hi.as_array().clone(),
@@ -456,8 +457,8 @@ mod tests {
         let mut base2 = Kmac::v256(b"Test-Suite", &[]);
         base2.update(b"test-seed-124"); // 1 bit difference from base1
 
-        let p1 = TripleMixPrng::<NotReproducible>::permute(&base1, 0);
-        let p2 = TripleMixPrng::<NotReproducible>::permute(&base2, 0);
+        let p1 = TripleMixPrng::<DefaultReproducibility>::permute(&base1, 0);
+        let p2 = TripleMixPrng::<DefaultReproducibility>::permute(&base2, 0);
 
         // Count differing bits in pcg_state_lo across all lanes
         let mut diff_bits = 0;
@@ -478,7 +479,7 @@ mod tests {
     #[test]
     fn test_invariant_fixing() {
         let base = get_base_kmac();
-        let p = TripleMixPrng::<NotReproducible>::permute(&base, 42);
+        let p = TripleMixPrng::<DefaultReproducibility>::permute(&base, 42);
 
         // TinyMT dead bit (MSB of tm0) must be 0
         for &tm in p.tm0.as_array() {
@@ -491,7 +492,7 @@ mod tests {
         // This test ensures that the swap logic actually moves data between lanes 0/1 and 2/3
         // We use a custom round function effect by checking different rounds.
         let base = get_base_kmac();
-        let p = TripleMixPrng::<NotReproducible>::permute(&base, 7);
+        let p = TripleMixPrng::<DefaultReproducibility>::permute(&base, 7);
 
         // Since it's a 4-round Feistel, if we started with 0,
         // the final state should be high-entropy in all lanes.

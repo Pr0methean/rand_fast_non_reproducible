@@ -53,7 +53,7 @@ impl<'de, R: Reproducibility> serde::Deserialize<'de> for TripleMixPrng<R> {
         use rand_core::block::BlockRng;
         use serde::de::Error;
         let state = CoreState::deserialize(deserializer)?;
-        let core = TripleMixSimdCore {
+        let core = TripleMixSimdCore::<R> {
             pcg_state_lo: Simd64::from_array(state.pcg_state_lo),
             pcg_state_hi: Simd64::from_array(state.pcg_state_hi),
             pcg_inc_lo: Simd64::from_array(state.pcg_inc_lo),
@@ -63,6 +63,7 @@ impl<'de, R: Reproducibility> serde::Deserialize<'de> for TripleMixPrng<R> {
             mwc_state: Simd64::from_array(state.mwc_state),
             mwc_carry: Simd64::from_array(state.mwc_carry),
             xoshiro256: state.xoshiro256,
+            reproducibility: PhantomData,
         };
         if !core.is_valid() {
             cold_path();
