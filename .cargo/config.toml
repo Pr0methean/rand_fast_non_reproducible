@@ -1,2 +1,4 @@
 [build]
 rustflags = ["-C", "target-cpu=native"]
+[env]
+MIRIFLAGS = "-Zmiri-disable-isolation"  # needed for proptest to access ../proptest-regressions/generate.txt

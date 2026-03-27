@@ -67,7 +67,7 @@ jobs:
         egress-policy: audit
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Run benchmarks
-      run: cargo +nightly bench --features reproducibility_cross_platform -- --output-format bencher | tee bench-output.txt
+      run: cargo +nightly bench -p benches --features reproducibility_cross_platform -- --output-format bencher | tee bench-output.txt
       timeout-minutes: 20
     - name: Store benchmark result
       uses: benchmark-action/github-action-benchmark@a7bc2366eda11037936ea57d811a43b3418d3073 # v1.21.0
