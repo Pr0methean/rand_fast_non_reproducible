@@ -48,7 +48,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
     /// Multiplies two vectors. Requires that all elements of b be less than 2^32. Returns (low, hi)
 /// halves of result.
 #[inline(always)]
-fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
+    pub(crate) fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
     debug_assert!(b.simd_lt(Simd::splat(1 << 32)).all());
     #[cfg(all(
         target_arch = "x86_64",

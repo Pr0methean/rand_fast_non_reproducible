@@ -63,7 +63,7 @@ impl<R: Reproducibility> JumpMatrix<R> {
     /// Compose two jump matrices: this * other
     fn compose(&self, other: &Self) -> Self {
         // new_mult = self.mult * other.mult
-        let (new_mult_low, new_mult_high) = mul128x128::<R>(
+        let (new_mult_low, new_mult_high) = TripleMixSimdCore::<R>::mul128x128(
             self.mult_high,
             self.mult_low,
             other.mult_high,
@@ -71,7 +71,7 @@ impl<R: Reproducibility> JumpMatrix<R> {
         );
 
         // new_const = self.mult * other.const + self.const
-        let (temp_low, temp_high) = mul128x128::<R>(
+        let (temp_low, temp_high) = TripleMixSimdCore::<R>::mul128x128(
             self.mult_high,
             self.mult_low,
             other.const_high,
@@ -96,7 +96,7 @@ impl<R: Reproducibility> JumpMatrix<R> {
     fn apply(&self, state_low: Simd64, state_high: Simd64) -> (Simd64, Simd64) {
         // new_state = mult * state + const
         let (prod_low, prod_high) =
-            mul128x128::<R>(self.mult_high, self.mult_low, state_high, state_low);
+            TripleMixSimdCore::<R>::mul128x128(self.mult_high, self.mult_low, state_high, state_low);
 
         let (new_low, carry) =
             TripleMixSimdCore::<R>::add128_with_carry(prod_low, self.const_low, Simd64::splat(0));
@@ -106,14 +106,45 @@ impl<R: Reproducibility> JumpMatrix<R> {
     }
 }
 
-/// Full 128x128 multiplication. Returns (low, high).
-fn mul128x128<R: Reproducibility>(a_high: Simd64, a_low: Simd64, b_high: Simd64, b_low: Simd64) -> (Simd64, Simd64) {
-    let (h1, low) = TripleMixSimdCore::<R>::mul128x64to128(a_high, a_low, b_low);
-    let h2 = crate::generate::simd_wrapping_mul(a_low, b_high);
-    (low, h1 + h2)
-}
+impl <R: Reproducibility> TripleMixSimdCore<R> {
+    /// 128-bit multiplication by PER-LANE 64-bit multipliers using simd_mulsmall
+    /// (high, low) = (a_high, a_low) * b (where b is per lane)
+    ///
+    /// simd_mulsmall(left: Simd64, right: u32x4) -> (low: Simd64, high: Simd64)
+    /// where right's 32-bit values are in the bottom half of each lane
+    #[inline]
+    pub(crate) fn mul128x64to128(a_high: Simd64, a_low: Simd64, b: Simd64) -> (Simd64, Simd64) {
+        // Decompose b into 32-bit halves across all lanes simultaneously
+        let b_lo = b & Simd64::splat(0xFFFF_FFFF);
+        let b_hi = b >> 32;
 
-impl<R: Reproducibility> TripleMixSimdCore<R> {
+        let (p1_lo, p1_hi) = Self::simd_mulsmall(a_low, b_lo);
+        let (p2_lo, p2_hi) = Self::simd_mulsmall(a_low, b_hi);
+
+        // p2 * 2^32 = p2_hi * 2^96 + p2_lo * 2^32
+        let p2_shifted_lo = p2_lo << Simd64::splat(32);
+        let p2_shifted_hi = (p2_hi << Simd64::splat(32)) | (p2_lo >> Simd64::splat(32));
+
+        // low sum = p1_lo + p2_shifted_lo
+        let (low_sum, carry1) = Self::add128_with_carry(p1_lo, p2_shifted_lo, Simd64::splat(0));
+
+        let a_low_b_hi = p1_hi + p2_shifted_hi + carry1;
+
+        // the final high part is a_low_b_hi + a_high * b
+        // a_high * b = a_high * b_lo + a_high * b_hi * 2^32 (we only care about the low 64 bits of this)
+        let a_high_b = crate::generate::simd_wrapping_mul(a_high, b);
+        let final_high = a_low_b_hi + a_high_b;
+
+        (final_high, low_sum)
+    }
+
+    /// Full 128x128 multiplication. Returns (low, high).
+    fn mul128x128(a_high: Simd64, a_low: Simd64, b_high: Simd64, b_low: Simd64) -> (Simd64, Simd64) {
+        let (h1, low) = Self::mul128x64to128(a_high, a_low, b_low);
+        let h2 = crate::generate::simd_wrapping_mul(a_low, b_high);
+        (low, h1 + h2)
+    }
+
     // 2^128 == 2^1 mod (2^127 - 1)
     const TINYMT_JUMP_128_MAT: [u128; 128] = pow_mat_2_exp(Self::TINYMT_JUMP_MAT, 1);
     // 2^256 == 2^2 mod (2^127 - 1)
