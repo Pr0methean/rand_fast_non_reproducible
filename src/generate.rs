@@ -104,7 +104,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
     #[inline(always)]
     pub(crate) fn add128_with_carry(a: Simd64, b: Simd64, carry_in: Simd64) -> (Simd64, Simd64) {
         let sum1 = a + b;
-        let sum = sum1 + carry_in;
+        let sum = sum1 - carry_in;
 
         // carry_mask is either 0 or -1 (all bits 1)
         let carry_mask = (sum1.simd_lt(a) | sum.simd_lt(sum1)).to_simd().cast();
@@ -164,7 +164,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
             // low sum = p1_lo + p2_shifted_lo
             let (pcg_prod_lo, carry1) = Self::add128_with_carry(p1_lo, p2_shifted_lo, Simd64::splat(0));
-            let a_low_b_hi = p1_hi + p2_shifted_hi + carry1;
+            let a_low_b_hi = p1_hi + p2_shifted_hi - carry1;
 
             // a_high * b = a_high * b_lo + a_high * b_hi * 2^32
             let a_high_b = simd_wrapping_mul(pcg_state_hi, Self::PCG_MULTIPLIERS);
@@ -1452,6 +1452,9 @@ mod tests {
     #[cfg_attr(miri, ignore)]
     #[test]
     fn test_4_step_matrix_rank_distribution() {
+        #[cfg(feature = "no_std")]
+        extern crate alloc;
+
         let mut rng = rng();
         let mut ranks = Vec::new();
         let iterations = 1000;

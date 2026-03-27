@@ -1,4 +1,3 @@
-use core::simd::num::{SimdInt, SimdUint};
 use crate::generate::{SIMD_WIDTH, Simd64};
 use crate::reproducibility::Reproducibility;
 use crate::{TripleMixPrng, TripleMixSimdCore};
@@ -495,6 +494,43 @@ mod tests {
     use crate::jump::{pow_mat_2_exp, pow_mat_256_2_exp};
     use crate::reproducibility::DefaultReproducibility;
     use rand_core::Rng;
+
+    #[test]
+    fn test_add128_with_carry_comprehensive() {
+        use crate::generate::Simd64;
+        let zero = Simd64::splat(0);
+        let one = Simd64::splat(1);
+        let mask = Simd64::splat(u64::MAX);
+        let almost_max = Simd64::splat(u64::MAX - 1);
+        let max = Simd64::splat(u64::MAX);
+
+        // Basic addition without carry
+        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(one, one, zero);
+        assert_eq!(sum[0], 2);
+        assert_eq!(c[0], 0);
+
+        // Addition with carry-in
+        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(one, one, mask);
+        assert_eq!(sum[0], 3);
+        assert_eq!(c[0], 0);
+
+        // Addition that causes carry-out
+        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(max, one, zero);
+        assert_eq!(sum[0], 0);
+        assert_eq!(c[0], u64::MAX);
+
+        // Addition that causes carry-out via carry-in
+        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(almost_max, one, mask);
+        assert_eq!(sum[0], 0);
+        assert_eq!(c[0], u64::MAX);
+
+        // Adding two max values with carry-in
+        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(max, max, mask);
+        // mask is effectively +1
+        // FFFFFFFF + FFFFFFFF + 1 = 2^64 + FFFFFFFF = FFFFFFFF with carry 1
+        assert_eq!(sum[0], u64::MAX);
+        assert_eq!(c[0], u64::MAX);
+    }
 
     #[test]
     fn test_jump_ahead_constants() {
