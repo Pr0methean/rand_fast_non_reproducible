@@ -371,17 +371,16 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
         );
 
         // --- Half round (ARX only, no multiplications) to finish diffusion ---
-        let x_last = &[xi[6], xi[2], xi[5], xi[0], xi[4], xi[1], xi[3]];
-        a ^= b.rotate_elements_left::<1>();
+            a ^= b.rotate_elements_left::<1>();
         b += c.rotate_elements_right::<2>();
         c ^= a.rotate_elements_left::<3>();
 
-        a += x_last[0];
-        b ^= x_last[1];
-        c += x_last[2];
+        a += xi[6];
+        b ^= xi[2];
+        c += xi[5];
 
         a = rotl32(a, 3);
-        b ^= x_last[6];
+        b ^= xi[3];
         c ^= rotl32(b, 23);
         b += a.rotate_elements_right::<4>();
         a += rotl32(c, 13);
