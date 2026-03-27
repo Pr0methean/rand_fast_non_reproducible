@@ -336,7 +336,7 @@ fn test_equivalence_generic<R: Reproducibility>() {
     const LENGTHS: &[usize] = &[1, 2, 4, 8, 16, 32, 64, 1024];
     #[cfg(miri)]
     const LENGTHS: &[usize] = &[4];
-    for length in LENGTHS {
+    for &length in LENGTHS {
         for misalignment in 0..size_of::<u64>() {
             // Force buffer edges to be aligned on 64 bits, so that written portion will be misaligned
             let mut buf1 = vec![0u64; (length + size_of::<u64>()) / size_of::<u64>() + 1];
