@@ -297,44 +297,48 @@ impl<R: Reproducibility> TryRng for TripleMixPrng<R> {
 }
 
 #[cfg(test)]
-pub(crate) fn create_rngs<R: Reproducibility>() -> [TripleMixPrng<R>; 5] {
-    use crate::seed::DEFAULT_SEED_SIZE;
-    use core::simd::Simd;
-    use rand::rngs::SysRng;
+pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
+    let mut rngs = Vec::new();
+    rngs.push(TripleMixPrng::<R>::almost_all_zeroes_state());
+    #[cfg(not(miri))]
+    {
+        use crate::seed::DEFAULT_SEED_SIZE;
+        use core::simd::Simd;
+        use rand::rngs::SysRng;
 
-    const SMALLEST_DISTINCT_POSITIVE_DESCENDING: Simd64 = Simd::from_array([7, 5, 3, 1]);
-    const LARGEST_DISTINCT: Simd64 =
-        Simd::from_array([u64::MAX - 6, u64::MAX - 4, u64::MAX - 2, u64::MAX]);
-    let rng1 = TripleMixPrng::<R>::almost_all_zeroes_state();
-    let rng2 = TripleMixPrng::from_core(TripleMixSimdCore::<R> {
-        pcg_state_lo: Simd::splat(0),
-        pcg_state_hi: Simd::splat(0),
-        pcg_inc_lo: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
-        pcg_inc_hi: Simd::splat(0),
-        tm0: Simd::splat(0),
-        tm1: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
-        mwc_state: Simd::splat(0),
-        mwc_carry: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
-        xoshiro256: [0, 0, 0, 1],
-        reproducibility: PhantomData,
-    });
-    let rng3 = TripleMixPrng::from_core(TripleMixSimdCore::<R> {
-        pcg_state_lo: Simd::splat(u64::MAX),
-        pcg_state_hi: Simd::splat(u64::MAX),
-        pcg_inc_lo: LARGEST_DISTINCT,
-        pcg_inc_hi: Simd::splat(u64::MAX),
-        tm0: Simd::splat(u64::MAX),
-        tm1: LARGEST_DISTINCT,
-        mwc_state: TripleMixSimdCore::<R>::MCG_MULTIPLIERS - Simd::splat(2),
-        mwc_carry: TripleMixSimdCore::<R>::MCG_MULTIPLIERS - Simd::splat(1),
-        xoshiro256: [1, 0, 0, 0],
-        reproducibility: PhantomData,
-    });
-    let mut seed = [0u8; DEFAULT_SEED_SIZE];
-    let rng4 = TripleMixPrng::from(&seed);
-    SysRng.try_fill_bytes(&mut seed).unwrap();
-    let rng5 = TripleMixPrng::from(&seed);
-    [rng1, rng2, rng3, rng4, rng5]
+        const SMALLEST_DISTINCT_POSITIVE_DESCENDING: Simd64 = Simd::from_array([7, 5, 3, 1]);
+        const LARGEST_DISTINCT: Simd64 =
+            Simd::from_array([u64::MAX - 6, u64::MAX - 4, u64::MAX - 2, u64::MAX]);
+        rngs.push(TripleMixPrng::from_core(TripleMixSimdCore::<R> {
+            pcg_state_lo: Simd::splat(0),
+            pcg_state_hi: Simd::splat(0),
+            pcg_inc_lo: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
+            pcg_inc_hi: Simd::splat(0),
+            tm0: Simd::splat(0),
+            tm1: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
+            mwc_state: Simd::splat(0),
+            mwc_carry: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
+            xoshiro256: [0, 0, 0, 1],
+            reproducibility: PhantomData,
+        }));
+        rngs.push(TripleMixPrng::from_core(TripleMixSimdCore::<R> {
+            pcg_state_lo: Simd::splat(u64::MAX),
+            pcg_state_hi: Simd::splat(u64::MAX),
+            pcg_inc_lo: LARGEST_DISTINCT,
+            pcg_inc_hi: Simd::splat(u64::MAX),
+            tm0: Simd::splat(u64::MAX),
+            tm1: LARGEST_DISTINCT,
+            mwc_state: TripleMixSimdCore::<R>::MCG_MULTIPLIERS - Simd::splat(2),
+            mwc_carry: TripleMixSimdCore::<R>::MCG_MULTIPLIERS - Simd::splat(1),
+            xoshiro256: [1, 0, 0, 0],
+            reproducibility: PhantomData,
+        }));
+        let mut seed = [0u8; DEFAULT_SEED_SIZE];
+        rngs.push(TripleMixPrng::from(&seed));
+        SysRng.try_fill_bytes(&mut seed).unwrap();
+        rngs.push(TripleMixPrng::from(&seed));
+    }
+    rngs
 }
 
 const MAJOR_VERSION: &str = env!("CARGO_PKG_VERSION_MAJOR");
