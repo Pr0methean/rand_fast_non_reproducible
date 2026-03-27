@@ -597,7 +597,7 @@ mod tests {
             println!("base_b_for_2_128={:?}", base_b_for_2_128);
             println!("prng_2_128={:?}", prng_2_128);
 
-            for _ in 0..10_000 {
+            for _ in 0..ITERATIONS_AFTER_LEAP {
                 // Ensure internal state logic lines up perfectly equivalent.
                 let prng_2_128_u64 = prng_2_128.next_u64();
                 assert_eq!(base_a_for_2_128.next_u64(), prng_2_128_u64);
