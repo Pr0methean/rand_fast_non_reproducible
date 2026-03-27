@@ -5,6 +5,13 @@ edition = "2024"
 license = "Apache-2.0"
 description = "Pseudorandom number generator that's faster than ChaCha12Rng and has a 1.99*2<sup>382</sup>-block period"
 
+[workspace]
+members = [
+    ".",        # The main crate in the current directory
+    "benches",  # The new benchmark-only crate
+]
+resolver = "2"
+
 [workspace.dependencies]
 rand = { version = "0.10.0", default-features = false }
 
@@ -33,10 +40,6 @@ large_seeds_by_default = []  # Makes 288 bytes the default seed size. Enable thi
 [lib]
 bench = false  # Suppress use of libtest harness, since we're using criterion
 
-[[bench]]
-name = "benchmarks"
-harness = false  # Suppress use of libtest harness, since we're using criterion
-
 [profile.release]
 lto = "fat"
 codegen-units = 1
@@ -51,7 +54,6 @@ opt-level = 3
 [dev-dependencies]
 hypors = "0.3.0"
 statrs = "0.18.0"
-criterion = "0.8"
 rand = { workspace = true, features = ["thread_rng", "sys_rng"] }
 gf2 = "2.1.0"
 itertools = "0.14.0"
