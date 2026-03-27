@@ -374,6 +374,7 @@ mod tests {
                 }
             }
         }
+        #[cfg(not(miri))]
         assert_eq!(
             xor_matrix.clone().to_echelon_form().count_ones(),
             AVALANCHE_MATRIX_ROWS
@@ -454,7 +455,7 @@ mod tests {
                         if var_idx_2 == 8 && lane_idx_2 > 0 {
                             break;
                         }
-                        if lane_idx_1 == lane_idx_2 && var_idx_1 == var_idx_2 {
+                        if lane_idx_1 == lane_idx_2 && var_idx_1 == var_idx_2 && !cfg!(miri) {
                             for bit_idx_1 in 0..63 {
                                 for bit_idx_2 in bit_idx_1..64 {
                                     let mut modified_input = mix_input;
@@ -529,8 +530,9 @@ mod tests {
     #[cfg(not(miri))]
     const RANDOM_INPUT_ITERATIONS: usize = 10;
     #[cfg(miri)]
-    const RANDOM_INPUT_ITERATIONS: usize = 3;
+    const RANDOM_INPUT_ITERATIONS: usize = 2;
 
+    #[cfg_attr(miri, ignore)]
     #[test]
     fn test_mix_matrix_random_inputs() {
         let mut rng = rng();
@@ -576,6 +578,7 @@ mod tests {
         );
     }
 
+    #[cfg_attr(miri, ignore)]
     #[test]
     fn test_second_derivative_random_inputs() {
         let mut rng = rng();
@@ -669,15 +672,19 @@ mod tests {
 
     #[test]
     fn test_byte_frequencies() {
+        #[cfg(not(miri))]
+        const N: usize = 1 << 28;
+        #[cfg(miri)]
+        const N: usize = 1 << 12;
         for mut prng in crate::create_rngs::<NotReproducible>() {
             let mut frequencies = [0u32; u8::MAX as usize + 1];
-            for _ in 0..(1 << 28) {
+            for _ in 0..N {
                 let byte: u8 = prng.random();
                 frequencies[byte as usize] += 1;
             }
             let chi_square = goodness_of_fit(
                 frequencies.map(f64::from),
-                std::iter::repeat_n((1 << 20) as f64, u8::MAX as usize + 1),
+                std::iter::repeat_n((N >> 8) as f64, u8::MAX as usize + 1),
                 0.005,
             )
             .unwrap();
@@ -688,15 +695,19 @@ mod tests {
 
     #[test]
     fn test_u16_frequencies() {
+        #[cfg(not(miri))]
+        const N: usize = 1 << 28;
+        #[cfg(miri)]
+        const N: usize = 1 << 12;
         for mut prng in crate::create_rngs::<NotReproducible>() {
             let mut frequencies = vec![0u32; u16::MAX as usize + 1];
-            for _ in 0..(1 << 28) {
+            for _ in 0..N {
                 let word: u16 = prng.random();
                 frequencies[word as usize] += 1;
             }
             let chi_square = goodness_of_fit(
                 frequencies.into_iter().map(f64::from),
-                std::iter::repeat_n((1 << 12) as f64, u16::MAX as usize + 1),
+                std::iter::repeat_n((N as f64)/((1 >> 16) as f64), u16::MAX as usize + 1),
                 0.005,
             )
             .unwrap();
@@ -708,9 +719,12 @@ mod tests {
     #[cfg_attr(miri, ignore)]
     #[test]
     fn test_bit_correlations_and_transitions() {
-        const SAMPLE_COUNT: usize = 1 << 22;
+        #[cfg(not(miri))]
+        const N: usize = 1 << 22;
+        #[cfg(miri)]
+        const N: usize = 1 << 11;
         const CHUNK_SIZE: usize = 1 << 11;
-        const CHUNK_COUNT: usize = SAMPLE_COUNT / CHUNK_SIZE;
+        const CHUNK_COUNT: usize = N / CHUNK_SIZE;
         const P_THRESHOLD: f64 = 1e-6;
         for mut prng in crate::create_rngs::<NotReproducible>() {
             // Flatten to 2D for better cache locality
@@ -742,6 +756,7 @@ mod tests {
             }
 
             // Testing phase - convert back to 3D view for readability
+            #[cfg(not(miri))]
             for i in 0..64 {
                 for j in 0..64 {
                     let idx = j * 64 + i;
@@ -749,7 +764,7 @@ mod tests {
                     if j > i {
                         let p = goodness_of_fit(
                             bins[idx].map(f64::from),
-                            [SAMPLE_COUNT as f64 * 0.25; 4],
+                            [N as f64 * 0.25; 4],
                             P_THRESHOLD,
                         )
                         .unwrap()
@@ -763,7 +778,7 @@ mod tests {
 
                     let p = goodness_of_fit(
                         lagged_bins[idx].map(f64::from),
-                        [(SAMPLE_COUNT - 1) as f64 * 0.25; 4],
+                        [(N - 1) as f64 * 0.25; 4],
                         P_THRESHOLD,
                     )
                     .unwrap()
@@ -774,6 +789,11 @@ mod tests {
                         lagged_bins[idx]
                     );
                 }
+            }
+
+            #[cfg(miri)]
+            {
+                core::hint::black_box(bins);
             }
         }
     }
@@ -789,7 +809,10 @@ mod tests {
         for rng in crate::create_rngs::<NotReproducible>() {
             let core = rng.block_core.core;
 
+            #[cfg(not(miri))]
             const ITERATIONS: usize = 20;
+            #[cfg(miri)]
+            const ITERATIONS: usize = 2;
 
             let mut min_flips = u64::MAX;
             let mut max_flips = 0;
@@ -1060,12 +1083,18 @@ mod tests {
             mean.abs() + (var - 64.0).abs() // 64 expected variance for 8x8 ±1
         }
         const PROJECTION_BLOCK: usize = 8; // 8x8 projection
-        #[cfg_attr(miri, ignore)]
         #[test]
         fn test_bitplane_projection() {
-            const SAMPLES: usize = 1 << 22; // ~4M outputs
+            #[cfg(not(miri))]
+            const N: usize = 1 << 22;
+            #[cfg(miri)]
+            const N: usize = 1 << 10;
+            #[cfg(not(miri))]
+            const MAX_SCORE: f64 = 1.0;
+            #[cfg(miri)]
+            const MAX_SCORE: f64 = 10.0;
             for mut rng in create_rngs::<NotReproducible>() {
-                let mut buf = vec![0u64; SAMPLES];
+                let mut buf = vec![0u64; N];
                 rng.fill_bytes(cast_slice_mut(&mut buf));
 
                 xor_successive(&mut buf);
@@ -1075,7 +1104,7 @@ mod tests {
                     let score = projection_test(&plane);
 
                     assert!(
-                        score < 1.0,
+                        score < MAX_SCORE,
                         "Projection deviation too large for bit {bit}: {}",
                         score
                     );
@@ -1088,7 +1117,10 @@ mod tests {
     #[test]
     fn test_lane_cross_correlation_bitplane() {
         for mut rng in crate::create_rngs::<NotReproducible>() {
+            #[cfg(not(miri))]
             const N: usize = 1 << 27;
+            #[cfg(miri)]
+            const N: usize = 1 << 10;
             let mut lanes = Simd64::splat(0);
             for target_lane in 1..SIMD_WIDTH {
                 let mut sums = [0i64; 64];
@@ -1142,10 +1174,15 @@ mod tests {
     /// False positive rate for this test is about 1.2% per PRNG.
     #[test]
     fn test_lowbit_rank() {
+        #[cfg(not(miri))]
+        const N: usize = 10000;
+        #[cfg(miri)]
+        const N: usize = 64;
+
         for mut rng in crate::create_rngs::<NotReproducible>() {
             let mut rank60_count = 0;
 
-            for _ in 0..10000 {
+            for _ in 0..N {
                 let mut matrix = [0u64; 64];
                 rng.fill_bytes(cast_slice_mut(&mut matrix));
                 let rank = gf2_rank(matrix);
@@ -1164,7 +1201,10 @@ mod tests {
     #[test]
     fn test_double_differential() {
         for mut rng in crate::create_rngs::<NotReproducible>() {
+            #[cfg(not(miri))]
             const N: usize = 1 << 21;
+            #[cfg(miri)]
+            const N: usize = 1 << 14;
 
             let mut x = vec![0u64; N];
             rng.fill_bytes(cast_slice_mut(&mut x));
@@ -1191,7 +1231,10 @@ mod tests {
     #[test]
     fn test_fractional_spectral() {
         for mut rng in crate::create_rngs::<NotReproducible>() {
+            #[cfg(not(miri))]
             const N: usize = 1 << 21;
+            #[cfg(miri)]
+            const N: usize = 1 << 10;
 
             let mut prev = rng.next_u64();
             let mut min_gap = f64::MAX;

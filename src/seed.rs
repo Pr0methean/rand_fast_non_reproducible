@@ -333,10 +333,15 @@ mod tests {
     #[cfg(feature = "no_std")]
     extern crate alloc;
 
+    #[cfg(not(miri))]
+    const FORKS: usize = 64;
+
+    #[cfg(miri)]
+    const FORKS: usize = 2;
+
     #[test]
     fn test_fork_independence_descendants() {
         const SAMPLES_PER_FORK: usize = MIX_OUTPUTS * SIMD_WIDTH * 4;
-        const FORKS: usize = 64;
         #[cfg(not(feature = "no_std"))]
         let mut previous_outputs =
             std::collections::HashSet::with_capacity(SAMPLES_PER_FORK * FORKS);
@@ -359,7 +364,6 @@ mod tests {
     #[test]
     fn test_fork_independence_siblings() {
         const SAMPLES_PER_FORK: usize = 32;
-        const FORKS: usize = 64;
         #[cfg(not(feature = "no_std"))]
         let mut previous_outputs =
             std::collections::HashSet::with_capacity(SAMPLES_PER_FORK * FORKS);
@@ -431,10 +435,16 @@ mod tests {
         let base = get_base_kmac();
         let mut results = std::collections::HashSet::new();
 
+        #[cfg(not(miri))]
+        const PERMUTATIONS: usize = 1000;
+
+        #[cfg(miri)]
+        const PERMUTATIONS: usize = 5;
+
         // Run 1000 permutations and check for any identical full states
         // In a true permutation, collisions are mathematically impossible.
-        for i in 0..1000 {
-            let p = TripleMixPrng::<DefaultReproducibility>::permute(&base, i);
+        for i in 0..PERMUTATIONS {
+            let p = TripleMixPrng::<DefaultReproducibility>::permute(&base, i.try_into().unwrap());
             let state_snapshot = (
                 p.pcg_state_lo.as_array().clone(),
                 p.pcg_state_hi.as_array().clone(),
