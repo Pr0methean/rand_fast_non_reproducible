@@ -38,24 +38,33 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         u64::MAX - Self::MULTIPLIER_COMPLEMENT_3 + 1,
     ]);
 
-    pub(crate) const PCG_MULTIPLIERS: Simd64 = Simd64::from_array([
-        0x2360_ED05_1FC6_5DA5,
-        0x5851_F42D_4C95_7F2D,
-        0xA3E7_9B3D_8F1C_5E95,
-        0x9B3C_D8F1_E5A7_4D29,
-    ]);
+    const PCG_MULT_LO_0: u64 = 0x1FC6_5DA5;
+    const PCG_MULT_HI_0: u64 = 0x2360_ED05;
+    const PCG_MULT_LO_1: u64 = 0x4C95_7F2D;
+    const PCG_MULT_HI_1: u64 = 0x8F1C_5E95;
+    const PCG_MULT_LO_2: u64 = 0xE5A7_4D29;
+    const PCG_MULT_HI_2: u64 = 0xA3E7_9B3D;
+    const PCG_MULT_LO_3: u64 = 0x9B3C_D8F1;
+    const PCG_MULT_HI_3: u64 = 0x2360_ED05;
 
     const PCG_MULT_LO: Simd64 = Simd64::from_array([
-        0x1FC6_5DA5,
-        0x4C95_7F2D,
-        0x8F1C_5E95,
-        0xE5A7_4D29,
+        Self::PCG_MULT_LO_0,
+        Self::PCG_MULT_LO_1,
+        Self::PCG_MULT_LO_2,
+        Self::PCG_MULT_LO_3,
     ]);
     const PCG_MULT_HI: Simd64 = Simd64::from_array([
-        0x2360_ED05,
-        0x5851_F42D,
-        0xA3E7_9B3D,
-        0x9B3C_D8F1,
+        Self::PCG_MULT_HI_0,
+        Self::PCG_MULT_HI_1,
+        Self::PCG_MULT_HI_2,
+        Self::PCG_MULT_HI_3,
+    ]);
+
+    pub(crate) const PCG_MULTIPLIERS: Simd64 = Simd64::from_array([
+        (Self::PCG_MULT_HI_0 << 32) | Self::PCG_MULT_LO_0,
+        (Self::PCG_MULT_HI_1 << 32) | Self::PCG_MULT_LO_1,
+        (Self::PCG_MULT_HI_2 << 32) | Self::PCG_MULT_LO_2,
+        (Self::PCG_MULT_HI_3 << 32) | Self::PCG_MULT_LO_3,
     ]);
 
     /// Multiplies two vectors. Requires that all elements of b be less than 2^32. Returns (low, hi)
