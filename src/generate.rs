@@ -295,7 +295,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             x: &[Simd32; 7],
             shift1: u32,
             shift2: u32,
-            shift4: u32,
+            shift3: u32,
         ) -> (Simd32, Simd32, Simd32) {
             // --- First nonlinear layer ---
             let (m0_lo, m0_hi, m1_lo, m1_hi) = TripleMixSimdCore::<R>::mul_lo_hi_triad(a, b, c);
@@ -320,7 +320,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             // --- Rotate ---
             a = rotl32(a, shift1);
             b ^= x[6];
-            c ^= rotl32(b, shift4);
+            c ^= rotl32(b, shift3);
             b += m1_lo + a.rotate_elements_right::<4>();
             a += rotl32(c, shift2);
 
