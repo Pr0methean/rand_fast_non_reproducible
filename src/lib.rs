@@ -90,7 +90,7 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
             not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
         )))]
         {
-            portable_mul_lo_hi(a, b)
+            Self::portable_mul_lo_hi(a, b)
         }
     }
 

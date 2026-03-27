@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        feature-flag: [ "--no-default-features", "--all-features" ]
+        feature-flag: [ "--no-default-features", "--all-features", "--features reproducibility_same_endianness" ]
         os: [ ubuntu-latest, ubuntu-24.04-arm, macos-26-intel, macos-latest, windows-latest, windows-11-arm ]
       fail-fast: false
     steps:
