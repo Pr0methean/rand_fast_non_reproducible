@@ -329,6 +329,7 @@ fn portable_mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
     (lo, hi)
 }
 
+#[allow(clippy::too_many_arguments)]
 #[inline(always)]
 pub fn mix(
     x0: Simd64,
@@ -357,6 +358,7 @@ pub fn mix(
         (x << Simd32::splat(k)) | (x >> Simd32::splat(32 - k))
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[inline(always)]
     fn round3(
         mut a: Simd32,
