@@ -181,14 +181,7 @@ pub mod cross_platform {
         #[cfg(target_endian = "big")]
         #[inline(always)]
         fn fill_bytes(block_core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]) {
-            let mut read_len = 0;
-            while read_len < bytes.len() {
-                let word = block_core.next_word();
-                let word_bytes = word.to_le_bytes();
-                let len = core::cmp::min(8, bytes.len() - read_len);
-                bytes[read_len..read_len + len].copy_from_slice(&word_bytes[..len]);
-                read_len += len;
-            }
+            block_core.fill_bytes(bytes);
         }
 
         #[cfg(target_endian = "little")]
