@@ -297,7 +297,6 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             x: &[Simd32; 7],
             shift1: u32,
             shift2: u32,
-            shift3: u32,
             shift4: u32,
         ) -> (Simd32, Simd32, Simd32) {
             // --- First nonlinear layer ---
@@ -323,8 +322,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
 
             // --- Rotate ---
             a = rotl32(a, shift1);
-            c = rotl32(c, shift3);
-            a ^= x[6];
+            b ^= x[6];
 
             b += m1_lo + a.rotate_elements_right::<4>();
             a += rotl32(c, shift2);
@@ -341,9 +339,8 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
         a ^= scalar_mix_1;
         let mut c = Simd32::splat(0xb7e15162);
         b += scalar_mix_2;
-
-        (a, b, c) = round3::<R>(a, b, c, &xi, 7, 19, 26, 11);
         c += scalar_mix_1;
+        (a, b, c) = round3::<R>(a, b, c, &xi, 7, 25, 11);
         (a, b, c) = round3::<R>(
             a,
             b,
@@ -351,10 +348,8 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             &[xi[3], xi[4], xi[5], xi[6], xi[0], xi[1], xi[2]],
             5,
             17,
-            29,
             9,
         );
-        a ^= scalar_mix_2;
         (a, b, c) = round3::<R>(
             a,
             b,
@@ -362,8 +357,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             &[xi[6], xi[2], xi[5], xi[0], xi[4], xi[1], xi[3]],
             3,
             13,
-            25,
-            27
+            23
         );
 
         // --- Strong final cross-lane avalanche ---
