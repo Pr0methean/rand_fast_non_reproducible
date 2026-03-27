@@ -49,7 +49,7 @@ jobs:
       - run: rustup toolchain add nightly-x86_64-unknown-linux-gnu
       - run: rustup component add --toolchain nightly-x86_64-unknown-linux-gnu miri
       - run: cargo +nightly install --locked cargo-nextest
-      - run: cargo +nightly miri nextest --target aarch64_be-unknown-linux-gnu --features jump,zeroize,serde,reproducibility_cross_platform
+      - run: cargo +nightly miri nextest run --target aarch64_be-unknown-linux-gnu --features jump,zeroize,serde,reproducibility_cross_platform
   benchmarks:
     needs: unit-tests
     runs-on: ${{ matrix.os }}
