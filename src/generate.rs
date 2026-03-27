@@ -298,6 +298,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             shift1: u32,
             shift2: u32,
             shift3: u32,
+            shift4: u32,
         ) -> (Simd32, Simd32, Simd32) {
             // --- First nonlinear layer ---
             let (m0_lo, m0_hi) = TripleMixSimdCore::<R>::mul_lo_hi(a, b);
@@ -327,6 +328,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
 
             b += m1_lo + a.rotate_elements_right::<4>();
             a += rotl32(c, shift2);
+            c ^= rotl32(b, shift4);
 
             (a, b, c)
         }
@@ -340,7 +342,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
         let mut c = Simd32::splat(0xb7e15162);
         b += scalar_mix_2;
 
-        (a, b, c) = round3::<R>(a, b, c, &xi, 7, 19, 26);
+        (a, b, c) = round3::<R>(a, b, c, &xi, 7, 19, 26, 11);
         c += scalar_mix_1;
         (a, b, c) = round3::<R>(
             a,
@@ -350,6 +352,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             5,
             17,
             29,
+            9,
         );
         a ^= scalar_mix_2;
         (a, b, c) = round3::<R>(
@@ -360,12 +363,13 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             3,
             13,
             25,
+            27
         );
 
         // --- Strong final cross-lane avalanche ---
         a ^= b.rotate_elements_right::<2>();
         b += c.rotate_elements_left::<3>();
-        c += a.rotate_elements_right::<4>();
+        c += a.rotate_elements_right::<1>();
 
         // Convert back to u64x4 by casting and packing
         (
