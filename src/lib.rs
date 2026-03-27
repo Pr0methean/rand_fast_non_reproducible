@@ -119,6 +119,35 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
     }
 
     #[inline(always)]
+    pub(crate) fn mul_lo_hi_triad(
+        a: Simd32,
+        b: Simd32,
+        c: Simd32,
+    ) -> (Simd32, Simd32, Simd32, Simd32) {
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
+        ))]
+        {
+            use bytemuck::cast;
+            let (ab_lo, ab_hi, bc_lo, bc_hi) =
+                unsafe { avx2::mul_lo_hi_triad_avx2(cast(a), cast(b), cast(c)) };
+            (cast(ab_lo), cast(ab_hi), cast(bc_lo), cast(bc_hi))
+        }
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
+        )))]
+        {
+            let (ab_lo, ab_hi) = Self::portable_mul_lo_hi(a, b);
+            let (bc_lo, bc_hi) = Self::portable_mul_lo_hi(b, c);
+            (ab_lo, ab_hi, bc_lo, bc_hi)
+        }
+    }
+
+    #[inline(always)]
     fn as_bytes(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts((self as *const Self) as *const u8, size_of::<Self>()) }
     }

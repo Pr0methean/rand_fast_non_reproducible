@@ -160,11 +160,19 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             0xbf58476d1ce4e5b9,
             0x94d049bb133111eb,
         ]);
+
+        let mwc_mult = Self::MWC_MULTIPLIER_COMPLEMENTS;
+        let pcg_mult = Self::PCG_MULTIPLIERS;
+        let pcg_mult_lo = pcg_mult & Simd::splat(0xFFFF_FFFF);
+        let pcg_mult_hi = pcg_mult >> 32;
+
         for block in blocks {
             // Kick off the highest latency operations (multipliers) early
-            let (pcg_prod_hi, pcg_prod_lo) =
-                Self::mul128x64to128(pcg_state_hi, pcg_state_lo, Self::PCG_MULTIPLIERS);
-            let (mwc_kx_lo, mwc_kx_hi) = Self::simd_mulsmall(mwc_state, Self::MWC_MULTIPLIER_COMPLEMENTS);
+            // a_low * b (where b is pcg_mult)
+            let (p1_lo, p1_hi) = Self::simd_mulsmall(pcg_state_lo, pcg_mult_lo);
+            let (p2_lo, p2_hi) = Self::simd_mulsmall(pcg_state_lo, pcg_mult_hi);
+
+            let (mwc_kx_lo, mwc_kx_hi) = Self::simd_mulsmall(mwc_state, mwc_mult);
 
             // Generate scalar xoshiro256** output
             let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
@@ -174,7 +182,20 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             let mut tm_x = tm0_masked ^ tm1;
             let tm_y = tm0_masked + tm1;
 
-            // TinyMT Step 1: First shift (Interleave with PCG state logic)
+            // p2 * 2^32 = p2_hi * 2^96 + p2_lo * 2^32
+            let p2_shifted_lo = p2_lo << Simd64::splat(32);
+            let p2_shifted_hi = (p2_hi << Simd64::splat(32)) | (p2_lo >> Simd64::splat(32));
+
+            // low sum = p1_lo + p2_shifted_lo
+            let (low_sum, carry1) = Self::add128_with_carry(p1_lo, p2_shifted_lo, Simd64::splat(0));
+            let a_low_b_hi = p1_hi + p2_shifted_hi + carry1;
+
+            // a_high * b = a_high * b_lo + a_high * b_hi * 2^32
+            let a_high_b = simd_wrapping_mul(pcg_state_hi, pcg_mult);
+            let pcg_prod_hi = a_low_b_hi + a_high_b;
+            let pcg_prod_lo = low_sum;
+
+            // TinyMT Step 1: First shift
             tm_x ^= tm_x << Simd::splat(12);
 
             // Finish PCG state transition
@@ -185,7 +206,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             pcg_state_lo = pcg_next_state_lo;
             pcg_state_hi = pcg_next_state_hi;
 
-            // TinyMT Step 2: Second shift (Interleave with PCG output prep)
+            // TinyMT Step 2: Second shift
             tm_x ^= tm_x >> Simd::splat(32);
 
             // Kick off PCG output multiplier
@@ -193,7 +214,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             let pcg_m = simd_wrapping_mul(pcg_x ^ (pcg_x >> 31), PCG_OUTPUT_MULTIPLIERS);
             let pcg_rot = pcg_x >> 59;
 
-            // TinyMT Step 3: Third shift (Interleave with MWC state updates)
+            // TinyMT Step 3: Third shift
             tm_x ^= tm_x << Simd::splat(32);
 
             // Interleave MWC state updates with PCG output multiplier latency
@@ -202,7 +223,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             let mwc_next_state = mwc_carry - mwc_kx_lo;
             let mwc_next_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
 
-            // TinyMT Step 4: Fourth shift (Interleave with PCG final rotation)
+            // TinyMT Step 4: Fourth shift
             tm_x ^= tm_x << Simd::splat(11);
 
             // TinyMT Step 5: Final output and transition prep
@@ -227,9 +248,9 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
                 xoshiro_out,
             );
 
-            block[0..4].copy_from_slice(&x.to_array());
-            block[4..8].copy_from_slice(&y.to_array());
-            block[8..12].copy_from_slice(&z.to_array());
+            x.copy_to_slice(&mut block[0..4]);
+            y.copy_to_slice(&mut block[4..8]);
+            z.copy_to_slice(&mut block[8..12]);
 
             // Update state
             tm0 = tm_next_0;
@@ -300,8 +321,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             shift4: u32,
         ) -> (Simd32, Simd32, Simd32) {
             // --- First nonlinear layer ---
-            let (m0_lo, m0_hi) = TripleMixSimdCore::<R>::mul_lo_hi(a, b);
-            let (m1_lo, m1_hi) = TripleMixSimdCore::<R>::mul_lo_hi(b, c);
+            let (m0_lo, m0_hi, m1_lo, m1_hi) = TripleMixSimdCore::<R>::mul_lo_hi_triad(a, b, c);
 
             a ^= b.rotate_elements_left::<1>();
             b += c.rotate_elements_right::<2>();
@@ -349,15 +369,22 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             17,
             9,
         );
-        (a, b, c) = round3::<R>(
-            a,
-            b,
-            c,
-            &[xi[6], xi[2], xi[5], xi[0], xi[4], xi[1], xi[3]],
-            3,
-            13,
-            23
-        );
+
+        // --- Half round (ARX only, no multiplications) to finish diffusion ---
+        let x_last = &[xi[6], xi[2], xi[5], xi[0], xi[4], xi[1], xi[3]];
+        a ^= b.rotate_elements_left::<1>();
+        b += c.rotate_elements_right::<2>();
+        c ^= a.rotate_elements_left::<3>();
+
+        a += x_last[0];
+        b ^= x_last[1];
+        c += x_last[2];
+
+        a = rotl32(a, 3);
+        b ^= x_last[6];
+        c ^= rotl32(b, 23);
+        b += a.rotate_elements_right::<4>();
+        a += rotl32(c, 13);
 
         // --- Strong final cross-lane avalanche ---
         a ^= b.rotate_elements_right::<2>();

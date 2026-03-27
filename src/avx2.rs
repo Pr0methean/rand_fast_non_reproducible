@@ -89,12 +89,42 @@ pub unsafe fn mul_lo_hi_interleaved_avx2(a: __m256i, b: __m256i) -> (__m256i, __
         let odd = _mm256_mul_epu32(a_odd, b_odd);
 
         // lo[i] = low 32 bits of a[i]*b[i]: even u32 slots from even, odd u32 slots from odd
-        let lo = _mm256_blend_epi32(even, _mm256_slli_epi64(odd, 32), 0b10101010_u32 as i32);
+        let lo = _mm256_blend_epi32(even, _mm256_slli_epi64(odd, 32), 0b10101010_i32);
 
         // hi[i] = high 32 bits of a[i]*b[i]: even u32 slots from even>>32, odd u32 slots from odd
-        let hi = _mm256_blend_epi32(_mm256_srli_epi64(even, 32), odd, 0b10101010_u32 as i32);
+        let hi = _mm256_blend_epi32(_mm256_srli_epi64(even, 32), odd, 0b10101010_i32);
 
         (lo, hi)
+    }
+}
+
+/// Optimized multi-product: calculates (a*b, b*c) sharing the preparation of 'b'.
+#[inline(always)]
+pub unsafe fn mul_lo_hi_triad_avx2(
+    a: __m256i,
+    b: __m256i,
+    c: __m256i,
+) -> (__m256i, __m256i, __m256i, __m256i) {
+    unsafe {
+        let b_odd = _mm256_srli_epi64(b, 32);
+
+        // a*b even/odd
+        let ab_even = _mm256_mul_epu32(a, b);
+        let a_odd = _mm256_srli_epi64(a, 32);
+        let ab_odd = _mm256_mul_epu32(a_odd, b_odd);
+
+        // b*c even/odd
+        let bc_even = _mm256_mul_epu32(b, c);
+        let c_odd = _mm256_srli_epi64(c, 32);
+        let bc_odd = _mm256_mul_epu32(b_odd, c_odd);
+
+        let ab_lo = _mm256_blend_epi32(ab_even, _mm256_slli_epi64(ab_odd, 32), 0xAA);
+        let ab_hi = _mm256_blend_epi32(_mm256_srli_epi64(ab_even, 32), ab_odd, 0xAA);
+
+        let bc_lo = _mm256_blend_epi32(bc_even, _mm256_slli_epi64(bc_odd, 32), 0xAA);
+        let bc_hi = _mm256_blend_epi32(_mm256_srli_epi64(bc_even, 32), bc_odd, 0xAA);
+
+        (ab_lo, ab_hi, bc_lo, bc_hi)
     }
 }
 
