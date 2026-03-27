@@ -304,7 +304,7 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             let (m1_lo, m1_hi) = TripleMixSimdCore::<R>::mul_lo_hi(b, c);
 
             a ^= b.rotate_elements_left::<1>();
-            b += c.rotate_elements_right::<3>();
+            b += c.rotate_elements_right::<2>();
             c ^= a.rotate_elements_left::<3>();
 
             // --- Input injection ---
@@ -325,8 +325,8 @@ fn simd_mulsmall(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
             c = rotl32(c, shift3);
             a ^= x[6];
 
-            b += m1_lo + a.rotate_elements_right::<2>();
-            b += rotl32(c, shift2);
+            b += m1_lo + a.rotate_elements_right::<4>();
+            a += rotl32(c, shift2);
 
             (a, b, c)
         }
