@@ -181,7 +181,14 @@ pub mod cross_platform {
         #[cfg(target_endian = "big")]
         #[inline(always)]
         fn fill_bytes(block_core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]) {
-            block_core.fill_bytes(bytes);
+            let mut read_len = 0;
+            while read_len < bytes.len() {
+                let word = block_core.next_word();
+                let word_bytes = word.to_le_bytes();
+                let len = core::cmp::min(8, bytes.len() - read_len);
+                bytes[read_len..read_len + len].copy_from_slice(&word_bytes[..len]);
+                read_len += len;
+            }
         }
 
         #[cfg(target_endian = "little")]
@@ -195,7 +202,7 @@ pub mod cross_platform {
         fn cast_u8_slice_as_u64(slice: &[u8]) -> Vec<u64> {
             slice
                 .chunks_exact(8)
-                .map(|chunk| u64::from_le_bytes(*chunk.as_array().unwrap()))
+                .map(|chunk| u64::from_le_bytes(chunk.try_into().unwrap()))
                 .collect()
         }
 
@@ -230,7 +237,8 @@ pub mod cross_platform {
         #[cfg(target_endian = "big")]
         #[inline(always)]
         fn simd64_as_simd32(input: Simd64) -> Simd32 {
-            cast::<Simd64, Simd32>(input).reverse()
+            use core::simd::simd_swizzle;
+            simd_swizzle!(cast::<Simd64, Simd32>(input), [1, 0, 3, 2, 5, 4, 7, 6])
         }
 
         #[cfg(target_endian = "little")]
@@ -242,7 +250,9 @@ pub mod cross_platform {
         #[cfg(target_endian = "big")]
         #[inline(always)]
         fn simd32_as_simd64(input: Simd32) -> Simd64 {
-            cast::<Simd32, Simd64>(input).reverse()
+            use core::simd::simd_swizzle;
+            let swizzled = simd_swizzle!(input, [1, 0, 3, 2, 5, 4, 7, 6]);
+            cast(swizzled)
         }
     }
 

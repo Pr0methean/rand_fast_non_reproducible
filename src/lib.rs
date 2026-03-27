@@ -97,8 +97,8 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
     #[allow(unused)]
     #[inline(always)]
     fn portable_mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
-        let a64: Simd64 = cast(a);
-        let b64: Simd64 = cast(b);
+        let a64: Simd64 = R::simd32_as_simd64(a);
+        let b64: Simd64 = R::simd32_as_simd64(b);
         let mask32 = Simd64::splat(0xFFFF_FFFF);
         // Even lanes (lower 32 bits of each 64-bit word)
         let even = (a64 & mask32) * (b64 & mask32);
@@ -109,8 +109,8 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
         let odd = a_hi * b_hi;
 
         // Reinterpret to u32
-        let even32: Simd32 = cast(even);
-        let odd32: Simd32 = cast(odd);
+        let even32: Simd32 = R::simd64_as_simd32(even);
+        let odd32: Simd32 = R::simd64_as_simd32(odd);
 
         let lo = simd_swizzle!(even32, odd32, [0, 8, 2, 10, 4, 12, 6, 14]);
         let hi = simd_swizzle!(even32, odd32, [1, 9, 3, 11, 5, 13, 7, 15]);
@@ -132,13 +132,13 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
     ) -> (Simd64, Simd64, Simd64) {
         // Convert inputs to u32x8 (portable)
         let xi = [
-            cast(x0),
-            cast(x1),
-            cast(x2),
-            cast(x3),
-            cast(x4),
-            cast(x5),
-            cast(x6),
+            R::simd64_as_simd32(x0),
+            R::simd64_as_simd32(x1),
+            R::simd64_as_simd32(x2),
+            R::simd64_as_simd32(x3),
+            R::simd64_as_simd32(x4),
+            R::simd64_as_simd32(x5),
+            R::simd64_as_simd32(x6),
         ];
 
         // Rotation helper
@@ -245,7 +245,11 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
         c += a.rotate_elements_right::<4>();
 
         // Convert back to u64x4 by casting and packing
-        (cast(a), cast(b), cast(c))
+        (
+            R::simd32_as_simd64(a),
+            R::simd32_as_simd64(b),
+            R::simd32_as_simd64(c),
+        )
     }
 
     #[inline(always)]

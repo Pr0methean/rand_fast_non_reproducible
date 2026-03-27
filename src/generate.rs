@@ -627,7 +627,7 @@ mod tests {
             let a_simd = Simd64::from_array(a);
             let b_u64 = b.map(|x| x as u64);
             let b_simd = Simd64::from_array(b_u64);
-            let (lo, hi) = super::simd_mulsmall(a_simd, b_simd);
+            let (lo, hi) = TripleMixSimdCore::<DefaultReproducibility>::simd_mulsmall(a_simd, b_simd);
             let lo_arr = lo.to_array();
             let hi_arr = hi.to_array();
 
