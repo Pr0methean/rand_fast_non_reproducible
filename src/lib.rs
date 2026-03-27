@@ -18,6 +18,7 @@ mod serde;
 #[cfg(feature = "zeroize")]
 mod zeroize;
 
+use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH};
 use crate::reproducibility::{DefaultReproducibility, NotReproducible};
 use const_format::formatcp;
 use core::convert::Infallible;
@@ -26,7 +27,6 @@ use generate::Simd64;
 use rand_core::TryRng;
 use rand_core::block::BlockRng;
 use reproducibility::Reproducibility;
-use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH};
 
 #[derive(Clone, Copy)]
 #[repr(C)]

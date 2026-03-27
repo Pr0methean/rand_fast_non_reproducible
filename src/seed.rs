@@ -190,7 +190,7 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             tm1,
             mwc_state,
             mwc_carry,
-            xoshiro256
+            xoshiro256,
         }
     }
 
@@ -275,7 +275,8 @@ impl TripleMixSimdCore {
             cold_path();
             return false;
         }
-        if (self.xoshiro256[0] | self.xoshiro256[1] | self.xoshiro256[2] | self.xoshiro256[3]) == 0 {
+        if (self.xoshiro256[0] | self.xoshiro256[1] | self.xoshiro256[2] | self.xoshiro256[3]) == 0
+        {
             cold_path();
             return false;
         }

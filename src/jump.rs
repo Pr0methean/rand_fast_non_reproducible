@@ -284,9 +284,11 @@ impl TripleMixSimdCore {
     const TINYMT_JUMP_MAT: [u128; 128] = compute_tinymt_mat();
     const XOSHIRO256_JUMP_MAT: [[u64; 4]; 256] = compute_xoshiro256_mat();
     // 2^128-step xoshiro matrix, precomputed
-    const XOSHIRO256_JUMP_128_MAT: [[u64; 4]; 256] = pow_mat_256_2_exp(Self::XOSHIRO256_JUMP_MAT, 128);
+    const XOSHIRO256_JUMP_128_MAT: [[u64; 4]; 256] =
+        pow_mat_256_2_exp(Self::XOSHIRO256_JUMP_MAT, 128);
     // 2^256 ≡ 1 mod (2^256 - 1), so this equals the 1-step matrix
-    const XOSHIRO256_JUMP_256_MAT: [[u64; 4]; 256] = pow_mat_256_2_exp(Self::XOSHIRO256_JUMP_MAT, 256);
+    const XOSHIRO256_JUMP_256_MAT: [[u64; 4]; 256] =
+        pow_mat_256_2_exp(Self::XOSHIRO256_JUMP_MAT, 256);
 }
 
 // ============================================================================
@@ -452,8 +454,8 @@ const fn compute_xoshiro256_mat() -> [[u64; 4]; 256] {
 
 #[cfg(test)]
 mod tests {
-    use crate::TripleMixSimdCore;
     use crate::BLOCK_SIZE;
+    use crate::TripleMixSimdCore;
     use crate::jump::{pow_mat_2_exp, pow_mat_256_2_exp};
     use crate::reproducibility::NotReproducible;
     use rand_core::Rng;

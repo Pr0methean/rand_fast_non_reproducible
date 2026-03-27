@@ -42,7 +42,7 @@ impl<R: Reproducibility> Drop for TripleMixPrng<R> {
 mod tests {
     use crate::generate::Simd64;
     use crate::reproducibility::DefaultReproducibility;
-    use crate::{create_rngs, TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
+    use crate::{BLOCK_SIZE, TripleMixPrng, TripleMixSimdCore, create_rngs};
     use rand_core::Rng;
     use zeroize::Zeroize;
 

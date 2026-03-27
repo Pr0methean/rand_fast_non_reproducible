@@ -78,10 +78,7 @@ unsafe fn mul_small_avx2(x: __m256i, kvec: __m256i) -> (__m256i, __m256i) {
 }
 
 #[inline(always)]
-pub unsafe fn mul_lo_hi_interleaved_avx2(
-    a: __m256i,
-    b: __m256i,
-) -> (__m256i, __m256i) {
+pub unsafe fn mul_lo_hi_interleaved_avx2(a: __m256i, b: __m256i) -> (__m256i, __m256i) {
     unsafe {
         // even lanes
         let even = _mm256_mul_epu32(a, b);
@@ -228,7 +225,13 @@ mod tests {
 
     #[test]
     fn test_mulsmall() {
-        assert_eq!(mul_small(Simd64::splat((1 << 63) + 1), Simd64::splat((1 << 32) - 1)), (Simd64::splat((1 << 63) | (1 << 32) - 1), Simd64::splat((1 << 31) - 1)));
+        assert_eq!(
+            mul_small(Simd64::splat((1 << 63) + 1), Simd64::splat((1 << 32) - 1)),
+            (
+                Simd64::splat((1 << 63) | (1 << 32) - 1),
+                Simd64::splat((1 << 31) - 1)
+            )
+        );
     }
 
     proptest! {
@@ -249,7 +252,7 @@ mod tests {
         }
     }
 
-        proptest! {
+    proptest! {
         #[test]
         fn test_wrapping_mul_proptest(a in any::<[u64; 4]>(), b_u64 in any::<[u64; 4]>()) {
             let a_simd = Simd64::from_array(a);
