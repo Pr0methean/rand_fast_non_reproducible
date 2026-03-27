@@ -1,3 +1,4 @@
+use core::simd::num::{SimdInt, SimdUint};
 use crate::generate::{SIMD_WIDTH, Simd64};
 use crate::reproducibility::Reproducibility;
 use crate::{TripleMixPrng, TripleMixSimdCore};
@@ -128,7 +129,7 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
         // low sum = p1_lo + p2_shifted_lo
         let (low_sum, carry1) = Self::add128_with_carry(p1_lo, p2_shifted_lo, Simd64::splat(0));
 
-        let a_low_b_hi = p1_hi + p2_shifted_hi + carry1;
+        let a_low_b_hi = p1_hi + p2_shifted_hi - carry1;
 
         // the final high part is a_low_b_hi + a_high * b
         // a_high * b = a_high * b_lo + a_high * b_hi * 2^32 (we only care about the low 64 bits of this)

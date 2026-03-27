@@ -23,7 +23,7 @@ use crate::reproducibility::{DefaultReproducibility, NotReproducible};
 use const_format::formatcp;
 use core::convert::Infallible;
 use core::marker::PhantomData;
-use std::simd::{simd_swizzle, Simd};
+use core::simd::{simd_swizzle, Simd};
 use generate::Simd64;
 use rand_core::TryRng;
 use rand_core::block::BlockRng;
@@ -44,8 +44,8 @@ pub struct TripleMixSimdCore<R: Reproducibility> {
     reproducibility: PhantomData<R>,
 }
 
-impl <R: Reproducibility> std::fmt::Debug for TripleMixSimdCore<R> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl <R: Reproducibility> core::fmt::Debug for TripleMixSimdCore<R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let x2 = self.mwc_carry;
         let x3 = self.mwc_state;
         let x4 = self.tm1;
@@ -126,7 +126,7 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
 
     #[inline(always)]
     fn as_bytes(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts((self as *const Self) as *const u8, size_of::<Self>()) }
+        unsafe { core::slice::from_raw_parts((self as *const Self) as *const u8, size_of::<Self>()) }
     }
 }
 

@@ -10,7 +10,7 @@ use generic_array::GenericArray;
 use rand::RngExt;
 use rand_core::SeedableRng;
 use rand_core::block::BlockRng;
-use std::simd::cmp::SimdPartialOrd;
+use core::simd::cmp::SimdPartialOrd;
 use tiny_keccak::{Hasher, IntoXof, Kmac, Xof};
 use typenum::U;
 
@@ -432,7 +432,10 @@ mod tests {
     #[test]
     fn test_permutation_collision_resistance() {
         let base = get_base_kmac();
+        #[cfg(not(feature = "no_std"))]
         let mut results = std::collections::HashSet::new();
+        #[cfg(feature = "no_std")]
+        let mut results = alloc::collections::BTreeSet::new();
 
         #[cfg(not(miri))]
         const PERMUTATIONS: usize = 1000;

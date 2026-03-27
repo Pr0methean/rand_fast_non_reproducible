@@ -118,7 +118,7 @@ mod tests {
         let a = Simd64::from_array(a_arr);
         let b = Simd64::from_array(b_arr);
         let result = wrapping_mul(a, b).to_array();
-        let expected: [u64; 4] = std::array::from_fn(|i| a_arr[i].wrapping_mul(b_arr[i]));
+        let expected: [u64; 4] = core::array::from_fn(|i| a_arr[i].wrapping_mul(b_arr[i]));
         assert_eq!(result, expected, "mullo({a_arr:?}, {b_arr:?})");
     }
 
@@ -184,7 +184,7 @@ mod tests {
         let c = 7u64;
         let p0 = Simd64::from_array(a);
         let result = wrapping_mul(p0, Simd64::splat(c)).to_array();
-        let expected: [u64; 4] = std::array::from_fn(|i| a[i].wrapping_mul(c));
+        let expected: [u64; 4] = core::array::from_fn(|i| a[i].wrapping_mul(c));
         assert_eq!(result, expected);
     }
 
@@ -194,7 +194,7 @@ mod tests {
         let c = u64::MAX;
         let p0 = Simd64::from_array(a);
         let result = wrapping_mul(p0, Simd64::splat(c)).to_array();
-        let expected: [u64; 4] = std::array::from_fn(|i| a[i].wrapping_mul(c));
+        let expected: [u64; 4] = core::array::from_fn(|i| a[i].wrapping_mul(c));
         assert_eq!(result, expected);
     }
 

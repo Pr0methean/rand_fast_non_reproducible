@@ -5,7 +5,6 @@
 ))]
 use crate::avx2;
 use crate::{BLOCK_SIZE, TripleMixSimdCore};
-use core::simd::Select;
 use core::simd::Simd;
 use core::simd::cmp::SimdPartialOrd;
 use core::simd::num::SimdInt;
@@ -101,15 +100,16 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
     }
 }
 
-    /// 128-bit addition with carry: (result, carry_out) = a + b + carry_in
-    #[inline]
+    /// 128-bit addition with carry: (result, carry_out) = a + b - carry_in.cast::<i64>()
+    #[inline(always)]
     pub(crate) fn add128_with_carry(a: Simd64, b: Simd64, carry_in: Simd64) -> (Simd64, Simd64) {
         let sum1 = a + b;
-        let c1 = sum1.simd_lt(a);
         let sum = sum1 + carry_in;
-        let c2 = sum.simd_lt(sum1);
-        let carry_out = (c1 | c2).select(Simd64::splat(1), Simd64::splat(0));
-        (sum, carry_out)
+
+        // carry_mask is either 0 or -1 (all bits 1)
+        let carry_mask = (sum1.simd_lt(a) | sum.simd_lt(sum1)).to_simd().cast();
+
+        (sum, carry_mask)
     }
 
     pub(crate) fn almost_all_zeroes_core() -> TripleMixSimdCore<R> {
@@ -158,31 +158,17 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let (p1_lo, p1_hi) = Self::simd_mulsmall(pcg_state_lo, Self::PCG_MULT_LO);
             let (p2_lo, p2_hi) = Self::simd_mulsmall(pcg_state_lo, Self::PCG_MULT_HI);
 
-            let (mwc_kx_lo, mwc_kx_hi) = Self::simd_mulsmall(mwc_state, Self::MWC_MULTIPLIER_COMPLEMENTS);
-
-            // Generate scalar xoshiro256** output
-            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
-
-            // TinyMT Step 0: Mask and initial XOR
-            let tm0_masked = tm0 & Simd::splat(TINYMT64_LANE_MASK);
-            let mut tm_x = tm0_masked ^ tm1;
-            let tm_y = tm0_masked + tm1;
-
             // p2 * 2^32 = p2_hi * 2^96 + p2_lo * 2^32
             let p2_shifted_lo = p2_lo << Simd64::splat(32);
             let p2_shifted_hi = (p2_hi << Simd64::splat(32)) | (p2_lo >> Simd64::splat(32));
 
             // low sum = p1_lo + p2_shifted_lo
-            let (low_sum, carry1) = Self::add128_with_carry(p1_lo, p2_shifted_lo, Simd64::splat(0));
+            let (pcg_prod_lo, carry1) = Self::add128_with_carry(p1_lo, p2_shifted_lo, Simd64::splat(0));
             let a_low_b_hi = p1_hi + p2_shifted_hi + carry1;
 
             // a_high * b = a_high * b_lo + a_high * b_hi * 2^32
             let a_high_b = simd_wrapping_mul(pcg_state_hi, Self::PCG_MULTIPLIERS);
             let pcg_prod_hi = a_low_b_hi + a_high_b;
-            let pcg_prod_lo = low_sum;
-
-            // TinyMT Step 1: First shift
-            tm_x ^= tm_x << Simd::splat(12);
 
             // Finish PCG state transition
             let (pcg_next_state_lo, pcg_carry) =
@@ -192,22 +178,32 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             pcg_state_lo = pcg_next_state_lo;
             pcg_state_hi = pcg_next_state_hi;
 
-            // TinyMT Step 2: Second shift
-            tm_x ^= tm_x >> Simd::splat(32);
-
-            // Kick off PCG output multiplier
-            let pcg_x = pcg_state_hi ^ pcg_state_lo;
-            let pcg_m = simd_wrapping_mul(pcg_x ^ (pcg_x >> 31), PCG_OUTPUT_MULTIPLIERS);
-            let pcg_rot = pcg_x >> 59;
-
-            // TinyMT Step 3: Third shift
-            tm_x ^= tm_x << Simd::splat(32);
+            let (mwc_kx_lo, mwc_kx_hi) = Self::simd_mulsmall(mwc_state, Self::MWC_MULTIPLIER_COMPLEMENTS);
 
             // Interleave MWC state updates with PCG output multiplier latency
             let mwc_borrow = mwc_carry.simd_lt(mwc_kx_lo).to_simd().cast::<u64>();
-            let pcg_raw = pcg_state_hi + pcg_state_lo;
             let mwc_next_state = mwc_carry - mwc_kx_lo;
-            let mwc_next_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
+            mwc_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
+            mwc_state = mwc_next_state;
+
+            let pcg_x = pcg_state_hi ^ pcg_state_lo;
+            let pcg_m = simd_wrapping_mul(pcg_x ^ (pcg_x >> 31), PCG_OUTPUT_MULTIPLIERS);
+            let pcg_rot = pcg_x >> 59;
+            let pcg_output = (pcg_m >> pcg_rot) | (pcg_m << (Simd64::splat(64) - pcg_rot));
+
+            // TinyMT Step 0: Mask and initial XOR
+            let tm0_masked = tm0 & Simd::splat(TINYMT64_LANE_MASK);
+            let mut tm_x = tm0_masked ^ tm1;
+            let tm_y = tm0_masked + tm1;
+
+            // TinyMT Step 1: First shift
+            tm_x ^= tm_x << Simd::splat(12);
+
+            // TinyMT Step 2: Second shift
+            tm_x ^= tm_x >> Simd::splat(32);
+
+            // TinyMT Step 3: Third shift
+            tm_x ^= tm_x << Simd::splat(32);
 
             // TinyMT Step 4: Fourth shift
             tm_x ^= tm_x << Simd::splat(11);
@@ -217,19 +213,23 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 tm_y ^ ((tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT));
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
             let tm_raw = tm_x + tm_y;
-            let pcg_output = (pcg_m >> pcg_rot) | (pcg_m << (Simd64::splat(64) - pcg_rot));
             let tm_next_0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             let tm_next_1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
+            tm0 = tm_next_0;
+            tm1 = tm_next_1;
+
+            // Generate scalar xoshiro256** output
+            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
 
             Self::advance_xoshiro(&mut xoshiro256);
 
             let (x, y, z) = TripleMixSimdCore::<R>::mix(
-                mwc_next_state,
+                mwc_state,
                 pcg_output,
                 tm_out,
-                mwc_next_carry,
+                mwc_carry,
                 i_mixed,
-                pcg_raw,
+                pcg_x,
                 tm_raw,
                 xoshiro_out,
             );
@@ -237,12 +237,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             x.copy_to_slice(&mut block[0..4]);
             y.copy_to_slice(&mut block[4..8]);
             z.copy_to_slice(&mut block[8..12]);
-
-            // Update state
-            tm0 = tm_next_0;
-            tm1 = tm_next_1;
-            mwc_state = mwc_next_state;
-            mwc_carry = mwc_next_carry;
         }
 
         self.pcg_state_lo = pcg_state_lo;
@@ -254,6 +248,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         self.xoshiro256 = xoshiro256;
     }
 
+    #[inline(always)]
     pub(crate) fn advance_xoshiro(xoshiro256: &mut [u64; 4]) {
         let t = xoshiro256[1] << 17;
         xoshiro256[2] ^= xoshiro256[0];
@@ -266,7 +261,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         xoshiro256[3] = xoshiro256[3].rotate_left(45);
     }
 
-        #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     #[inline(always)]
     pub fn mix(
         x0: Simd64,
@@ -776,7 +771,7 @@ mod tests {
             }
             let chi_square = goodness_of_fit(
                 frequencies.map(f64::from),
-                std::iter::repeat_n((N >> 8) as f64, u8::MAX as usize + 1),
+                core::iter::repeat_n((N >> 8) as f64, u8::MAX as usize + 1),
                 0.005,
             )
             .unwrap();
@@ -799,7 +794,7 @@ mod tests {
             }
             let chi_square = goodness_of_fit(
                 frequencies.into_iter().map(f64::from),
-                std::iter::repeat_n((N as f64)/((1 >> 16) as f64), u16::MAX as usize + 1),
+                core::iter::repeat_n((N as f64)/((1 >> 16) as f64), u16::MAX as usize + 1),
                 0.005,
             )
             .unwrap();
@@ -1490,7 +1485,10 @@ mod tests {
         println!("  Max: {}", ranks.iter().max().unwrap());
 
         // Create histogram
+        #[cfg(not(feature = "no_std"))]
         let mut hist = std::collections::HashMap::new();
+        #[cfg(feature = "no_std")]
+        let mut hist = alloc::collections::BTreeMap::new();
         for &rank in &ranks {
             *hist.entry(rank).or_insert(0) += 1;
         }
