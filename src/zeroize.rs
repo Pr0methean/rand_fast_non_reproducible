@@ -12,6 +12,7 @@ impl zeroize::Zeroize for TripleMixSimdCore {
         self.tm1 = Simd::splat(0);
         self.mwc_state = Simd::splat(0);
         self.mwc_carry = Simd::splat(0);
+        self.xoshiro256 = [0; 4];
         // Prevent dead-write elimination
         core::hint::black_box(&*self);
     }

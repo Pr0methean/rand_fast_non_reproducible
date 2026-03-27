@@ -747,6 +747,8 @@ mod tests {
         #[test]
         fn test_mul_lo_hi_proptest(a in any::<[u32; 8]>(), b in any::<[u32; 8]>()) {
             use crate::generate::Simd32;
+            use proptest::prop_assert_eq;
+
             let a_simd = Simd32::from_array(a);
             let b_simd = Simd32::from_array(b);
             let (lo_avx2, hi_avx2) = super::mul_lo_hi(a_simd, b_simd);
