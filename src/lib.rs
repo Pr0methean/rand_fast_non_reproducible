@@ -207,6 +207,17 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
     rngs
 }
 
+#[cfg(all(test, not(miri)))]
+pub(crate) fn rng() -> rand::rngs::ThreadRng {
+    rand::rng()
+}
+
+#[cfg(all(test, miri))]
+pub(crate) fn rng() -> rand::rngs::SmallRng {
+    use rand::SeedableRng;
+    rand::rngs::SmallRng::seed_from_u64(0x0dd_d00d5_1337_c0de)
+}
+
 const MAJOR_VERSION: &str = env!("CARGO_PKG_VERSION_MAJOR");
 const MINOR_VERSION: &str = env!("CARGO_PKG_VERSION_MINOR");
 pub const BLOCK_SIZE: usize = MIX_OUTPUTS * SIMD_WIDTH;

@@ -320,14 +320,13 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
 #[cfg(test)]
 mod tests {
-    use crate::TripleMixPrng;
+    use crate::{rng, TripleMixPrng};
     use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::DefaultReproducibility;
     use crate::seed::{DEFAULT_SEED_SIZE, get_base_kmac};
     use core::hint::black_box;
     use generic_array::GenericArray;
-    use rand::rngs::SysRng;
-    use rand_core::{Rng, SeedableRng, UnwrapErr};
+    use rand_core::{Rng, SeedableRng};
     use tiny_keccak::{Hasher, Kmac};
 
     #[cfg(feature = "no_std")]
@@ -514,7 +513,7 @@ mod tests {
     #[test]
     fn test_from_rng() {
         black_box(
-            TripleMixPrng::<DefaultReproducibility>::from_rng(&mut UnwrapErr(SysRng)).next_u64(),
+            TripleMixPrng::<DefaultReproducibility>::from_rng(&mut rng()).next_u64(),
         );
     }
 }

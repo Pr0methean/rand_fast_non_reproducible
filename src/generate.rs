@@ -421,7 +421,7 @@ pub(crate) type Simd32 = Simd<u32, { SIMD_WIDTH * 2 }>;
 mod tests {
     use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH, Simd64};
     use crate::reproducibility::{DefaultReproducibility, NotReproducible, Reproducibility};
-    use crate::{BLOCK_SIZE, TripleMixPrng, TripleMixSimdCore};
+    use crate::{BLOCK_SIZE, TripleMixPrng, TripleMixSimdCore, rng};
     use bytemuck::cast_slice_mut;
     use core::simd::Simd;
     use core::simd::cmp::SimdPartialEq;
@@ -446,16 +446,6 @@ mod tests {
 
     const AVALANCHE_MATRIX_ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
     const AVALANCHE_MATRIX_COLS: usize = 8 * (size_of::<Simd64>() * MIX_INPUTS + size_of::<u64>());
-
-    #[cfg(not(miri))]
-    fn rng() -> rand::rngs::ThreadRng {
-        rand::rng()
-    }
-
-    #[cfg(miri)]
-    fn rng() -> rand::rngs::SmallRng {
-        rand::rngs::SmallRng::seed_from_u64(0x0dd_d00d5_1337_c0de)
-    }
 
     fn evaluate_mix_matrix(mix_input: [u64; SIMD_WIDTH * MIX_INPUTS + 1]) -> MixMatrixStats {
         let (base_out0, base_out1, base_out2) = mix_from_flat_array(mix_input);
