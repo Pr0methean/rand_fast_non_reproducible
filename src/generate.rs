@@ -227,7 +227,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 mwc_carry,
                 i_mixed,
                 pcg_x,
-                tm0,
+                tm1,
                 xoshiro_out,
             );
 
