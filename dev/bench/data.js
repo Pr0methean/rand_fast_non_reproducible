@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774662224240,
+  "lastUpdate": 1774662273138,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -45665,6 +45665,156 @@ window.BENCHMARK_DATA = {
             "name": "x86_64:macos: core/fill_blocks",
             "value": 94,
             "range": "± 0",
+            "unit": "cycles/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c08a1e055d1ac1650fb8de96e30b84e81ec69783",
+          "message": "Adapt to 768-bit output, with new mixing function and scalar Xoshiro256** (#89)\n\n* WIP: new 3-output mixing function (via ChatGPT)\n\n* Separate out shifts in order to automate optimization\n\n* Overhaul 3-output mixing function (via ChatGPT)\n\n* Remove unused conversion routines\n\n* Fix bit 0/28 correlation\n\n* Overhaul of correlation fix (via ChatGPT)\n\n* Update reference output\n\n* Fix: non-AVX2 code was using deleted methods\n\n* WIP: Fix reproducibility between AVX2 and non-AVX2\n\n* Fix reproducibility of mul_hi_lo (via Claude Opus 4.6)\n\n* Add test for reproducibility on big-endian platforms, via miri\n\n* Remove final multiplication for performance\n\n* Tweaks to improve performance and cross-lane mixing in final round\n\n* Tweak: feed back from `a` in final step\n\n* Tweak: rearrange operations to hide mul_lo_hi latency in round function\n\n* Reduce output block size to 512 bits so that all blocks will occur within our period\n\n* Move MIX_INPUTS to test module since it's not used elsewhere\n\n* Update reference output\n\n* Revert \"Update reference output\"\n\nThis reverts commit 88b3add205389c1eb7fac452ed5d7105e8098140.\n\n* Revert \"Reduce output block size to 512 bits so that all blocks will occur within our period\"\n\nThis reverts commit e067cae7\n\n* Add a scalar xoshiro256** generator to achieve 768-bit-block equidistribution\n\n* Implement Xoshiro256 jump (via Claude Opus 4.6)\n\n* Incorporate extra mix input into all tests\n\n* Tweak mixing, and tweak mix_matrix tests\n\n* Fix unused warnings\n\n* Update period lower-bound estimate\n\n* Update reference output\n\n* Fix: zeroize was skipping a field\n\n* Suppress a clippy warning\n\n* cargo fmt --all\n\n* Suppress long const-eval warning\n\n* Tweak permutation of inputs for mix\n\n* Tweak: long_running_const_eval must be allowed everywhere when jump feature is enabled\n\n* Remove aws-lc-rs dependency to fix miri test\n\n* Enable jump, zeroize, serde in Miri tests\n\n* Fix: two round3 permutations put variable 4 in same position\n\n* Update reference output\n\n* Fix: fill_bytes_alignment_aware isn't needed for big-endian targets when using reproducibility_cross_platform\n\n* Fix: remove criterion as a dependency in unit tests\n\n* Fixes to support benchmarks as a separate package and Miri with proptest\n\n* Disable proptest tests in Miri\n\n* Exclude benchmarks from build for unit-test jobs\n\n* Remove redundant single-element insertions of scalar_lo and scalar_hi\n\n* Fix reproducibility bug\n\n* Fix: CrossPlatform Simd64<->Simd32 cast needs to vary with endianness\n\n* WIP: fix failing test_cross_platform_reproducibility\n\n* Fix big-endian reproducibility (via Gemini 3 Flash)\n\n* Revert an unnecessary change\n\n* Fix Miri error (casting u8 slice as u64 when possibly unaligned)\n\n* Update scope of bytemuck::cast import\n\n* Fix: reduce tests that use create_rngs() to use only one under Miri\n\n* Fix: reduce more tests when running in Miri\n\n* Fix: further tweaks to save time on Miri tests\n\n* Fix: move mix function back to mod generate\n\n* perf: Use only one multiplication layer in round3\n\n* Update reference output\n\n* Tweaks to improve mixing in round3\n\n* Fix: improve round3 mixing to reliably pass test_mix_matrix_proptest\n\n* Avoid importing SysRng or ThreadRng for Miri\n\n* perf: kill scalar_mix_1 and scalar_mix_2 sooner to prevent register pressure during round3\n\n* perf: tweak final update in round3\n\n* perf: Optimize (via Gemini 3 Flash)\n\n* Inline last-round array\n\n* Clean up unused methods\n\n* Partial revert: still need a full third round\n\n* Restore mul128x64to128 in jump module (used there but nowhere else)\n\n* Update reference output\n\n* Make PCG constants actually const\n\n* Inline variables that are copies of constants\n\n* Rename shift4 to shift3 since old shift3 was deleted\n\n* Fix nextest install command\n\n* Fix miri command (add \"run\")\n\n* Eliminate repetition by defining PCG_MULTIPLIERS in terms of other constants\n\n* WIP: update reference output\n\n* Fix seed reproducibility bug\n\n* Fix slow miri test_jump_ahead\n\n* Fix slow miri test_equivalence_generic\n\n* Fix: mul_small needs inline(always)\n\n* Fix type error\n\n* WIP: fix no_std and optimize add128_with_carry\n\n* Fix jump and no_std test builds\n\n* Fix: update reference output\n\n* Hint nextest to start the longest-running tests first in Miri\n\n* Fix: one loop wasn't properly scaling down on Miri\n\n* Fix: shorten test_seed_diffusion in Miri",
+          "timestamp": "2026-03-27T18:15:56-07:00",
+          "tree_id": "03cd7d2e116ccd06ce4beda9522b452ffb1651db",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/c08a1e055d1ac1650fb8de96e30b84e81ec69783"
+        },
+        "date": 1774662269645,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 19188,
+            "range": "± 45674",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 19230,
+            "range": "± 301",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 19226,
+            "range": "± 108",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 1225231,
+            "range": "± 27904",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 143,
+            "range": "± 1",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 19132,
+            "range": "± 185",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 20477,
+            "range": "± 389",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 20419,
+            "range": "± 226",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 1224779,
+            "range": "± 4981",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 143,
+            "range": "± 0",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/8",
+            "value": 10061,
+            "range": "± 154",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/16",
+            "value": 10060,
+            "range": "± 380",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/32",
+            "value": 10057,
+            "range": "± 51",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/64",
+            "value": 10060,
+            "range": "± 75",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/72",
+            "value": 9944,
+            "range": "± 73",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/128",
+            "value": 10837,
+            "range": "± 158",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/256",
+            "value": 11630,
+            "range": "± 129",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/288",
+            "value": 11509,
+            "range": "± 91",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/512",
+            "value": 13234,
+            "range": "± 107",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/fork",
+            "value": 11667,
+            "range": "± 165",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: core/fill_blocks",
+            "value": 111,
+            "range": "± 1",
             "unit": "cycles/iter"
           }
         ]
