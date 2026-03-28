@@ -1,0 +1,7 @@
+[[profile.default.overrides]]
+filter = 'test(/miri_xslow/)'
+priority = 100
+
+[[profile.default.overrides]]
+filter = 'test(/miri_slow/)'
+priority = 50
