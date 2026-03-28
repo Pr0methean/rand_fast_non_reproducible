@@ -212,14 +212,12 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let tm_out =
                 tm_y ^ ((tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT));
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
-            let tm_raw = tm_x + tm_y;
-            let tm_next_0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
-            let tm_next_1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
-            tm0 = tm_next_0;
-            tm1 = tm_next_1;
-
+            tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
+            tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
+            
             // Generate scalar xoshiro256** output
             let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
+            let tm_secondary_out = tm0 - tm1;
 
             Self::advance_xoshiro(&mut xoshiro256);
 
@@ -229,8 +227,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 tm_out,
                 mwc_carry,
                 i_mixed,
-                pcg_x,
-                tm_raw,
+                pcg_state_lo,
+                tm_secondary_out,
                 xoshiro_out,
             );
 
@@ -354,7 +352,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             a,
             b,
             c,
-            &[xi[6], xi[2], xi[5], xi[0], xi[4], xi[1], xi[3]],
+            &[xi[5], xi[2], xi[6], xi[0], xi[4], xi[1], xi[3]],
             3,
             13,
             23
@@ -1171,8 +1169,7 @@ mod tests {
             mean.abs() + (var - 64.0).abs() // 64 expected variance for 8x8 ±1
         }
         const PROJECTION_BLOCK: usize = 8; // 8x8 projection
-        #[test]
-        fn test_bitplane_projection_miri_xslow() {
+        fn test_bitplane_projection_generic(xor_with_next: bool) {
             #[cfg(not(miri))]
             const N: usize = 1 << 22;
             #[cfg(miri)]
@@ -1185,8 +1182,9 @@ mod tests {
                 let mut buf = vec![0u64; N];
                 rng.fill_bytes(cast_slice_mut(&mut buf));
 
-                xor_successive(&mut buf);
-
+                if xor_with_next {
+                    xor_successive(&mut buf);
+                }
                 for bit in 0..64 {
                     let plane = extract_bitplane(&buf, bit);
                     let score = projection_test(&plane);
@@ -1198,6 +1196,16 @@ mod tests {
                     );
                 }
             }
+        }
+
+        #[test]
+        fn test_bitplane_projection_xornext_miri_xslow() {
+            test_bitplane_projection_generic(true);
+        }
+
+        #[test]
+        fn test_bitplane_projection_miri_xslow() {
+            test_bitplane_projection_generic(false);
         }
     }
 
