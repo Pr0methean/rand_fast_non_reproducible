@@ -131,7 +131,7 @@ fn init<T: Measurement>(c: &mut Criterion<T>) {
     let mut group = c.benchmark_group(formatcp!("{PLATFORM}: Initialization"));
 
     // Seed and instance setup
-    let seed_4096 = [0u8; 512];
+    let mut seed_4096 = [0u8; 512];
     SysRng.try_fill_bytes(&mut seed_4096).unwrap();
 
     // Benchmark from_seed with various sizes
