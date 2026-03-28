@@ -212,12 +212,9 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let tm_out =
                 tm_y ^ ((tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT));
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
-            let tm_raw = tm_x + tm_y;
-            let tm_next_0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
-            let tm_next_1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
-            tm0 = tm_next_0;
-            tm1 = tm_next_1;
-
+            tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
+            tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
+            
             // Generate scalar xoshiro256** output
             let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
 
@@ -230,7 +227,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 mwc_carry,
                 i_mixed,
                 pcg_x,
-                tm_raw,
+                tm0,
                 xoshiro_out,
             );
 
