@@ -41,6 +41,7 @@ pub struct TripleMixSimdCore<R: Reproducibility> {
     pub(crate) pcg_inc_lo: Simd64,
     pub(crate) pcg_inc_hi: Simd64,
     pub(crate) xoshiro256: [u64; 4],
+    pub(crate) scalar_weyl: u64,
     pub(crate) reproducibility: PhantomData<R>,
 }
 
@@ -201,6 +202,7 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
             mwc_state: Simd::splat(0),
             mwc_carry: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
             xoshiro256: [0, 0, 0, 1],
+            scalar_weyl: 0,
             reproducibility: PhantomData,
         }));
         rngs.push(TripleMixPrng::from_core(TripleMixSimdCore::<R> {
@@ -213,6 +215,7 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
             mwc_state: TripleMixSimdCore::<R>::MCG_MULTIPLIERS - Simd::splat(2),
             mwc_carry: TripleMixSimdCore::<R>::MCG_MULTIPLIERS - Simd::splat(1),
             xoshiro256: [1, 0, 0, 0],
+            scalar_weyl: 0,
             reproducibility: PhantomData,
         }));
         let mut seed = [0u8; DEFAULT_SEED_SIZE];

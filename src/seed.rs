@@ -122,12 +122,13 @@ impl<R: Reproducibility> TripleMixPrng<R> {
         let mut mwc_state = Simd64::splat(0);
         let mut mwc_carry = Simd64::splat(0);
         let mut xoshiro256 = [0u64; 4];
+        let mut scalar_weyl: u64 = 0;
         for round in 0..4 {
             let mut round_kmac = base.clone();
             round_kmac.update(&(tweak + ((round as u128) << 126)).to_le_bytes());
 
             // Update KMAC from right half
-            let mut buffer = [0u64; 18];
+            let mut buffer = [0u64; 19];
             // This loop looks scalar, but modern LLVM will see
             // the fixed 128-bit extract pattern and emit VEXTRACTI128
             // or VPERM2I128 directly into the buffer.
@@ -140,14 +141,14 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             buffer[12..14].copy_from_slice(&mwc_state.as_array()[2..4]);
             buffer[14..16].copy_from_slice(&mwc_carry.as_array()[2..4]);
             buffer[16..18].copy_from_slice(&xoshiro256[2..4]);
-
+            buffer[18] = scalar_weyl;
             for word in &mut buffer {
                 *word = word.to_le();
             }
             round_kmac.update(cast_slice(&buffer));
 
             let mut reader = round_kmac.into_xof();
-            let mut f_out = [0u64; 18];
+            let mut f_out = [0u64; 19];
             reader.squeeze(cast_slice_mut(&mut f_out));
             for word in &mut f_out {
                 *word = u64::from_le(*word);
@@ -173,6 +174,7 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             mwc_carry ^= d3.rotate_elements_left::<2>() & mask;
             xoshiro256[0] ^= f_out.as_ref()[16];
             xoshiro256[1] ^= f_out.as_ref()[17];
+            scalar_weyl ^= data.as_ref()[18];
 
             // Swap: Lanes 0,1 <-> Lanes 2,3
             pcg_state_lo = pcg_state_lo.rotate_elements_left::<2>();
@@ -198,6 +200,7 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             mwc_state,
             mwc_carry,
             xoshiro256,
+            scalar_weyl,
             reproducibility: PhantomData,
         }
     }

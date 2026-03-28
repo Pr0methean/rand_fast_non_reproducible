@@ -112,6 +112,8 @@ impl<R: Reproducibility> JumpMatrix<R> {
 }
 
 impl<R: Reproducibility> TripleMixSimdCore<R> {
+    const WEYL_JUMP_2_128: u64 = 3481; // (BigUint::from(1) << 128) % Self::SCALAR_WEYL_MODULUS
+    const WEYL_JUMP_2_256: u64 = 12117361; // (BigUint::from(1) << 128) % Self::SCALAR_WEYL_MODULUS
     /// 128-bit multiplication by PER-LANE 64-bit multipliers using simd_mulsmall
     /// (high, low) = (a_high, a_low) * b (where b is per lane)
     ///
