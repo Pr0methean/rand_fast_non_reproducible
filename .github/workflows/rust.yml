@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        feature-flag: [ "--no-default-features", "--all-features" ]
+        feature-flag: [ "--no-default-features", "--all-features", "--features reproducibility_same_endianness" ]
         os: [ ubuntu-latest, ubuntu-24.04-arm, macos-26-intel, macos-latest, windows-latest, windows-11-arm ]
       fail-fast: false
     steps:
@@ -29,11 +29,27 @@ jobs:
       uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
       with:
         egress-policy: audit
-
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Run tests
-      run: cargo +nightly test --verbose ${{ matrix.feature-flag }}
+      run: cargo +nightly test --verbose -p rand_triplemix ${{ matrix.feature-flag }}
       timeout-minutes: 20
+  endianness_miri:
+    name: "Test reproducibility across endiannesses"
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - run: sudo apt update
+      - run: rustup toolchain add nightly-x86_64-unknown-linux-gnu
+      - run: rustup component add --toolchain nightly-x86_64-unknown-linux-gnu miri
+      - run: cargo +nightly install --locked cargo-nextest
+      - run: cargo +nightly miri nextest run --target aarch64_be-unknown-linux-gnu --features jump,zeroize,serde,reproducibility_cross_platform
   benchmarks:
     needs: unit-tests
     runs-on: ${{ matrix.os }}
@@ -52,7 +68,7 @@ jobs:
         egress-policy: audit
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Run benchmarks
-      run: cargo +nightly bench --features reproducibility_cross_platform -- --output-format bencher | tee bench-output.txt
+      run: cargo +nightly bench -p benches --features reproducibility_cross_platform -- --output-format bencher | tee bench-output.txt
       timeout-minutes: 20
     - name: Store benchmark result
       uses: benchmark-action/github-action-benchmark@a7bc2366eda11037936ea57d811a43b3418d3073 # v1.21.0

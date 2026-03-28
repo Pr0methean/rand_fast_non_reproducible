@@ -1,4 +1,3 @@
-use aws_lc_rs::rand::{SecureRandom, SystemRandom};
 use rand::rngs::SysRng;
 use rand_core::TryRng;
 use rand_triplemix::seed::LARGE_SEED_SIZE;
@@ -25,17 +24,8 @@ pub fn get_random_seed() -> [u8; LARGE_SEED_SIZE] {
             }
         }
         if !seeded {
-            if index.is_multiple_of(2) {
-                SysRng.try_fill_bytes(chunk).unwrap();
-                eprintln!("Generated a seed chunk using OS RNG");
-            } else {
-                SystemRandom::default().fill(chunk).unwrap();
-                eprintln!("Generated a seed chunk using aws-lc");
-            }
-            #[allow(unused_assignments)]
-            {
-                seeded = true;
-            }
+            SysRng.try_fill_bytes(chunk).unwrap();
+            eprintln!("Generated a seed chunk using OS RNG");
             thread::yield_now();
         }
     }

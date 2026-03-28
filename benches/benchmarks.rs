@@ -5,21 +5,21 @@ use const_format::formatcp;
 use core::time::Duration;
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 use criterion_cycles_per_byte::CyclesPerByte;
+use dyn_clone::{DynClone, clone_box};
 #[cfg(feature = "bench_include_threadrng")]
 use rand::rng;
 use rand::rngs::SysRng;
 use rand_core::{Rng, SeedableRng, TryRng};
-use rand_triplemix::{TripleMixPrng, BLOCK_SIZE};
 use rand_triplemix::reproducibility::NotReproducible;
 #[cfg(feature = "reproducibility_cross_platform")]
 use rand_triplemix::reproducibility::cross_platform::CrossPlatform;
 #[cfg(feature = "reproducibility_same_endianness")]
 use rand_triplemix::reproducibility::same_endianness::SameEndianness;
 use rand_triplemix::seed::{DEFAULT_SEED_SIZE, LARGE_SEED_SIZE};
+use rand_triplemix::{BLOCK_SIZE, TripleMixPrng};
 use std::env::consts::{ARCH, OS};
 use std::hint::black_box;
 use std::mem::size_of;
-use dyn_clone::{clone_box, DynClone};
 
 const PLATFORM: &str = formatcp!("{ARCH}:{OS}");
 
@@ -27,7 +27,6 @@ trait DynCloneRng: DynClone + Rng {}
 impl<T: DynClone + Rng> DynCloneRng for T {}
 
 fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
-
     // Allocate buffer as u64's so that it's aligned
     const MAX_ALIGNMENT: usize = size_of::<u64>() - 1;
     const BUFFER_LEN: usize = 16 * 1024;
@@ -60,7 +59,7 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
             b.iter(|| {
                 let mut acc = 0u8;
                 for i in 0..ITERATIONS {
-                fill_bytes_prng.fill_bytes(buffer);
+                    fill_bytes_prng.fill_bytes(buffer);
                     acc ^= black_box(buffer[black_box(i)]);
                 }
                 acc
@@ -69,7 +68,9 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
         group.finish();
         const U64_ITERATIONS: usize = 8;
         let mut group = c.benchmark_group(format!("{PLATFORM}:{name}: next_u64"));
-        group.throughput(Throughput::Bytes((size_of::<u64>() * U64_ITERATIONS) as u64));
+        group.throughput(Throughput::Bytes(
+            (size_of::<u64>() * U64_ITERATIONS) as u64,
+        ));
         group.bench_function("TripleMixPrng", move |b| {
             b.iter(|| {
                 let mut accum = prng.next_u64();
@@ -92,11 +93,20 @@ fn create_prngs() -> Vec<(&'static str, Box<dyn DynCloneRng>)> {
     SysRng.try_fill_bytes(&mut seed).unwrap();
 
     let mut prngs = Vec::<(&'static str, Box<dyn DynCloneRng>)>::new();
-    prngs.push(("TripleMixPrng", Box::new(TripleMixPrng::<NotReproducible>::from(&seed))));
+    prngs.push((
+        "TripleMixPrng",
+        Box::new(TripleMixPrng::<NotReproducible>::from(&seed)),
+    ));
     #[cfg(feature = "reproducibility_same_endianness")]
-    prngs.push(("TripleMixPrng<SameEndianness>", Box::new(TripleMixPrng::<SameEndianness>::from(&seed))));
+    prngs.push((
+        "TripleMixPrng<SameEndianness>",
+        Box::new(TripleMixPrng::<SameEndianness>::from(&seed)),
+    ));
     #[cfg(feature = "reproducibility_cross_platform")]
-    prngs.push(("TripleMixPrng<CrossPlatform>", Box::new(TripleMixPrng::<CrossPlatform>::from(&seed))));
+    prngs.push((
+        "TripleMixPrng<CrossPlatform>",
+        Box::new(TripleMixPrng::<CrossPlatform>::from(&seed)),
+    ));
     #[cfg(feature = "bench_include_threadrng")]
     prngs.push(("ThreadRng", Box::new(rng())));
     prngs
@@ -109,10 +119,12 @@ fn core<T: Measurement>(c: &mut Criterion<T>) {
     let mut group = c.benchmark_group(formatcp!("{PLATFORM}: core"));
     group.throughput(Throughput::Bytes((BLOCK_SIZE * size_of::<u64>()) as u64));
     let mut block = [[0u64; BLOCK_SIZE]];
-    group.bench_function("fill_blocks", move |b| b.iter(|| {
-        prng.fill_blocks_unbuffered(&mut block);
+    group.bench_function("fill_blocks", move |b| {
+        b.iter(|| {
+            prng.fill_blocks_unbuffered(&mut block);
             black_box(block);
-        }));
+        })
+    });
 }
 
 fn init<T: Measurement>(c: &mut Criterion<T>) {
