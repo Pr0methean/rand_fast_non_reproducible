@@ -36,6 +36,7 @@ unsafe fn mullo_u64x4_avx2(a: __m256i, b: __m256i) -> __m256i {
 
 /// Multiplies two vectors. Requires that all elements of b be less than 2^32. Returns (low, hi)
 /// halves of result.
+#[inline(always)]
 pub fn mul_small(a: Simd64, b: Simd64) -> (Simd64, Simd64) {
     unsafe {
         let a = transmute::<Simd64, __m256i>(a);
@@ -77,6 +78,36 @@ unsafe fn mul_small_avx2(x: __m256i, kvec: __m256i) -> (__m256i, __m256i) {
     }
 }
 
+/// Optimized multi-product: calculates (a*b, b*c) sharing the preparation of 'b'.
+#[inline(always)]
+pub unsafe fn mul_lo_hi_triad_avx2(
+    a: __m256i,
+    b: __m256i,
+    c: __m256i,
+) -> (__m256i, __m256i, __m256i, __m256i) {
+    unsafe {
+        let b_odd = _mm256_srli_epi64(b, 32);
+
+        // a*b even/odd
+        let ab_even = _mm256_mul_epu32(a, b);
+        let a_odd = _mm256_srli_epi64(a, 32);
+        let ab_odd = _mm256_mul_epu32(a_odd, b_odd);
+
+        // b*c even/odd
+        let bc_even = _mm256_mul_epu32(b, c);
+        let c_odd = _mm256_srli_epi64(c, 32);
+        let bc_odd = _mm256_mul_epu32(b_odd, c_odd);
+
+        let ab_lo = _mm256_blend_epi32(ab_even, _mm256_slli_epi64(ab_odd, 32), 0xAA);
+        let ab_hi = _mm256_blend_epi32(_mm256_srli_epi64(ab_even, 32), ab_odd, 0xAA);
+
+        let bc_lo = _mm256_blend_epi32(bc_even, _mm256_slli_epi64(bc_odd, 32), 0xAA);
+        let bc_hi = _mm256_blend_epi32(_mm256_srli_epi64(bc_even, 32), bc_odd, 0xAA);
+
+        (ab_lo, ab_hi, bc_lo, bc_hi)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,7 +118,7 @@ mod tests {
         let a = Simd64::from_array(a_arr);
         let b = Simd64::from_array(b_arr);
         let result = wrapping_mul(a, b).to_array();
-        let expected: [u64; 4] = std::array::from_fn(|i| a_arr[i].wrapping_mul(b_arr[i]));
+        let expected: [u64; 4] = core::array::from_fn(|i| a_arr[i].wrapping_mul(b_arr[i]));
         assert_eq!(result, expected, "mullo({a_arr:?}, {b_arr:?})");
     }
 
@@ -153,7 +184,7 @@ mod tests {
         let c = 7u64;
         let p0 = Simd64::from_array(a);
         let result = wrapping_mul(p0, Simd64::splat(c)).to_array();
-        let expected: [u64; 4] = std::array::from_fn(|i| a[i].wrapping_mul(c));
+        let expected: [u64; 4] = core::array::from_fn(|i| a[i].wrapping_mul(c));
         assert_eq!(result, expected);
     }
 
@@ -163,7 +194,7 @@ mod tests {
         let c = u64::MAX;
         let p0 = Simd64::from_array(a);
         let result = wrapping_mul(p0, Simd64::splat(c)).to_array();
-        let expected: [u64; 4] = std::array::from_fn(|i| a[i].wrapping_mul(c));
+        let expected: [u64; 4] = core::array::from_fn(|i| a[i].wrapping_mul(c));
         assert_eq!(result, expected);
     }
 
@@ -204,7 +235,13 @@ mod tests {
 
     #[test]
     fn test_mulsmall() {
-        assert_eq!(mul_small(Simd64::splat((1 << 63) + 1), Simd64::splat((1 << 32) - 1)), (Simd64::splat((1 << 63) | (1 << 32) - 1), Simd64::splat((1 << 31) - 1)));
+        assert_eq!(
+            mul_small(Simd64::splat((1 << 63) + 1), Simd64::splat((1 << 32) - 1)),
+            (
+                Simd64::splat((1 << 63) | (1 << 32) - 1),
+                Simd64::splat((1 << 31) - 1)
+            )
+        );
     }
 
     proptest! {
@@ -225,7 +262,7 @@ mod tests {
         }
     }
 
-        proptest! {
+    proptest! {
         #[test]
         fn test_wrapping_mul_proptest(a in any::<[u64; 4]>(), b_u64 in any::<[u64; 4]>()) {
             let a_simd = Simd64::from_array(a);

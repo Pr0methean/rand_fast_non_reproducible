@@ -1,0 +1,71 @@
+warning: unused import: `SimdInt`
+ --> src\jump.rs:1:23
+  |
+1 | ...::num::{SimdInt, SimdUi...
+  |            ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `SimdUint`
+ --> src\jump.rs:1:32
+  |
+1 | ...mdInt, SimdUint};
+  |           ^^^^^^^^
+
+warning: constant evaluation is taking a long time
+   --> src\jump.rs:414:5
+    |
+414 | /     while i < 256 {
+415 | |         let word = i /...
+416 | |         let bit = i % 64;
+417 | |         if (vec[word] ...
+...   |
+423 | |         i += 1;
+424 | |     }
+    | |_____^ the const evaluator is currently interpreting this expression
+    |
+help: the constant being evaluated
+   --> src\jump.rs:326:5
+    |
+326 |     const XOSHIRO256_JUMP_256_MAT: [[u64; 4]; 256] =
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant evaluation is taking a long time
+   --> src\jump.rs:414:5
+    |
+414 | /     while i < 256 {
+415 | |         let word = i /...
+416 | |         let bit = i % 64;
+417 | |         if (vec[word] ...
+...   |
+423 | |         i += 1;
+424 | |     }
+    | |_____^ the const evaluator is currently interpreting this expression
+    |
+help: the constant being evaluated
+   --> src\jump.rs:323:5
+    |
+323 |     const XOSHIRO256_JUMP_128_MAT: [[u64; 4]; 256] =
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `rand_triplemix` (lib test) generated 7 warnings (3 duplicates) (run `cargo fix --lib -p rand_triplemix --tests` to apply 1 suggestion)
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.11s
+     Running unittests src\lib.rs (target\debug\deps\rand_triplemix-e1a3292130e2a717.exe)
+
+running 1 test
+
+thread 'jump::tests::test_add128_with_carry_comprehensive' (26536) panicked at src\jump.rs:525:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test jump::tests::test_add128_with_carry_comprehensive ... FAILED
+
+failures:
+
+failures:
+    jump::tests::test_add128_with_carry_comprehensive
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 42 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

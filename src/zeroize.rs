@@ -2,7 +2,7 @@ use crate::reproducibility::Reproducibility;
 use crate::{TripleMixPrng, TripleMixSimdCore};
 use core::simd::Simd;
 
-impl zeroize::Zeroize for TripleMixSimdCore {
+impl<R: Reproducibility> zeroize::Zeroize for TripleMixSimdCore<R> {
     fn zeroize(&mut self) {
         self.pcg_state_lo = Simd::splat(0);
         self.pcg_state_hi = Simd::splat(0);
@@ -12,6 +12,7 @@ impl zeroize::Zeroize for TripleMixSimdCore {
         self.tm1 = Simd::splat(0);
         self.mwc_state = Simd::splat(0);
         self.mwc_carry = Simd::splat(0);
+        self.xoshiro256 = [0; 4];
         // Prevent dead-write elimination
         core::hint::black_box(&*self);
     }
@@ -41,13 +42,14 @@ impl<R: Reproducibility> Drop for TripleMixPrng<R> {
 mod tests {
     use crate::generate::Simd64;
     use crate::reproducibility::DefaultReproducibility;
-    use crate::{create_rngs, TripleMixPrng, TripleMixSimdCore, BLOCK_SIZE};
+    use crate::{BLOCK_SIZE, TripleMixPrng, TripleMixSimdCore, create_rngs};
     use rand_core::Rng;
     use zeroize::Zeroize;
+    use core::marker::PhantomData;
 
     #[test]
     fn test_zeroize() {
-        let zero_core = TripleMixSimdCore {
+        let zero_core = TripleMixSimdCore::<DefaultReproducibility> {
             pcg_state_lo: Simd64::splat(0),
             pcg_state_hi: Simd64::splat(0),
             pcg_inc_lo: Simd64::splat(0),
@@ -56,6 +58,8 @@ mod tests {
             tm1: Simd64::splat(0),
             mwc_state: Simd64::splat(0),
             mwc_carry: Simd64::splat(0),
+            xoshiro256: [0; 4],
+            reproducibility: PhantomData,
         };
         let mut expected_output = [0u8; BLOCK_SIZE * size_of::<u64>() * 2];
         TripleMixPrng::<DefaultReproducibility>::from_core(zero_core)

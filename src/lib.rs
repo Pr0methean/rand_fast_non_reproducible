@@ -1,5 +1,7 @@
 #![feature(portable_simd)]
+#![feature(generic_const_exprs)]
 #![allow(long_running_const_eval)]
+#![allow(incomplete_features)]
 #[cfg(all(
     target_arch = "x86_64",
     target_feature = "avx2",
@@ -16,19 +18,20 @@ mod serde;
 #[cfg(feature = "zeroize")]
 mod zeroize;
 
+use crate::generate::{Simd32, MIX_OUTPUTS, SIMD_WIDTH};
 use crate::reproducibility::{DefaultReproducibility, NotReproducible};
 use const_format::formatcp;
 use core::convert::Infallible;
 use core::marker::PhantomData;
+use core::simd::{simd_swizzle, Simd};
 use generate::Simd64;
 use rand_core::TryRng;
 use rand_core::block::BlockRng;
 use reproducibility::Reproducibility;
-use crate::generate::{OUTPUTS_PER_STEP, SIMD_WIDTH};
 
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct TripleMixSimdCore {
+pub struct TripleMixSimdCore<R: Reproducibility> {
     tm0: Simd64, // TinyMT64 state
     tm1: Simd64, // TinyMT64 state, with highest bit always 0
     mwc_state: Simd64,
@@ -37,10 +40,12 @@ pub struct TripleMixSimdCore {
     pcg_state_hi: Simd64,
     pcg_inc_lo: Simd64,
     pcg_inc_hi: Simd64,
+    xoshiro256: [u64; 4],
+    reproducibility: PhantomData<R>,
 }
 
-impl std::fmt::Debug for TripleMixSimdCore {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl <R: Reproducibility> core::fmt::Debug for TripleMixSimdCore<R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let x2 = self.mwc_carry;
         let x3 = self.mwc_state;
         let x4 = self.tm1;
@@ -49,6 +54,7 @@ impl std::fmt::Debug for TripleMixSimdCore {
         let x7 = self.pcg_state_lo;
         let x8 = self.pcg_inc_hi;
         let x9 = self.pcg_inc_lo;
+        let x10 = self.xoshiro256;
         f.debug_struct("TripleMixSimdCore")
             .field("pcg_state_lo", &x7.to_array())
             .field("pcg_state_hi", &x6.to_array())
@@ -58,21 +64,76 @@ impl std::fmt::Debug for TripleMixSimdCore {
             .field("tm1", &x4.to_array())
             .field("mwc_state", &x3.to_array())
             .field("mwc_carry", &x2.to_array())
+            .field("xoshiro256", &x10)
             .finish()
     }
 }
 
-impl TripleMixSimdCore {
+impl <R: Reproducibility> TripleMixSimdCore<R> {
+
+    #[allow(unused)]
+    #[inline(always)]
+    fn portable_mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
+        let a64: Simd64 = R::simd32_as_simd64(a);
+        let b64: Simd64 = R::simd32_as_simd64(b);
+        let mask32 = Simd64::splat(0xFFFF_FFFF);
+        // Even lanes (lower 32 bits of each 64-bit word)
+        let even = (a64 & mask32) * (b64 & mask32);
+
+        // Odd lanes
+        let a_hi = a64 >> Simd::splat(32);
+        let b_hi = b64 >> Simd::splat(32);
+        let odd = a_hi * b_hi;
+
+        // Reinterpret to u32
+        let even32: Simd32 = R::simd64_as_simd32(even);
+        let odd32: Simd32 = R::simd64_as_simd32(odd);
+
+        let lo = simd_swizzle!(even32, odd32, [0, 8, 2, 10, 4, 12, 6, 14]);
+        let hi = simd_swizzle!(even32, odd32, [1, 9, 3, 11, 5, 13, 7, 15]);
+
+        (lo, hi)
+    }
+
+    #[inline(always)]
+    pub(crate) fn mul_lo_hi_triad(
+        a: Simd32,
+        b: Simd32,
+        c: Simd32,
+    ) -> (Simd32, Simd32, Simd32, Simd32) {
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
+        ))]
+        {
+            use bytemuck::cast;
+            let (ab_lo, ab_hi, bc_lo, bc_hi) =
+                unsafe { avx2::mul_lo_hi_triad_avx2(cast(a), cast(b), cast(c)) };
+            (cast(ab_lo), cast(ab_hi), cast(bc_lo), cast(bc_hi))
+        }
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            not(all(target_feature = "avx512dq", target_feature = "avx512vl"))
+        )))]
+        {
+            let (ab_lo, ab_hi) = Self::portable_mul_lo_hi(a, b);
+            let (bc_lo, bc_hi) = Self::portable_mul_lo_hi(b, c);
+            (ab_lo, ab_hi, bc_lo, bc_hi)
+        }
+    }
+
     #[inline(always)]
     fn as_bytes(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts((self as *const Self) as *const u8, size_of::<Self>()) }
+        unsafe { core::slice::from_raw_parts((self as *const Self) as *const u8, size_of::<Self>()) }
     }
 }
 
 /// Instances must not be used again after being zeroized.
 #[derive(Clone, Debug)]
 pub struct TripleMixPrng<R: Reproducibility = DefaultReproducibility> {
-    block_core: BlockRng<TripleMixSimdCore>,
+    block_core: BlockRng<TripleMixSimdCore<R>>,
     reproducibility: PhantomData<R>,
 }
 
@@ -108,42 +169,61 @@ impl<R: Reproducibility> TryRng for TripleMixPrng<R> {
 }
 
 #[cfg(test)]
-pub(crate) fn create_rngs<R: Reproducibility>() -> [TripleMixPrng<R>; 5] {
-    use crate::seed::DEFAULT_SEED_SIZE;
-    use core::simd::Simd;
-    use rand::rngs::SysRng;
+pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
+    let mut rngs = Vec::new();
+    rngs.push(TripleMixPrng::<R>::almost_all_zeroes_state());
+    #[cfg(not(miri))]
+    {
+        use crate::seed::DEFAULT_SEED_SIZE;
+        use core::simd::Simd;
+        use rand::rngs::SysRng;
 
-    const SMALLEST_DISTINCT_POSITIVE_DESCENDING: Simd64 = Simd::from_array([7, 5, 3, 1]);
-    const LARGEST_DISTINCT: Simd64 =
-        Simd::from_array([u64::MAX - 6, u64::MAX - 4, u64::MAX - 2, u64::MAX]);
-    let rng1 = TripleMixPrng::almost_all_zeroes_state();
-    let rng2 = TripleMixPrng::from_core(TripleMixSimdCore {
-        pcg_state_lo: Simd::splat(0),
-        pcg_state_hi: Simd::splat(0),
-        pcg_inc_lo: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
-        pcg_inc_hi: Simd::splat(0),
-        tm0: Simd::splat(0),
-        tm1: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
-        mwc_state: Simd::splat(0),
-        mwc_carry: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
-    });
-    let rng3 = TripleMixPrng::from_core(TripleMixSimdCore {
-        pcg_state_lo: Simd::splat(u64::MAX),
-        pcg_state_hi: Simd::splat(u64::MAX),
-        pcg_inc_lo: LARGEST_DISTINCT,
-        pcg_inc_hi: Simd::splat(u64::MAX),
-        tm0: Simd::splat(u64::MAX),
-        tm1: LARGEST_DISTINCT,
-        mwc_state: TripleMixSimdCore::MCG_MULTIPLIERS - Simd::splat(2),
-        mwc_carry: TripleMixSimdCore::MCG_MULTIPLIERS - Simd::splat(1),
-    });
-    let mut seed = [0u8; DEFAULT_SEED_SIZE];
-    let rng4 = TripleMixPrng::from(&seed);
-    SysRng.try_fill_bytes(&mut seed).unwrap();
-    let rng5 = TripleMixPrng::from(&seed);
-    [rng1, rng2, rng3, rng4, rng5]
+        const SMALLEST_DISTINCT_POSITIVE_DESCENDING: Simd64 = Simd::from_array([7, 5, 3, 1]);
+        const LARGEST_DISTINCT: Simd64 =
+            Simd::from_array([u64::MAX - 6, u64::MAX - 4, u64::MAX - 2, u64::MAX]);
+        rngs.push(TripleMixPrng::from_core(TripleMixSimdCore::<R> {
+            pcg_state_lo: Simd::splat(0),
+            pcg_state_hi: Simd::splat(0),
+            pcg_inc_lo: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
+            pcg_inc_hi: Simd::splat(0),
+            tm0: Simd::splat(0),
+            tm1: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
+            mwc_state: Simd::splat(0),
+            mwc_carry: SMALLEST_DISTINCT_POSITIVE_DESCENDING,
+            xoshiro256: [0, 0, 0, 1],
+            reproducibility: PhantomData,
+        }));
+        rngs.push(TripleMixPrng::from_core(TripleMixSimdCore::<R> {
+            pcg_state_lo: Simd::splat(u64::MAX),
+            pcg_state_hi: Simd::splat(u64::MAX),
+            pcg_inc_lo: LARGEST_DISTINCT,
+            pcg_inc_hi: Simd::splat(u64::MAX),
+            tm0: Simd::splat(u64::MAX),
+            tm1: LARGEST_DISTINCT,
+            mwc_state: TripleMixSimdCore::<R>::MCG_MULTIPLIERS - Simd::splat(2),
+            mwc_carry: TripleMixSimdCore::<R>::MCG_MULTIPLIERS - Simd::splat(1),
+            xoshiro256: [1, 0, 0, 0],
+            reproducibility: PhantomData,
+        }));
+        let mut seed = [0u8; DEFAULT_SEED_SIZE];
+        rngs.push(TripleMixPrng::from(&seed));
+        SysRng.try_fill_bytes(&mut seed).unwrap();
+        rngs.push(TripleMixPrng::from(&seed));
+    }
+    rngs
+}
+
+#[cfg(all(test, not(miri)))]
+pub(crate) fn rng() -> rand::rngs::ThreadRng {
+    rand::rng()
+}
+
+#[cfg(all(test, miri))]
+pub(crate) fn rng() -> rand::rngs::SmallRng {
+    use rand::SeedableRng;
+    rand::rngs::SmallRng::seed_from_u64(0x0dd_d00d5_1337_c0de)
 }
 
 const MAJOR_VERSION: &str = env!("CARGO_PKG_VERSION_MAJOR");
 const MINOR_VERSION: &str = env!("CARGO_PKG_VERSION_MINOR");
-pub const BLOCK_SIZE: usize = OUTPUTS_PER_STEP * SIMD_WIDTH;
+pub const BLOCK_SIZE: usize = MIX_OUTPUTS * SIMD_WIDTH;

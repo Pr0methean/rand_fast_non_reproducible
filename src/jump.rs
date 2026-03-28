@@ -38,16 +38,17 @@ impl<R: Reproducibility> TripleMixPrng<R> {
 
 /// Represents a linear transformation on the 128-bit state:
 /// new_state = matrix * state + constant
-struct JumpMatrix {
+struct JumpMatrix<R: Reproducibility> {
     /// Multiplier part (how state is transformed)
     mult_low: Simd64,
     mult_high: Simd64,
     /// Constant part (how increment contributes)
     const_low: Simd64,
     const_high: Simd64,
+    _reproducibility: core::marker::PhantomData<R>,
 }
 
-impl JumpMatrix {
+impl<R: Reproducibility> JumpMatrix<R> {
     /// Create identity matrix (jump by 0 steps)
     fn identity() -> Self {
         Self {
@@ -55,13 +56,14 @@ impl JumpMatrix {
             mult_high: Simd64::splat(0),
             const_low: Simd64::splat(0),
             const_high: Simd64::splat(0),
+            _reproducibility: core::marker::PhantomData,
         }
     }
 
     /// Compose two jump matrices: this * other
     fn compose(&self, other: &Self) -> Self {
         // new_mult = self.mult * other.mult
-        let (new_mult_low, new_mult_high) = mul128x128(
+        let (new_mult_low, new_mult_high) = TripleMixSimdCore::<R>::mul128x128(
             self.mult_high,
             self.mult_low,
             other.mult_high,
@@ -69,7 +71,7 @@ impl JumpMatrix {
         );
 
         // new_const = self.mult * other.const + self.const
-        let (temp_low, temp_high) = mul128x128(
+        let (temp_low, temp_high) = TripleMixSimdCore::<R>::mul128x128(
             self.mult_high,
             self.mult_low,
             other.const_high,
@@ -77,15 +79,16 @@ impl JumpMatrix {
         );
 
         let (new_const_low, carry) =
-            TripleMixSimdCore::add128_with_carry(temp_low, self.const_low, Simd64::splat(0));
+            TripleMixSimdCore::<R>::add128_with_carry(temp_low, self.const_low, Simd64::splat(0));
         let (new_const_high, _) =
-            TripleMixSimdCore::add128_with_carry(temp_high, self.const_high, carry);
+            TripleMixSimdCore::<R>::add128_with_carry(temp_high, self.const_high, carry);
 
         Self {
             mult_low: new_mult_low,
             mult_high: new_mult_high,
             const_low: new_const_low,
             const_high: new_const_high,
+            _reproducibility: core::marker::PhantomData,
         }
     }
 
@@ -93,36 +96,68 @@ impl JumpMatrix {
     fn apply(&self, state_low: Simd64, state_high: Simd64) -> (Simd64, Simd64) {
         // new_state = mult * state + const
         let (prod_low, prod_high) =
-            mul128x128(self.mult_high, self.mult_low, state_high, state_low);
+            TripleMixSimdCore::<R>::mul128x128(self.mult_high, self.mult_low, state_high, state_low);
 
         let (new_low, carry) =
-            TripleMixSimdCore::add128_with_carry(prod_low, self.const_low, Simd64::splat(0));
-        let (new_high, _) = TripleMixSimdCore::add128_with_carry(prod_high, self.const_high, carry);
+            TripleMixSimdCore::<R>::add128_with_carry(prod_low, self.const_low, Simd64::splat(0));
+        let (new_high, _) = TripleMixSimdCore::<R>::add128_with_carry(prod_high, self.const_high, carry);
 
         (new_low, new_high)
     }
 }
 
-/// Full 128x128 multiplication. Returns (low, high).
-fn mul128x128(a_high: Simd64, a_low: Simd64, b_high: Simd64, b_low: Simd64) -> (Simd64, Simd64) {
-    let (h1, low) = TripleMixSimdCore::mul128x64to128(a_high, a_low, b_low);
-    let h2 = crate::generate::simd_wrapping_mul(a_low, b_high);
-    (low, h1 + h2)
-}
+impl <R: Reproducibility> TripleMixSimdCore<R> {
+    /// 128-bit multiplication by PER-LANE 64-bit multipliers using simd_mulsmall
+    /// (high, low) = (a_high, a_low) * b (where b is per lane)
+    ///
+    /// simd_mulsmall(left: Simd64, right: u32x4) -> (low: Simd64, high: Simd64)
+    /// where right's 32-bit values are in the bottom half of each lane
+    #[inline]
+    pub(crate) fn mul128x64to128(a_high: Simd64, a_low: Simd64, b: Simd64) -> (Simd64, Simd64) {
+        // Decompose b into 32-bit halves across all lanes simultaneously
+        let b_lo = b & Simd64::splat(0xFFFF_FFFF);
+        let b_hi = b >> 32;
 
-impl TripleMixSimdCore {
+        let (p1_lo, p1_hi) = Self::simd_mulsmall(a_low, b_lo);
+        let (p2_lo, p2_hi) = Self::simd_mulsmall(a_low, b_hi);
+
+        // p2 * 2^32 = p2_hi * 2^96 + p2_lo * 2^32
+        let p2_shifted_lo = p2_lo << Simd64::splat(32);
+        let p2_shifted_hi = (p2_hi << Simd64::splat(32)) | (p2_lo >> Simd64::splat(32));
+
+        // low sum = p1_lo + p2_shifted_lo
+        let (low_sum, carry1) = Self::add128_with_carry(p1_lo, p2_shifted_lo, Simd64::splat(0));
+
+        let a_low_b_hi = p1_hi + p2_shifted_hi - carry1;
+
+        // the final high part is a_low_b_hi + a_high * b
+        // a_high * b = a_high * b_lo + a_high * b_hi * 2^32 (we only care about the low 64 bits of this)
+        let a_high_b = crate::generate::simd_wrapping_mul(a_high, b);
+        let final_high = a_low_b_hi + a_high_b;
+
+        (final_high, low_sum)
+    }
+
+    /// Full 128x128 multiplication. Returns (low, high).
+    fn mul128x128(a_high: Simd64, a_low: Simd64, b_high: Simd64, b_low: Simd64) -> (Simd64, Simd64) {
+        let (h1, low) = Self::mul128x64to128(a_high, a_low, b_low);
+        let h2 = crate::generate::simd_wrapping_mul(a_low, b_high);
+        (low, h1 + h2)
+    }
+
     // 2^128 == 2^1 mod (2^127 - 1)
     const TINYMT_JUMP_128_MAT: [u128; 128] = pow_mat_2_exp(Self::TINYMT_JUMP_MAT, 1);
     // 2^256 == 2^2 mod (2^127 - 1)
     const TINYMT_JUMP_256_MAT: [u128; 128] = pow_mat_2_exp(Self::TINYMT_JUMP_MAT, 2);
 
     fn jump_pcg(&mut self, steps: u128) {
-        let mut result = JumpMatrix::identity();
-        let mut base = JumpMatrix {
+        let mut result = JumpMatrix::<R>::identity();
+        let mut base = JumpMatrix::<R> {
             mult_low: Self::PCG_MULTIPLIERS,
             mult_high: Simd64::splat(0),
             const_low: self.pcg_inc_lo,
             const_high: self.pcg_inc_hi,
+            _reproducibility: core::marker::PhantomData,
         };
 
         let mut remaining = steps;
@@ -144,7 +179,7 @@ impl TripleMixSimdCore {
     /// state_lo/state_hi: current state vectors
     /// a: multiplier (per lane)
     /// returns new (state_lo, state_hi)
-    pub fn mwc_jump(state: Simd64, carry: Simd64, steps: u128, k: u64) -> (Simd64, Simd64) {
+    pub(crate) fn mwc_jump(state: Simd64, carry: Simd64, steps: u128, k: u64) -> (Simd64, Simd64) {
         if steps == 0 && k == 0 {
             return (state, carry);
         }
@@ -159,7 +194,7 @@ impl TripleMixSimdCore {
         // Recover (W, c) from V as W = V / a, c = V % a.
 
         for i in 0..SIMD_WIDTH {
-            let a = TripleMixSimdCore::MCG_MULTIPLIERS[i] as u128;
+            let a = Self::MCG_MULTIPLIERS[i] as u128;
             let m = (a << 64) - 1;
 
             // Initial V_0 = a * W_0 + c_0
@@ -219,7 +254,7 @@ fn mul_mod(mut x: u128, mut y: u128, m: u128) -> u128 {
     res
 }
 
-impl TripleMixSimdCore {
+impl<R: Reproducibility> TripleMixSimdCore<R> {
     #[inline]
     pub(crate) fn advance(&mut self, steps: u128) {
         if steps == 0 {
@@ -232,6 +267,8 @@ impl TripleMixSimdCore {
         self.mwc_carry = new_mwc_carry;
         self.update_t_from_matrix(&t_pow);
         self.jump_pcg(steps);
+        let x_pow = pow_mat_256(Self::XOSHIRO256_JUMP_MAT, steps);
+        self.xoshiro256 = apply_mat_256(&x_pow, self.xoshiro256);
     }
 
     #[inline]
@@ -246,6 +283,9 @@ impl TripleMixSimdCore {
         self.mwc_state = new_mwc_state;
         self.mwc_carry = new_mwc_carry;
         self.update_t_from_matrix(&t_pow);
+        // xoshiro256 period is 2^256-1; jump by multiples * 2^128 steps
+        let x_pow = pow_mat_256(Self::XOSHIRO256_JUMP_128_MAT, multiples);
+        self.xoshiro256 = apply_mat_256(&x_pow, self.xoshiro256);
     }
 
     #[inline]
@@ -260,6 +300,9 @@ impl TripleMixSimdCore {
         self.mwc_state = new_mwc_state;
         self.mwc_carry = new_mwc_carry;
         self.update_t_from_matrix(&t_pow);
+        // 2^256 ≡ 1 mod (2^256 - 1), so multiples * 2^256 ≡ multiples steps
+        let x_pow = pow_mat_256(Self::XOSHIRO256_JUMP_256_MAT, multiples);
+        self.xoshiro256 = apply_mat_256(&x_pow, self.xoshiro256);
     }
 
     #[inline]
@@ -274,6 +317,13 @@ impl TripleMixSimdCore {
         }
     }
     const TINYMT_JUMP_MAT: [u128; 128] = compute_tinymt_mat();
+    const XOSHIRO256_JUMP_MAT: [[u64; 4]; 256] = compute_xoshiro256_mat();
+    // 2^128-step xoshiro matrix, precomputed
+    const XOSHIRO256_JUMP_128_MAT: [[u64; 4]; 256] =
+        pow_mat_256_2_exp(Self::XOSHIRO256_JUMP_MAT, 128);
+    // 2^256 ≡ 1 mod (2^256 - 1), so this equals the 1-step matrix
+    const XOSHIRO256_JUMP_256_MAT: [[u64; 4]; 256] =
+        pow_mat_256_2_exp(Self::XOSHIRO256_JUMP_MAT, 256);
 }
 
 // ============================================================================
@@ -353,29 +403,164 @@ const fn pow_mat_2_exp(mut a: [u128; 128], mut exp: u32) -> [u128; 128] {
     a
 }
 
+// ============================================================================
+// 256-bit GF(2) matrix operations (for xoshiro256)
+// ============================================================================
+
+const fn apply_mat_256(mat: &[[u64; 4]; 256], vec: [u64; 4]) -> [u64; 4] {
+    let mut res = [0u64; 4];
+    let mut i = 0;
+    while i < 256 {
+        let word = i / 64;
+        let bit = i % 64;
+        if (vec[word] >> bit) & 1 != 0 {
+            res[0] ^= mat[i][0];
+            res[1] ^= mat[i][1];
+            res[2] ^= mat[i][2];
+            res[3] ^= mat[i][3];
+        }
+        i += 1;
+    }
+    res
+}
+
+const fn mul_mat_256(a: &[[u64; 4]; 256], b: &[[u64; 4]; 256]) -> [[u64; 4]; 256] {
+    let mut res = [[0u64; 4]; 256];
+    let mut i = 0;
+    while i < 256 {
+        res[i] = apply_mat_256(a, b[i]);
+        i += 1;
+    }
+    res
+}
+
+const fn pow_mat_256(mut a: [[u64; 4]; 256], mut n: u128) -> [[u64; 4]; 256] {
+    // Identity matrix
+    let mut res = [[0u64; 4]; 256];
+    let mut i = 0;
+    while i < 256 {
+        let word = i / 64;
+        let bit = i % 64;
+        res[i][word] = 1u64 << bit;
+        i += 1;
+    }
+    while n > 0 {
+        if n & 1 != 0 {
+            res = mul_mat_256(&a, &res);
+        }
+        a = mul_mat_256(&a, &a);
+        n >>= 1;
+    }
+    res
+}
+
+const fn pow_mat_256_2_exp(mut a: [[u64; 4]; 256], mut exp: u32) -> [[u64; 4]; 256] {
+    while exp > 0 {
+        a = mul_mat_256(&a, &a);
+        exp -= 1;
+    }
+    a
+}
+
+const fn compute_xoshiro256_mat() -> [[u64; 4]; 256] {
+    let mut res = [[0u64; 4]; 256];
+    let mut i = 0;
+    while i < 256 {
+        // Set up basis vector: bit i is set
+        let word = i / 64;
+        let bit = i % 64;
+        let mut state = [0u64; 4];
+        state[word] = 1u64 << bit;
+
+        // Apply one step of advance_xoshiro
+        let t = state[1] << 17;
+        state[2] ^= state[0];
+        state[3] ^= state[1];
+        state[1] ^= state[2];
+        state[0] ^= state[3];
+        state[2] ^= t;
+        state[3] = state[3].rotate_left(45);
+
+        res[i] = state;
+        i += 1;
+    }
+    res
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::TripleMixSimdCore;
     use crate::BLOCK_SIZE;
-    use crate::jump::pow_mat_2_exp;
-    use crate::reproducibility::NotReproducible;
+    use crate::TripleMixSimdCore;
+    use crate::jump::{pow_mat_2_exp, pow_mat_256_2_exp};
+    use crate::reproducibility::DefaultReproducibility;
     use rand_core::Rng;
 
     #[test]
-    fn test_jump_ahead_constants() {
+    fn test_add128_with_carry_comprehensive() {
+        use crate::generate::Simd64;
+        let zero = Simd64::splat(0);
+        let one = Simd64::splat(1);
+        let mask = Simd64::splat(u64::MAX);
+        let almost_max = Simd64::splat(u64::MAX - 1);
+        let max = Simd64::splat(u64::MAX);
+
+        // Basic addition without carry
+        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(one, one, zero);
+        assert_eq!(sum[0], 2);
+        assert_eq!(c[0], 0);
+
+        // Addition with carry-in
+        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(one, one, mask);
+        assert_eq!(sum[0], 3);
+        assert_eq!(c[0], 0);
+
+        // Addition that causes carry-out
+        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(max, one, zero);
+        assert_eq!(sum[0], 0);
+        assert_eq!(c[0], u64::MAX);
+
+        // Addition that causes carry-out via carry-in
+        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(almost_max, one, mask);
+        assert_eq!(sum[0], 0);
+        assert_eq!(c[0], u64::MAX);
+
+        // Adding two max values with carry-in
+        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(max, max, mask);
+        // mask is effectively +1
+        // FFFFFFFF + FFFFFFFF + 1 = 2^64 + FFFFFFFF = FFFFFFFF with carry 1
+        assert_eq!(sum[0], u64::MAX);
+        assert_eq!(c[0], u64::MAX);
+    }
+
+    #[test]
+    fn test_jump_ahead_constants_miri_slow() {
         assert_eq!(
-            TripleMixSimdCore::TINYMT_JUMP_128_MAT,
-            pow_mat_2_exp(TripleMixSimdCore::TINYMT_JUMP_MAT, 128)
+            TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_128_MAT,
+            pow_mat_2_exp(TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_MAT, 128)
         );
         assert_eq!(
-            TripleMixSimdCore::TINYMT_JUMP_256_MAT,
-            pow_mat_2_exp(TripleMixSimdCore::TINYMT_JUMP_MAT, 256)
+            TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_256_MAT,
+            pow_mat_2_exp(TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_MAT, 256)
+        );
+        assert_eq!(
+            TripleMixSimdCore::<DefaultReproducibility>::XOSHIRO256_JUMP_128_MAT,
+            pow_mat_256_2_exp(TripleMixSimdCore::<DefaultReproducibility>::XOSHIRO256_JUMP_MAT, 128)
+        );
+        // 2^256 ≡ 1 mod (2^256 - 1), so M^(2^256) should equal M^1
+        assert_eq!(
+            TripleMixSimdCore::<DefaultReproducibility>::XOSHIRO256_JUMP_256_MAT,
+            TripleMixSimdCore::<DefaultReproducibility>::XOSHIRO256_JUMP_MAT,
         );
     }
 
     #[test]
-    fn test_jump_ahead() {
-        for mut prng in crate::create_rngs::<NotReproducible>() {
+    fn test_jump_ahead_miri_xslow() {
+        #[cfg(not(miri))]
+        const ITERATIONS_AFTER_LEAP: usize = 10_000;
+        #[cfg(miri)]
+        const ITERATIONS_AFTER_LEAP: usize = 4;
+
+        for mut prng in crate::create_rngs::<DefaultReproducibility>() {
             let prng_large_jmp = prng.clone();
             let mut prng_jmp = prng.clone();
 
@@ -412,7 +597,7 @@ mod tests {
             println!("base_b_for_2_128={:?}", base_b_for_2_128);
             println!("prng_2_128={:?}", prng_2_128);
 
-            for _ in 0..10_000 {
+            for _ in 0..ITERATIONS_AFTER_LEAP {
                 // Ensure internal state logic lines up perfectly equivalent.
                 let prng_2_128_u64 = prng_2_128.next_u64();
                 assert_eq!(base_a_for_2_128.next_u64(), prng_2_128_u64);
@@ -430,7 +615,7 @@ mod tests {
             let mut prng_2_256 = prng.clone();
             prng_2_256.advance_2_256(1);
 
-            for _ in 0..10_000 {
+            for _ in 0..ITERATIONS_AFTER_LEAP {
                 // Ensure internal state logic lines up perfectly equivalent.
                 let prng_2_256_u64 = prng_2_256.next_u64();
                 assert_eq!(base_a_for_2_256.next_u64(), prng_2_256_u64);
