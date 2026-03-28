@@ -271,7 +271,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         x4: Simd64,
         x5: Simd64,
         x6: Simd64,
-        scalar: u64,
+        scalar1: u64,
     ) -> (Simd64, Simd64, Simd64) {
         // Convert inputs to u32x8 (portable)
         let xi = [
@@ -330,8 +330,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
             (a, b, c)
         }
-        let scalar_hi = (scalar >> 32) as u32;
-        let scalar_lo = scalar as u32;
+        let scalar_hi = (scalar1 >> 32) as u32;
+        let scalar_lo = scalar1 as u32;
         let mut a = Simd32::splat(0x243f6a88);
         let scalar_mix_1 = Simd32::from_array([0, scalar_lo, scalar_hi, 0, scalar_hi, 0, scalar_lo, 0]);
         let mut b = Simd32::splat(0x9e3779b9);
@@ -440,7 +440,7 @@ mod tests {
     }
 
     const AVALANCHE_MATRIX_ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
-    const AVALANCHE_MATRIX_COLS: usize = 8 * (size_of::<Simd64>() * MIX_INPUTS + size_of::<u64>());
+    const AVALANCHE_MATRIX_COLS: usize = 8 * size_of::<u64>() * MIX_INPUT_U64S;
 
     fn evaluate_mix_matrix(mix_input: [u64; MIX_INPUT_U64S]) -> MixMatrixStats {
         let (base_out0, base_out1, base_out2) = mix_from_flat_array(mix_input);
