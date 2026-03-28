@@ -352,7 +352,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             a,
             b,
             c,
-            &[xi[6], xi[2], xi[5], xi[0], xi[4], xi[1], xi[3]],
+            &[xi[5], xi[2], xi[6], xi[0], xi[4], xi[1], xi[3]],
             3,
             13,
             23
@@ -1169,8 +1169,7 @@ mod tests {
             mean.abs() + (var - 64.0).abs() // 64 expected variance for 8x8 ±1
         }
         const PROJECTION_BLOCK: usize = 8; // 8x8 projection
-        #[test]
-        fn test_bitplane_projection_miri_xslow() {
+        fn test_bitplane_projection_generic(xor_with_next: bool) {
             #[cfg(not(miri))]
             const N: usize = 1 << 22;
             #[cfg(miri)]
@@ -1183,8 +1182,9 @@ mod tests {
                 let mut buf = vec![0u64; N];
                 rng.fill_bytes(cast_slice_mut(&mut buf));
 
-                xor_successive(&mut buf);
-
+                if xor_with_next {
+                    xor_successive(&mut buf);
+                }
                 for bit in 0..64 {
                     let plane = extract_bitplane(&buf, bit);
                     let score = projection_test(&plane);
@@ -1196,6 +1196,16 @@ mod tests {
                     );
                 }
             }
+        }
+
+        #[test]
+        fn test_bitplane_projection_xornext_miri_xslow() {
+            test_bitplane_projection_generic(true);
+        }
+
+        #[test]
+        fn test_bitplane_projection_miri_xslow() {
+            test_bitplane_projection_generic(false);
         }
     }
 
