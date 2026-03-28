@@ -217,6 +217,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             
             // Generate scalar xoshiro256** output
             let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
+            let tm_secondary_out = tm0 - tm1;
 
             Self::advance_xoshiro(&mut xoshiro256);
 
@@ -227,7 +228,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 mwc_carry,
                 i_mixed,
                 pcg_x,
-                tm1,
+                tm_secondary_out,
                 xoshiro_out,
             );
 
