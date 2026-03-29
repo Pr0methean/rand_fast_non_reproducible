@@ -718,7 +718,7 @@ mod tests {
             prop_assert!(min_col_weight >= (AVALANCHE_MATRIX_ROWS * 3) / 8);
             prop_assert!(min_row_weight >= (AVALANCHE_MATRIX_COLS * 3) / 8);
             let expected = AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS / 2;
-            let deviation = (total_weight as isize - expected as isize).unsigned_abs();
+            let deviation = total_weight as isize - expected as isize;
             let sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64 * 0.25 - 1.0).sqrt();
             let z = (deviation as f64) / sigma;
             prop_assert!(z >= -4.0, "Total weight {total_weight} (z={z}) too low");
