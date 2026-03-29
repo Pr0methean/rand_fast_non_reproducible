@@ -308,9 +308,9 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             b ^= x[1];
             c += x[2];
 
-            a ^= m1_hi + b.rotate_elements_left::<2>();
-            b ^= m0_lo ^ c.rotate_elements_right::<3>();
-            c ^= m0_hi + a.rotate_elements_left::<1>();
+            a ^= m1_hi + b.rotate_elements_right::<2>();
+            b ^= m0_lo ^ c.rotate_elements_left::<3>();
+            c ^= m0_hi + a.rotate_elements_right::<1>();
 
             a ^= x[3];
             b += x[4];
