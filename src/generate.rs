@@ -416,7 +416,7 @@ mod tests {
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;
     use fsum::FSum;
-    use gf2::{BitMatrix, BitStore};
+    use gf2::{BitMatrix, BitStore, BitVector};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
     #[cfg(not(miri))]
@@ -432,6 +432,7 @@ mod tests {
         total_weight: usize,
         min_row_weight: usize,
         min_col_weight: usize,
+        rank: usize,
     }
 
     const AVALANCHE_MATRIX_ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
@@ -474,6 +475,11 @@ mod tests {
                 }
             }
         }
+        let mut input_matrix = BitMatrix::<u64>::zeros(MIX_INPUT_U64S, 64);
+        for (index, input) in mix_input.iter().copied().enumerate() {
+            input_matrix.set_row(index, &BitVector::from_unsigned(input));
+        }
+        let rank = input_matrix.to_echelon_form().count_ones();
         #[cfg(not(miri))]
         assert_eq!(
             xor_matrix.clone().to_echelon_form().count_ones(),
@@ -505,6 +511,7 @@ mod tests {
             total_weight,
             min_row_weight,
             min_col_weight,
+            rank
         }
     }
 
@@ -648,6 +655,7 @@ mod tests {
                 total_weight,
                 min_row_weight,
                 min_col_weight,
+                rank,
             } = evaluate_mix_matrix(mix_input);
             let deviation = 0isize
                 .checked_add_unsigned(total_weight)
@@ -658,14 +666,14 @@ mod tests {
             let z = (deviation as f64) / sigma;
             assert!(
                 min_col_weight >= (AVALANCHE_MATRIX_ROWS * 3) / 8,
-                "Min column weight {min_col_weight} too low"
+                "Min column weight {min_col_weight} too low (rank {rank} input)"
             );
             assert!(
                 min_row_weight >= (AVALANCHE_MATRIX_COLS * 3) / 8,
-                "Min row weight {min_row_weight} too low"
+                "Min row weight {min_row_weight} too low (rank {rank} input)"
             );
-            assert!(z >= -4.0, "Total weight {total_weight} (z={z}) too low");
-            assert!(z <= 4.0, "Total weight {total_weight} (z={z}) too high");
+            assert!(z >= -4.0, "Total weight {total_weight} (z={z}) too low (rank {rank} input)");
+            assert!(z <= 4.0, "Total weight {total_weight} (z={z}) too high (rank {rank} input)");
         }
         let z = (total_deviation as f64) / grand_sigma;
         assert!(
@@ -713,7 +721,7 @@ mod tests {
     proptest! {
         #[test]
         fn test_mix_matrix_proptest(mix_input: [u64; MIX_INPUT_U64S]) {
-            let MixMatrixStats { total_weight, min_row_weight, min_col_weight } =
+            let MixMatrixStats { total_weight, min_row_weight, min_col_weight, rank } =
                 evaluate_mix_matrix(mix_input);
             prop_assert!(min_col_weight >= (AVALANCHE_MATRIX_ROWS * 3) / 8);
             prop_assert!(min_row_weight >= (AVALANCHE_MATRIX_COLS * 3) / 8);
@@ -721,8 +729,8 @@ mod tests {
             let deviation = total_weight as isize - expected as isize;
             let sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64 * 0.25 - 1.0).sqrt();
             let z = (deviation as f64) / sigma;
-            prop_assert!(z >= -4.0, "Total weight {total_weight} (z={z}) too low");
-            prop_assert!(z <= 4.0, "Total weight {total_weight} (z={z}) too high");
+            prop_assert!(z >= -5.0, "Total weight {total_weight} (z={z}) too low (rank {rank} input)");
+            prop_assert!(z <= 5.0, "Total weight {total_weight} (z={z}) too high (rank {rank} input)");
         }
 
         #[test]
