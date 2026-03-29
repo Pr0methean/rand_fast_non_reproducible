@@ -124,7 +124,7 @@ impl<R: Reproducibility> TripleMixPrng<R> {
         let mut xoshiro256 = [0u64; 4];
         for round in 0..4 {
             let mut round_kmac = base.clone();
-            round_kmac.update(&R::u128_as_bytes(tweak + ((round as u128) << 126)));
+            round_kmac.update(&(tweak + ((round as u128) << 126)).to_le_bytes());
 
             // Update KMAC from right half
             let mut buffer = [0u64; 18];
@@ -141,13 +141,17 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             buffer[14..16].copy_from_slice(&mwc_carry.as_array()[2..4]);
             buffer[16..18].copy_from_slice(&xoshiro256[2..4]);
 
-            // Endianness flips between this cast_slice and the following cast_slice_mut will cancel
-            // out.
+            for word in &mut buffer {
+                *word = word.to_le();
+            }
             round_kmac.update(cast_slice(&buffer));
 
             let mut reader = round_kmac.into_xof();
             let mut f_out = [0u64; 18];
             reader.squeeze(cast_slice_mut(&mut f_out));
+            for word in &mut f_out {
+                *word = u64::from_le(*word);
+            }
 
             // Xor into left half
             let mask = Simd::from_array([!0, !0, 0, 0]);
@@ -233,8 +237,13 @@ impl<R: Reproducibility> TripleMixPrng<R> {
         } else {
             self.fill(&mut padding);
         }
-        fork_kmac.update(self.block_core.core.as_bytes());
-        fork_kmac.update(R::cast_u64_slice_as_u8(&padding).as_ref());
+        let mut core_bytes = [0u8; 288];
+        self.block_core.core.copy_to_le_bytes(&mut core_bytes);
+        fork_kmac.update(&core_bytes);
+        for word in &mut padding {
+            *word = word.to_le();
+        }
+        fork_kmac.update(cast_slice(&padding));
         self.block_core.reset_and_skip(0);
         let mut attempt = 0u128;
         loop {
