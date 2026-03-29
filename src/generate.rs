@@ -1458,15 +1458,17 @@ mod tests {
         (matrix, column_labels)
     }
 
-    #[cfg_attr(miri, ignore)]
     #[test]
-    fn test_4_step_matrix_rank_distribution() {
+    fn test_4_step_matrix_rank_distribution_miri_xslow() {
         #[cfg(feature = "no_std")]
         extern crate alloc;
 
         let mut rng = rng();
         let mut ranks = Vec::new();
+        #[cfg(not(miri))]
         let iterations = 1000;
+        #[cfg(miri)]
+        let iterations = 2;
 
         for _ in 0..iterations {
             let base_state = TripleMixPrng::<DefaultReproducibility>::from_rng(&mut rng)
