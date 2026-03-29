@@ -177,10 +177,10 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 Self::add128_with_carry(pcg_prod_lo, pcg_inc_lo, Simd::splat(0));
             let (pcg_next_state_hi, _) =
                 Self::add128_with_carry(pcg_prod_hi, pcg_inc_hi, pcg_carry);
-            pcg_state_lo = pcg_next_state_lo;
-            pcg_state_hi = pcg_next_state_hi;
             let pcg_x = pcg_state_hi ^ pcg_state_lo;
             let pcg_m = simd_wrapping_mul(pcg_x ^ (pcg_x >> 31), PCG_OUTPUT_MULTIPLIERS);
+            pcg_state_lo = pcg_next_state_lo;
+            pcg_state_hi = pcg_next_state_hi;
             let (mwc_kx_lo, mwc_kx_hi) =
                 Self::simd_mulsmall(mwc_state, Self::MWC_MULTIPLIER_COMPLEMENTS);
             let pcg_rot = pcg_x >> 59;
@@ -217,6 +217,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let tm_out =
                 tm_y ^ ((tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT));
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
+            let tm_secondary_out = tm0 - tm1;
             tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
             let tm_secondary_out = tm0 - tm1;
