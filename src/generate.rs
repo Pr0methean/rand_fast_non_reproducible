@@ -336,19 +336,19 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         b += scalar_mix_2;
         c += scalar_mix_1;
         (a, b, c) = round3::<R>(a, b, c, &xi, 7, 25, 11);
-        (a, b, c) = round3::<R>(
-            a,
+        (b, c, a) = round3::<R>(
             b,
             c,
+            a,
             &[xi[3], xi[4], xi[5], xi[6], xi[0], xi[1], xi[2]],
             5,
             17,
             9,
         );
-        (a, b, c) = round3::<R>(
+        (c, a, b) = round3::<R>(
+            c,
             a,
             b,
-            c,
             &[xi[5], xi[2], xi[6], xi[0], xi[4], xi[1], xi[3]],
             3,
             13,
