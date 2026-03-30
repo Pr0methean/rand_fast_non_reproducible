@@ -1138,7 +1138,7 @@ mod tests {
                     xor_successive(&mut buf);
                 }
                 for bit in 0..64 {
-                    let plane = buf
+                    let plane: Vec<_> = buf
                         .iter()
                         .map(|w| if ((w >> bit) & 1) != 0 { 1 } else { -1 })
                         .collect();
@@ -1163,7 +1163,7 @@ mod tests {
                             for (ky, kernel_row) in kernel.iter().enumerate() {
                                 for (kx, kernel_entry) in kernel_row.iter().copied().enumerate() {
                                     let idx = (y + ky) * side + (x + kx);
-                                    acc += &plane[idx] as i32 * kernel_entry as i32;
+                                    acc += kernel_entry as i32 * plane[idx];
                                 }
                             }
                             let val = acc as f64;
