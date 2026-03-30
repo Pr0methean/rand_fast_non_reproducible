@@ -1403,14 +1403,14 @@ mod tests {
                     flipped_core.fill_blocks(&mut flipped_outputs);
 
                     // Record differences
-                    for step in 0..config.steps {
-                        for word in 0..BLOCK_SIZE {
-                            let diff = base_outputs[step][word] ^ flipped_outputs[step][word];
-                            for out_bit in 0..64 {
-                                if (diff >> out_bit) & 1 == 1 {
-                                    let row = step * BLOCK_SIZE * 64 + word * 64 + out_bit;
-                                    matrix.set(row, col_idx, true);
-                                }
+                    for (step_idx, (base_block, flipped_block)) in base_outputs.iter().zip(flipped_outputs.iter()).enumerate() {
+                        for (word_idx, (&base_word, &flipped_word)) in base_block.iter().zip(flipped_block.iter()).enumerate() {
+                            let mut diff = base_word ^ flipped_word;
+                            while diff != 0 {
+                                let out_bit = diff.trailing_zeros() as usize;
+                                let row = step_idx * BLOCK_SIZE * 64 + word_idx * 64 + out_bit;
+                                matrix.set(row, col_idx, true);
+                                diff &= diff - 1;
                             }
                         }
                     }
