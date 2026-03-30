@@ -1358,6 +1358,7 @@ mod tests {
     }
 
     /// Build transition matrix from state bits to output bits
+    #[inline]
     fn build_transition_matrix<R: Reproducibility>(
         config: &MatrixConfig<R>,
     ) -> BitMatrix<u64> {
