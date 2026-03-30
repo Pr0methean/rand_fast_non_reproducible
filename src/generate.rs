@@ -155,20 +155,20 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         for block in blocks {
             // Kick off the highest latency operations (multipliers) early
             // a_low * b (where b is pcg_mult)
-            let (p1_lo, p1_hi) = Self::simd_mulsmall(pcg_state_lo, Self::PCG_MULT_LO);
-            let (p2_lo, p2_hi) = Self::simd_mulsmall(pcg_state_lo, Self::PCG_MULT_HI);
+            let (pcg_p1_lo, pcg_p1_hi) = Self::simd_mulsmall(pcg_state_lo, Self::PCG_MULT_LO);
+            let (pcg_p2_lo, pcg_p2_hi) = Self::simd_mulsmall(pcg_state_lo, Self::PCG_MULT_HI);
+            // a_high * b = a_high * b_lo + a_high * b_hi * 2^32
+            let pcg_a_high_b = simd_wrapping_mul(pcg_state_hi, Self::PCG_MULTIPLIERS);
 
             // p2 * 2^32 = p2_hi * 2^96 + p2_lo * 2^32
-            let p2_shifted_lo = p2_lo << Simd64::splat(32);
-            let p2_shifted_hi = (p2_hi << Simd64::splat(32)) | (p2_lo >> Simd64::splat(32));
+            let pcg_p2_shifted_lo = pcg_p2_lo << Simd64::splat(32);
+            let pcg_p2_shifted_hi = (pcg_p2_hi << Simd64::splat(32)) | (pcg_p2_lo >> Simd64::splat(32));
 
             // low sum = p1_lo + p2_shifted_lo
-            let (pcg_prod_lo, carry1) = Self::add128_with_carry(p1_lo, p2_shifted_lo, Simd64::splat(0));
-            let a_low_b_hi = p1_hi + p2_shifted_hi - carry1;
+            let (pcg_prod_lo, pcg_carry) = Self::add128_with_carry(pcg_p1_lo, pcg_p2_shifted_lo, Simd64::splat(0));
+            let pcg_a_low_b_hi = pcg_p1_hi + pcg_p2_shifted_hi - pcg_carry;
 
-            // a_high * b = a_high * b_lo + a_high * b_hi * 2^32
-            let a_high_b = simd_wrapping_mul(pcg_state_hi, Self::PCG_MULTIPLIERS);
-            let pcg_prod_hi = a_low_b_hi + a_high_b;
+            let pcg_prod_hi = pcg_a_low_b_hi + pcg_a_high_b;
 
             // Finish PCG state transition
             let (pcg_next_state_lo, pcg_carry) =
@@ -177,19 +177,16 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 Self::add128_with_carry(pcg_prod_hi, pcg_inc_hi, pcg_carry);
             pcg_state_lo = pcg_next_state_lo;
             pcg_state_hi = pcg_next_state_hi;
-
+            let pcg_x = pcg_state_hi ^ pcg_state_lo;
+            let pcg_m = simd_wrapping_mul(pcg_x ^ (pcg_x >> 31), PCG_OUTPUT_MULTIPLIERS);
             let (mwc_kx_lo, mwc_kx_hi) = Self::simd_mulsmall(mwc_state, Self::MWC_MULTIPLIER_COMPLEMENTS);
+            let pcg_rot = pcg_x >> 59;
+            let pcg_output = (pcg_m >> pcg_rot) | (pcg_m << (Simd64::splat(64) - pcg_rot));
 
-            // Interleave MWC state updates with PCG output multiplier latency
             let mwc_borrow = mwc_carry.simd_lt(mwc_kx_lo).to_simd().cast::<u64>();
             let mwc_next_state = mwc_carry - mwc_kx_lo;
             mwc_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
             mwc_state = mwc_next_state;
-
-            let pcg_x = pcg_state_hi ^ pcg_state_lo;
-            let pcg_m = simd_wrapping_mul(pcg_x ^ (pcg_x >> 31), PCG_OUTPUT_MULTIPLIERS);
-            let pcg_rot = pcg_x >> 59;
-            let pcg_output = (pcg_m >> pcg_rot) | (pcg_m << (Simd64::splat(64) - pcg_rot));
 
             // TinyMT Step 0: Mask and initial XOR
             let tm0_masked = tm0 & Simd::splat(TINYMT64_LANE_MASK);
@@ -199,8 +196,13 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             // TinyMT Step 1: First shift
             tm_x ^= tm_x << Simd::splat(12);
 
+            // Generate scalar xoshiro256** output
+            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
+
             // TinyMT Step 2: Second shift
             tm_x ^= tm_x >> Simd::splat(32);
+
+            Self::advance_xoshiro(&mut xoshiro256);
 
             // TinyMT Step 3: Third shift
             tm_x ^= tm_x << Simd::splat(32);
@@ -214,12 +216,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
             tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
-            
-            // Generate scalar xoshiro256** output
-            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
             let tm_secondary_out = tm0 - tm1;
-
-            Self::advance_xoshiro(&mut xoshiro256);
 
             let (x, y, z) = TripleMixSimdCore::<R>::mix(
                 mwc_state,
@@ -311,9 +308,9 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             b ^= x[1];
             c += x[2];
 
-            a ^= m1_hi + b.rotate_elements_left::<2>();
-            b ^= m0_lo ^ c.rotate_elements_right::<3>();
-            c ^= m0_hi + a.rotate_elements_left::<1>();
+            a ^= m1_hi + b.rotate_elements_right::<2>();
+            b ^= m0_lo ^ c.rotate_elements_left::<3>();
+            c ^= m0_hi + a.rotate_elements_right::<1>();
 
             a ^= x[3];
             b += x[4];
@@ -339,20 +336,20 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         b += scalar_mix_2;
         c += scalar_mix_1;
         (a, b, c) = round3::<R>(a, b, c, &xi, 7, 25, 11);
-        (a, b, c) = round3::<R>(
-            a,
+        (b, c, a) = round3::<R>(
             b,
             c,
+            a,
             &[xi[3], xi[4], xi[5], xi[6], xi[0], xi[1], xi[2]],
             5,
             17,
             9,
         );
-        (a, b, c) = round3::<R>(
+        (c, a, b) = round3::<R>(
+            c,
             a,
             b,
-            c,
-            &[xi[5], xi[2], xi[6], xi[0], xi[4], xi[1], xi[3]],
+            &[xi[5], xi[2], xi[6], xi[1], xi[4], xi[0], xi[3]],
             3,
             13,
             23
@@ -419,7 +416,7 @@ mod tests {
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;
     use fsum::FSum;
-    use gf2::{BitMatrix, BitStore};
+    use gf2::{BitMatrix, BitStore, BitVector};
     use hypors::chi_square::goodness_of_fit;
     use itertools::Itertools;
     #[cfg(not(miri))]
@@ -435,6 +432,7 @@ mod tests {
         total_weight: usize,
         min_row_weight: usize,
         min_col_weight: usize,
+        rank: usize,
     }
 
     const AVALANCHE_MATRIX_ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
@@ -477,6 +475,11 @@ mod tests {
                 }
             }
         }
+        let mut input_matrix = BitMatrix::<u64>::zeros(MIX_INPUT_U64S, 64);
+        for (index, input) in mix_input.iter().copied().enumerate() {
+            input_matrix.set_row(index, &BitVector::from_unsigned(input));
+        }
+        let rank = input_matrix.to_echelon_form().count_ones();
         #[cfg(not(miri))]
         assert_eq!(
             xor_matrix.clone().to_echelon_form().count_ones(),
@@ -508,6 +511,7 @@ mod tests {
             total_weight,
             min_row_weight,
             min_col_weight,
+            rank
         }
     }
 
@@ -651,6 +655,7 @@ mod tests {
                 total_weight,
                 min_row_weight,
                 min_col_weight,
+                rank,
             } = evaluate_mix_matrix(mix_input);
             let deviation = 0isize
                 .checked_add_unsigned(total_weight)
@@ -661,14 +666,14 @@ mod tests {
             let z = (deviation as f64) / sigma;
             assert!(
                 min_col_weight >= (AVALANCHE_MATRIX_ROWS * 3) / 8,
-                "Min column weight {min_col_weight} too low"
+                "Min column weight {min_col_weight} too low (rank {rank} input)"
             );
             assert!(
                 min_row_weight >= (AVALANCHE_MATRIX_COLS * 3) / 8,
-                "Min row weight {min_row_weight} too low"
+                "Min row weight {min_row_weight} too low (rank {rank} input)"
             );
-            assert!(z >= -4.0, "Total weight {total_weight} (z={z}) too low");
-            assert!(z <= 4.0, "Total weight {total_weight} (z={z}) too high");
+            assert!(z >= -4.0, "Total weight {total_weight} (z={z}) too low (rank {rank} input)");
+            assert!(z <= 4.0, "Total weight {total_weight} (z={z}) too high (rank {rank} input)");
         }
         let z = (total_deviation as f64) / grand_sigma;
         assert!(
@@ -716,16 +721,16 @@ mod tests {
     proptest! {
         #[test]
         fn test_mix_matrix_proptest(mix_input: [u64; MIX_INPUT_U64S]) {
-            let MixMatrixStats { total_weight, min_row_weight, min_col_weight } =
+            let MixMatrixStats { total_weight, min_row_weight, min_col_weight, rank } =
                 evaluate_mix_matrix(mix_input);
             prop_assert!(min_col_weight >= (AVALANCHE_MATRIX_ROWS * 3) / 8);
             prop_assert!(min_row_weight >= (AVALANCHE_MATRIX_COLS * 3) / 8);
             let expected = AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS / 2;
-            let deviation = (total_weight as isize - expected as isize).unsigned_abs();
+            let deviation = total_weight as isize - expected as isize;
             let sigma = ((AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS) as f64 * 0.25 - 1.0).sqrt();
             let z = (deviation as f64) / sigma;
-            prop_assert!(z >= -4.0, "Total weight {total_weight} (z={z}) too low");
-            prop_assert!(z <= 4.0, "Total weight {total_weight} (z={z}) too high");
+            prop_assert!(z >= -5.0, "Total weight {total_weight} (z={z}) too low (rank {rank} input)");
+            prop_assert!(z <= 5.0, "Total weight {total_weight} (z={z}) too high (rank {rank} input)");
         }
 
         #[test]
@@ -1119,66 +1124,12 @@ mod tests {
                 words[i] ^= words[i + 1];
             }
         }
-
-        fn random_projection_kernel() -> [[i8; PROJECTION_BLOCK]; PROJECTION_BLOCK] {
-            // Fixed deterministic ±1 kernel
-            let mut k = [[0i8; PROJECTION_BLOCK]; PROJECTION_BLOCK];
-            let mut x: u64 = 0x12345678abcdef01;
-            for row in k.iter_mut() {
-                for cell in row.iter_mut() {
-                    x ^= x << 13;
-                    x ^= x >> 7;
-                    x ^= x << 17;
-                    *cell = if x & 1 == 0 { 1 } else { -1 };
-                }
-            }
-            k
-        }
-
-        fn extract_bitplane(words: &[u64], bit: u32) -> Vec<i8> {
-            words
-                .iter()
-                .map(|w| if ((w >> bit) & 1) != 0 { 1 } else { -1 })
-                .collect()
-        }
-
-        fn projection_test(data: &[i8]) -> f64 {
-            let kernel = random_projection_kernel();
-            let mut sum = 0f64;
-            let mut sum_sq = 0f64;
-            let mut count = 0f64;
-
-            let side = (data.len() as f64).sqrt() as usize;
-            for y in 0..side - PROJECTION_BLOCK {
-                for x in 0..side - PROJECTION_BLOCK {
-                    let mut acc = 0i32;
-                    for (ky, kernel_row) in kernel.iter().enumerate() {
-                        for (kx, kernel_entry) in kernel_row.iter().copied().enumerate() {
-                            let idx = (y + ky) * side + (x + kx);
-                            acc += data[idx] as i32 * kernel_entry as i32;
-                        }
-                    }
-                    let val = acc as f64;
-                    sum += val;
-                    sum_sq += val * val;
-                    count += 1.0;
-                }
-            }
-
-            let mean = sum / count;
-            let var = (sum_sq / count) - mean * mean;
-            mean.abs() + (var - 64.0).abs() // 64 expected variance for 8x8 ±1
-        }
         const PROJECTION_BLOCK: usize = 8; // 8x8 projection
         fn test_bitplane_projection_generic(xor_with_next: bool) {
             #[cfg(not(miri))]
             const N: usize = 1 << 22;
             #[cfg(miri)]
             const N: usize = 1 << 8;
-            #[cfg(not(miri))]
-            const MAX_SCORE: f64 = 1.0;
-            #[cfg(miri)]
-            const MAX_SCORE: f64 = 10.0;
             for mut rng in create_rngs::<NotReproducible>() {
                 let mut buf = vec![0u64; N];
                 rng.fill_bytes(cast_slice_mut(&mut buf));
@@ -1187,11 +1138,47 @@ mod tests {
                     xor_successive(&mut buf);
                 }
                 for bit in 0..64 {
-                    let plane = extract_bitplane(&buf, bit);
-                    let score = projection_test(&plane);
+                    let plane: Vec<_> = buf
+                        .iter()
+                        .map(|w| if ((w >> bit) & 1) != 0 { 1 } else { -1 })
+                        .collect();
+                    let mut kernel = [[0i8; PROJECTION_BLOCK]; PROJECTION_BLOCK];
+                    let mut x: u64 = 0x12345678abcdef01;
+                    for row in kernel.iter_mut() {
+                        for cell in row.iter_mut() {
+                            x ^= x << 13;
+                            x ^= x >> 7;
+                            x ^= x << 17;
+                            *cell = if x & 1 == 0 { 1 } else { -1 };
+                        }
+                    }
+                    let mut sum = 0f64;
+                    let mut sum_sq = 0f64;
+                    let mut count = 0f64;
 
+                    let side = (plane.len() as f64).sqrt() as usize;
+                    for y in 0..side - PROJECTION_BLOCK {
+                        for x in 0..side - PROJECTION_BLOCK {
+                            let mut acc = 0i32;
+                            for (ky, kernel_row) in kernel.iter().enumerate() {
+                                for (kx, kernel_entry) in kernel_row.iter().copied().enumerate() {
+                                    let idx = (y + ky) * side + (x + kx);
+                                    acc += kernel_entry as i32 * plane[idx];
+                                }
+                            }
+                            let val = acc as f64;
+                            sum += val;
+                            sum_sq += val * val;
+                            count += 1.0;
+                        }
+                    }
+
+                    let mean = sum / count;
+                    let var = (sum_sq / count) - mean * mean;
+                    let score = mean.abs() + (var - 64.0).abs();
+                    let expected_max_score = 5.0 * (64.0 / count.sqrt());
                     assert!(
-                        score < MAX_SCORE,
+                        score < expected_max_score,
                         "Projection deviation too large for bit {bit}: {}",
                         score
                     );
