@@ -1124,66 +1124,12 @@ mod tests {
                 words[i] ^= words[i + 1];
             }
         }
-
-        fn random_projection_kernel() -> [[i8; PROJECTION_BLOCK]; PROJECTION_BLOCK] {
-            // Fixed deterministic ±1 kernel
-            let mut k = [[0i8; PROJECTION_BLOCK]; PROJECTION_BLOCK];
-            let mut x: u64 = 0x12345678abcdef01;
-            for row in k.iter_mut() {
-                for cell in row.iter_mut() {
-                    x ^= x << 13;
-                    x ^= x >> 7;
-                    x ^= x << 17;
-                    *cell = if x & 1 == 0 { 1 } else { -1 };
-                }
-            }
-            k
-        }
-
-        fn extract_bitplane(words: &[u64], bit: u32) -> Vec<i8> {
-            words
-                .iter()
-                .map(|w| if ((w >> bit) & 1) != 0 { 1 } else { -1 })
-                .collect()
-        }
-
-        fn projection_test(data: &[i8]) -> f64 {
-            let kernel = random_projection_kernel();
-            let mut sum = 0f64;
-            let mut sum_sq = 0f64;
-            let mut count = 0f64;
-
-            let side = (data.len() as f64).sqrt() as usize;
-            for y in 0..side - PROJECTION_BLOCK {
-                for x in 0..side - PROJECTION_BLOCK {
-                    let mut acc = 0i32;
-                    for (ky, kernel_row) in kernel.iter().enumerate() {
-                        for (kx, kernel_entry) in kernel_row.iter().copied().enumerate() {
-                            let idx = (y + ky) * side + (x + kx);
-                            acc += data[idx] as i32 * kernel_entry as i32;
-                        }
-                    }
-                    let val = acc as f64;
-                    sum += val;
-                    sum_sq += val * val;
-                    count += 1.0;
-                }
-            }
-
-            let mean = sum / count;
-            let var = (sum_sq / count) - mean * mean;
-            mean.abs() + (var - 64.0).abs() // 64 expected variance for 8x8 ±1
-        }
         const PROJECTION_BLOCK: usize = 8; // 8x8 projection
         fn test_bitplane_projection_generic(xor_with_next: bool) {
             #[cfg(not(miri))]
             const N: usize = 1 << 22;
             #[cfg(miri)]
             const N: usize = 1 << 8;
-            #[cfg(not(miri))]
-            const MAX_SCORE: f64 = 1.0;
-            #[cfg(miri)]
-            const MAX_SCORE: f64 = 10.0;
             for mut rng in create_rngs::<NotReproducible>() {
                 let mut buf = vec![0u64; N];
                 rng.fill_bytes(cast_slice_mut(&mut buf));
@@ -1192,11 +1138,47 @@ mod tests {
                     xor_successive(&mut buf);
                 }
                 for bit in 0..64 {
-                    let plane = extract_bitplane(&buf, bit);
-                    let score = projection_test(&plane);
+                    let plane = buf
+                        .iter()
+                        .map(|w| if ((w >> bit) & 1) != 0 { 1 } else { -1 })
+                        .collect();
+                    let mut kernel = [[0i8; PROJECTION_BLOCK]; PROJECTION_BLOCK];
+                    let mut x: u64 = 0x12345678abcdef01;
+                    for row in kernel.iter_mut() {
+                        for cell in row.iter_mut() {
+                            x ^= x << 13;
+                            x ^= x >> 7;
+                            x ^= x << 17;
+                            *cell = if x & 1 == 0 { 1 } else { -1 };
+                        }
+                    }
+                    let mut sum = 0f64;
+                    let mut sum_sq = 0f64;
+                    let mut count = 0f64;
 
+                    let side = (plane.len() as f64).sqrt() as usize;
+                    for y in 0..side - PROJECTION_BLOCK {
+                        for x in 0..side - PROJECTION_BLOCK {
+                            let mut acc = 0i32;
+                            for (ky, kernel_row) in kernel.iter().enumerate() {
+                                for (kx, kernel_entry) in kernel_row.iter().copied().enumerate() {
+                                    let idx = (y + ky) * side + (x + kx);
+                                    acc += &plane[idx] as i32 * kernel_entry as i32;
+                                }
+                            }
+                            let val = acc as f64;
+                            sum += val;
+                            sum_sq += val * val;
+                            count += 1.0;
+                        }
+                    }
+
+                    let mean = sum / count;
+                    let var = (sum_sq / count) - mean * mean;
+                    let score = mean.abs() + (var - 64.0).abs();
+                    let expected_max_score = 5.0 * (64.0 / count.sqrt());
                     assert!(
-                        score < MAX_SCORE,
+                        score < expected_max_score,
                         "Projection deviation too large for bit {bit}: {}",
                         score
                     );
