@@ -1375,16 +1375,16 @@ mod tests {
 
             // Define fields and their accessors
             let fields: &[fn(&mut TripleMixSimdCore<DefaultReproducibility>) -> &mut [u64; 4]] = &[
-                |c| c.pcg_state_lo.as_mut_array(),
-                |c| c.pcg_state_hi.as_mut_array(),
-                |c| c.pcg_inc_lo.as_mut_array(),
-                |c| c.pcg_inc_hi.as_mut_array(),
-                |c| c.tm0.as_mut_array(),
-                |c| c.tm1.as_mut_array(),
-                |c| c.mwc_state.as_mut_array(),
-                |c| c.mwc_carry.as_mut_array(),
-                |c| &mut c.xoshiro256,
-            ];
+            |c| c.pcg_state_lo.as_mut_array(),
+            |c| c.pcg_state_hi.as_mut_array(),
+            |c| c.pcg_inc_lo.as_mut_array(),
+            |c| c.pcg_inc_hi.as_mut_array(),
+            |c| c.tm0.as_mut_array(),
+            |c| c.tm1.as_mut_array(),
+            |c| c.mwc_state.as_mut_array(),
+            |c| c.mwc_carry.as_mut_array(),
+            |c| &mut c.xoshiro256,
+        ];
 
             // Generate base outputs once
             let mut base_core = base_state.clone();
@@ -1445,6 +1445,7 @@ mod tests {
             ranks.sort_unstable();
             // Calculate statistics
             let mean_rank = ranks.iter().sum::<usize>() as f64 / iterations as f64;
+            if iterations > 1 {
             println!("Rank distribution over {} trials:", iterations);
             println!("  Mean: {:.2}", mean_rank);
             println!("  Min: {}", ranks.iter().min().unwrap());
@@ -1480,5 +1481,6 @@ mod tests {
                 mean_rank
             );
         }
+        assert!(mean_rank >= 2296.0, "Mean rank too low: {:.2}", mean_rank);
     }
 }
