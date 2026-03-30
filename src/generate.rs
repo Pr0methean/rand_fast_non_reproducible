@@ -157,36 +157,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             0x94d049bb133111eb,
         ]);
 
-            const PCG_MULT_LO_0: u64 = 0x1FC6_5DA5;
-    const PCG_MULT_HI_0: u64 = 0x2360_ED05;
-    const PCG_MULT_LO_1: u64 = 0x4C95_7F2D;
-    const PCG_MULT_HI_1: u64 = 0x8F1C_5E95;
-    const PCG_MULT_LO_2: u64 = 0xE5A7_4D29;
-    const PCG_MULT_HI_2: u64 = 0xA3E7_9B3D;
-    const PCG_MULT_LO_3: u64 = 0x9B3C_D8F1;
-    const PCG_MULT_HI_3: u64 = 0x2360_ED05;
-
-    const PCG_MULT_LO: Simd64 = Simd64::from_array([
-        PCG_MULT_LO_0,
-        PCG_MULT_LO_1,
-        PCG_MULT_LO_2,
-        PCG_MULT_LO_3,
-    ]);
-    const PCG_MULT_HI: Simd64 = Simd64::from_array([
-        PCG_MULT_HI_0,
-        PCG_MULT_HI_1,
-        PCG_MULT_HI_2,
-        PCG_MULT_HI_3,
-    ]);
-
-    pub(crate) const PCG_MULTIPLIERS: Simd64 = Simd64::from_array([
-        (PCG_MULT_HI_0 << 32) | PCG_MULT_LO_0,
-        (PCG_MULT_HI_1 << 32) | PCG_MULT_LO_1,
-        (PCG_MULT_HI_2 << 32) | PCG_MULT_LO_2,
-        (PCG_MULT_HI_3 << 32) | PCG_MULT_LO_3,
-    ]);
-
-
         for block in blocks {
             // Kick off the highest latency operations (multipliers) early
             // a_low * b (where b is pcg_mult)
@@ -269,7 +239,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 scalar_weyl
             );
 
-            w.copy_to_slice(&mut block[4..8]);
+            w.copy_to_slice(&mut block[0..4]);
             x.copy_to_slice(&mut block[4..8]);
             y.copy_to_slice(&mut block[8..12]);
             z.copy_to_slice(&mut block[12..16]);
