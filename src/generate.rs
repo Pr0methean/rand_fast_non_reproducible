@@ -1360,55 +1360,24 @@ mod tests {
     /// Build transition matrix from state bits to output bits
     fn build_transition_matrix<R: Reproducibility>(
         config: &MatrixConfig<R>,
-    ) -> (BitMatrix<u64>, Vec<String>) {
+    ) -> BitMatrix<u64> {
         let state_bits = 9 * SIMD_WIDTH * 64; // 9 fields × 4 lanes × 64 bits = 2304 bits
 
         let output_bits = config.steps * BLOCK_SIZE * 64; // steps × 8 words × 64 bits
 
         let mut matrix = BitMatrix::<u64>::zeros(output_bits, state_bits);
-        let mut column_labels = Vec::with_capacity(state_bits);
 
         // Define fields and their accessors
-        let fields: &[(
-            &str,
-            fn(&mut TripleMixSimdCore<R>) -> &mut [u64; 4],
-        )] = &[
-            (
-                "pcg_state_lo",
-                |c| c.pcg_state_lo.as_mut_array(),
-            ),
-            (
-                "pcg_state_hi",
-                |c| c.pcg_state_hi.as_mut_array(),
-            ),
-            (
-                "pcg_inc_lo",
-                |c| c.pcg_inc_lo.as_mut_array(),
-            ),
-            (
-                "pcg_inc_hi",
-                |c| c.pcg_inc_hi.as_mut_array(),
-            ),
-            (
-                "tm0",
-                |c| c.tm0.as_mut_array(),
-            ),
-            (
-                "tm1",
-                |c| c.tm1.as_mut_array(),
-            ),
-            (
-                "mwc_state",
-                |c| c.mwc_state.as_mut_array(),
-            ),
-            (
-                "mwc_carry",
-                |c| c.mwc_carry.as_mut_array(),
-            ),
-            (
-                "xoshiro256",
-                |c| &mut c.xoshiro256,
-            ),
+        let fields: &[fn(&mut TripleMixSimdCore<R>) -> &mut [u64; 4]] = &[
+            |c| c.pcg_state_lo.as_mut_array(),
+            |c| c.pcg_state_hi.as_mut_array(),
+            |c| c.pcg_inc_lo.as_mut_array(),
+            |c| c.pcg_inc_hi.as_mut_array(),
+            |c| c.tm0.as_mut_array(),
+            |c| c.tm1.as_mut_array(),
+            |c| c.mwc_state.as_mut_array(),
+            |c| c.mwc_carry.as_mut_array(),
+            |c| &mut c.xoshiro256,
         ];
 
         // Generate base outputs once
@@ -1418,11 +1387,10 @@ mod tests {
 
         let mut col_idx = 0;
 
-        for (field_name, mut_field) in fields {
+        for mut_field in fields {
 
             for lane in 0..SIMD_WIDTH {
                 for bit in 0..64 {
-                    column_labels.push(format!("{}.lane{}.bit{}", field_name, lane, bit));
 
                     // Create state with this bit flipped
                     let mut flipped_state = config.base_state.clone();
@@ -1456,7 +1424,7 @@ mod tests {
             "Should have exactly {} columns",
             state_bits
         );
-        (matrix, column_labels)
+        matrix
     }
 
     #[test]
@@ -1480,7 +1448,7 @@ mod tests {
                 base_state,
             };
 
-            let (mut matrix, _) = build_transition_matrix(&config);
+            let mut matrix = build_transition_matrix(&config);
             let echelon = matrix.to_echelon_form();
             let rank = echelon.count_ones();
             ranks.push(rank);
@@ -1488,9 +1456,9 @@ mod tests {
         ranks.sort_unstable();
         // Calculate statistics
         let mean_rank = ranks.iter().sum::<usize>() as f64 / iterations as f64;
-        println!("Rank distribution over {} trials:", iterations);
-        println!("  Mean: {:.2}", mean_rank);
         if iterations > 1 {
+            println!("Rank distribution over {} trials:", iterations);
+            println!("  Mean: {:.2}", mean_rank);
             println!("  Min: {}", ranks.iter().min().unwrap());
             println!("  Max: {}", ranks.iter().max().unwrap());
             let variance = FSum::with_all(ranks.iter().map(|&r| (r as f64 - mean_rank).powi(2)))
@@ -1499,27 +1467,26 @@ mod tests {
             let std_dev = variance.sqrt();
             println!("  Std dev: {:.2}", std_dev);
             assert!(std_dev <= 2.0, "Too much variation: {:.2}", std_dev);
-        }
-        // Create histogram
-        #[cfg(not(feature = "no_std"))]
-        let mut hist = std::collections::HashMap::new();
-        #[cfg(feature = "no_std")]
-        let mut hist = alloc::collections::BTreeMap::new();
-        for &rank in &ranks {
-            *hist.entry(rank).or_insert(0) += 1;
-        }
+            // Create histogram
+            #[cfg(not(feature = "no_std"))]
+            let mut hist = std::collections::HashMap::new();
+            #[cfg(feature = "no_std")]
+            let mut hist = alloc::collections::BTreeMap::new();
+            for &rank in &ranks {
+                *hist.entry(rank).or_insert(0) += 1;
+            }
 
-        let mut hist_vec: Vec<_> = hist.into_iter().collect();
-        hist_vec.sort();
-        for (rank, count) in hist_vec {
-            println!(
-                "  Rank {}: {} trials ({:.1}%)",
-                rank,
-                count,
-                100.0 * count as f64 / iterations as f64
-            );
+            let mut hist_vec: Vec<_> = hist.into_iter().collect();
+            hist_vec.sort();
+            for (rank, count) in hist_vec {
+                println!(
+                    "  Rank {}: {} trials ({:.1}%)",
+                    rank,
+                    count,
+                    100.0 * count as f64 / iterations as f64
+                );
+            }
         }
-
         assert!(mean_rank >= 2296.0, "Mean rank too low: {:.2}", mean_rank);
     }
 }
