@@ -349,7 +349,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             c,
             a,
             b,
-            &[xi[5], xi[2], xi[6], xi[0], xi[4], xi[1], xi[3]],
+            &[xi[5], xi[2], xi[6], xi[1], xi[4], xi[0], xi[3]],
             3,
             13,
             23
