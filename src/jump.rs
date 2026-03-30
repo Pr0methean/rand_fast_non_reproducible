@@ -557,22 +557,26 @@ mod tests {
     fn test_jump_ahead_miri_xslow() {
         #[cfg(not(miri))]
         const ITERATIONS_AFTER_LEAP: usize = 10_000;
+        #[cfg(not(miri))]
+        const BASIC_ADVANCE_BLOCKS: u128 = 12;
         #[cfg(miri)]
         const ITERATIONS_AFTER_LEAP: usize = 4;
+        #[cfg(miri)]
+        const BASIC_ADVANCE_BLOCKS: u128 = 2;
 
         for mut prng in crate::create_rngs::<DefaultReproducibility>() {
             let prng_large_jmp = prng.clone();
             let mut prng_jmp = prng.clone();
 
             // Advance sequential by 12 steps (meaning 12 * 8 = 96 next_u64 calls)
-            for _ in 0..12 {
+            for _ in 0..BASIC_ADVANCE_BLOCKS {
                 for _ in 0..BLOCK_SIZE {
                     prng.next_u64();
                 }
             }
 
-            // Advance jumping by 12 steps
-            prng_jmp.advance(12);
+            // Advance jumping by BASIC_ADVANCE_BLOCKS steps
+            prng_jmp.advance(BASIC_ADVANCE_BLOCKS);
             prng.block_core.reset_and_skip(0);
             prng_jmp.block_core.reset_and_skip(0);
 

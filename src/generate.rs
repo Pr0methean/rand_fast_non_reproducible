@@ -816,6 +816,7 @@ mod tests {
         const N: usize = 1 << 11;
         const CHUNK_SIZE: usize = 1 << 11;
         const CHUNK_COUNT: usize = N / CHUNK_SIZE;
+        #[cfg(not(miri))]
         const P_THRESHOLD: f64 = 1e-6;
         for mut prng in crate::create_rngs::<NotReproducible>() {
             // Flatten to 2D for better cache locality
@@ -1178,7 +1179,7 @@ mod tests {
             #[cfg(not(miri))]
             const N: usize = 1 << 22;
             #[cfg(miri)]
-            const N: usize = 1 << 10;
+            const N: usize = 1 << 8;
             #[cfg(not(miri))]
             const MAX_SCORE: f64 = 1.0;
             #[cfg(miri)]
@@ -1484,29 +1485,25 @@ mod tests {
                 base_state,
             };
 
-            #[cfg(not(miri))]
-            {
             let (mut matrix, _) = build_transition_matrix(&config);
             let echelon = matrix.to_echelon_form();
             let rank = echelon.count_ones();
             ranks.push(rank);
-            }
         }
         ranks.sort_unstable();
         // Calculate statistics
         let mean_rank = ranks.iter().sum::<usize>() as f64 / iterations as f64;
-        let variance = FSum::with_all(ranks.iter().map(|&r| (r as f64 - mean_rank).powi(2)))
-            .value()
-            / ((iterations - 1) as f64);
-        let std_dev = variance.sqrt();
-
         println!("Rank distribution over {} trials:", iterations);
         println!("  Mean: {:.2}", mean_rank);
-        println!("  Std dev: {:.2}", std_dev);
-        #[cfg(not(miri))]
-        {
-        println!("  Min: {}", ranks.iter().min().unwrap());
-        println!("  Max: {}", ranks.iter().max().unwrap());
+        if iterations > 1 {
+            println!("  Min: {}", ranks.iter().min().unwrap());
+            println!("  Max: {}", ranks.iter().max().unwrap());
+            let variance = FSum::with_all(ranks.iter().map(|&r| (r as f64 - mean_rank).powi(2)))
+                .value()
+                / ((iterations - 1) as f64);
+            let std_dev = variance.sqrt();
+            println!("  Std dev: {:.2}", std_dev);
+            assert!(std_dev <= 2.0, "Too much variation: {:.2}", std_dev);
         }
         // Create histogram
         #[cfg(not(feature = "no_std"))]
@@ -1529,6 +1526,5 @@ mod tests {
         }
 
         assert!(mean_rank >= 2296.0, "Mean rank too low: {:.2}", mean_rank);
-        assert!(std_dev <= 2.0, "Too much variation: {:.2}", std_dev);
     }
 }
