@@ -174,7 +174,7 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             mwc_carry ^= d3.rotate_elements_left::<2>() & mask;
             xoshiro256[0] ^= f_out.as_ref()[16];
             xoshiro256[1] ^= f_out.as_ref()[17];
-            scalar_weyl ^= data.as_ref()[18];
+            scalar_weyl ^= f_out.as_ref()[18];
 
             // Swap: Lanes 0,1 <-> Lanes 2,3
             pcg_state_lo = pcg_state_lo.rotate_elements_left::<2>();
