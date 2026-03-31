@@ -1336,87 +1336,17 @@ mod tests {
         }
     }
 
-    /// Configuration for matrix construction
-    struct MatrixConfig<R: Reproducibility> {
-        /// Number of output steps to consider (should be 3 for full 1536-bit output)
-        steps: usize,
-        /// Base state to use (must be valid)
-        base_state: TripleMixSimdCore<R>,
-    }
-
-    /// Build transition matrix from state bits to output bits
-    #[inline]
-    fn build_transition_matrix<R: Reproducibility>(
-        config: &MatrixConfig<R>,
-    ) -> BitMatrix<u64> {
-        let state_bits = 9 * SIMD_WIDTH * 64; // 9 fields × 4 lanes × 64 bits = 2304 bits
-
-        let output_bits = config.steps * BLOCK_SIZE * 64; // steps × 8 words × 64 bits
-
-        let mut matrix = BitMatrix::<u64>::zeros(output_bits, state_bits);
-
-        // Define fields and their accessors
-        let fields: &[fn(&mut TripleMixSimdCore<R>) -> &mut [u64; 4]] = &[
-            |c| c.pcg_state_lo.as_mut_array(),
-            |c| c.pcg_state_hi.as_mut_array(),
-            |c| c.pcg_inc_lo.as_mut_array(),
-            |c| c.pcg_inc_hi.as_mut_array(),
-            |c| c.tm0.as_mut_array(),
-            |c| c.tm1.as_mut_array(),
-            |c| c.mwc_state.as_mut_array(),
-            |c| c.mwc_carry.as_mut_array(),
-            |c| &mut c.xoshiro256,
-        ];
-
-        // Generate base outputs once
-        let mut base_outputs = vec![[0u64; BLOCK_SIZE]; config.steps];
-        let mut base_core = config.base_state.clone();
-        base_core.fill_blocks(&mut base_outputs);
-
-        let mut col_idx = 0;
-
-        for mut_field in fields {
-
-            for lane in 0..SIMD_WIDTH {
-                for bit in 0..64 {
-
-                    // Create state with this bit flipped
-                    let mut flipped_state = config.base_state.clone();
-                    mut_field(&mut flipped_state)[lane] ^= 1 << bit;
-
-                    // Generate outputs from flipped state
-                    let mut flipped_outputs = vec![[0u64; BLOCK_SIZE]; config.steps];
-                    let mut flipped_core = flipped_state;
-                    flipped_core.fill_blocks(&mut flipped_outputs);
-
-                    // Record differences
-                    for (step_idx, (base_block, flipped_block)) in base_outputs.iter().zip(flipped_outputs.iter()).enumerate() {
-                        for (word_idx, (&base_word, &flipped_word)) in base_block.iter().zip(flipped_block.iter()).enumerate() {
-                            let mut diff = base_word ^ flipped_word;
-                            while diff != 0 {
-                                let out_bit = diff.trailing_zeros() as usize;
-                                let row = step_idx * BLOCK_SIZE * 64 + word_idx * 64 + out_bit;
-                                matrix.set(row, col_idx, true);
-                                diff &= diff - 1;
-                            }
-                        }
-                    }
-
-                    col_idx += 1;
-                }
-            }
-        }
-
-        assert_eq!(
-            col_idx, state_bits,
-            "Should have exactly {} columns",
-            state_bits
-        );
-        matrix
-    }
-
     #[test]
     fn test_4_step_matrix_rank_distribution_miri_xslow() {
+
+        /// Configuration for matrix construction
+        struct MatrixConfig<R: Reproducibility> {
+            /// Number of output steps to consider (should be 3 for full 1536-bit output)
+            steps: usize,
+            /// Base state to use (must be valid)
+            base_state: TripleMixSimdCore<R>,
+        }
+
         #[cfg(feature = "no_std")]
         extern crate alloc;
 
@@ -1426,6 +1356,77 @@ mod tests {
         let iterations = 1000;
         #[cfg(miri)]
         let iterations = 1;
+
+        /// Build transition matrix from state bits to output bits
+        #[inline]
+        fn build_transition_matrix<R: Reproducibility>(
+            config: &MatrixConfig<R>,
+        ) -> BitMatrix<u64> {
+            let state_bits = 9 * SIMD_WIDTH * 64; // 9 fields × 4 lanes × 64 bits = 2304 bits
+
+            let output_bits = config.steps * BLOCK_SIZE * 64; // steps × 8 words × 64 bits
+
+            let mut matrix = BitMatrix::<u64>::zeros(output_bits, state_bits);
+
+            // Define fields and their accessors
+            let fields: &[fn(&mut TripleMixSimdCore<R>) -> &mut [u64; 4]] = &[
+                |c| c.pcg_state_lo.as_mut_array(),
+                |c| c.pcg_state_hi.as_mut_array(),
+                |c| c.pcg_inc_lo.as_mut_array(),
+                |c| c.pcg_inc_hi.as_mut_array(),
+                |c| c.tm0.as_mut_array(),
+                |c| c.tm1.as_mut_array(),
+                |c| c.mwc_state.as_mut_array(),
+                |c| c.mwc_carry.as_mut_array(),
+                |c| &mut c.xoshiro256,
+            ];
+
+            // Generate base outputs once
+            let mut base_outputs = vec![[0u64; BLOCK_SIZE]; config.steps];
+            let mut base_core = config.base_state.clone();
+            base_core.fill_blocks(&mut base_outputs);
+
+            let mut col_idx = 0;
+
+            for mut_field in fields {
+
+                for lane in 0..SIMD_WIDTH {
+                    for bit in 0..64 {
+
+                        // Create state with this bit flipped
+                        let mut flipped_state = config.base_state.clone();
+                        mut_field(&mut flipped_state)[lane] ^= 1 << bit;
+
+                        // Generate outputs from flipped state
+                        let mut flipped_outputs = vec![[0u64; BLOCK_SIZE]; config.steps];
+                        let mut flipped_core = flipped_state;
+                        flipped_core.fill_blocks(&mut flipped_outputs);
+
+                        // Record differences
+                        for (step_idx, (base_block, flipped_block)) in base_outputs.iter().zip(flipped_outputs.iter()).enumerate() {
+                            for (word_idx, (&base_word, &flipped_word)) in base_block.iter().zip(flipped_block.iter()).enumerate() {
+                                let mut diff = base_word ^ flipped_word;
+                                while diff != 0 {
+                                    let out_bit = diff.trailing_zeros() as usize;
+                                    let row = step_idx * BLOCK_SIZE * 64 + word_idx * 64 + out_bit;
+                                    matrix.set(row, col_idx, true);
+                                    diff &= diff - 1;
+                                }
+                            }
+                        }
+
+                        col_idx += 1;
+                    }
+                }
+            }
+
+            assert_eq!(
+                col_idx, state_bits,
+                "Should have exactly {} columns",
+                state_bits
+            );
+            matrix
+        }
 
         for _ in 0..iterations {
             let base_state = TripleMixPrng::<DefaultReproducibility>::from_rng(&mut rng)
