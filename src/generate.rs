@@ -757,8 +757,8 @@ mod tests {
                 mean <= (MIX_OUTPUTS as f64 * 129.0),
                 "Mean weight {mean:.02} too high"
             );
-            assert!(stdev >= 11.0, "Stdev weight {stdev:.02} too low");
-            assert!(stdev <= 14.1, "Stdev weight {stdev:.02} too high");
+            assert!(stdev >= 7.6 * (MIX_OUTPUTS as f64).sqrt(), "Stdev weight {stdev:.02} too low");
+            assert!(stdev <= 8.4 * (MIX_OUTPUTS as f64).sqrt(), "Stdev weight {stdev:.02} too high");
         }
     }
 
@@ -781,12 +781,12 @@ mod tests {
         #[test]
         fn test_second_derivative_proptest(mix_input: [u64; MIX_INPUT_U64S]) {
             let SecondDerivativeStats { min, max, mean, stdev } = evaluate_second_order_derivatives(mix_input);
-            assert!(min as usize >= (AVALANCHE_MATRIX_ROWS * 5) / 16, "Min weight {min} too low");
-            assert!(max as usize <= (AVALANCHE_MATRIX_ROWS * 11) / 16, "Max weight {max} too high");
-            assert!(mean >= 0.49 * AVALANCHE_MATRIX_ROWS as f64, "Mean weight {mean:.02} too low");
-            assert!(mean <= 0.51 * AVALANCHE_MATRIX_ROWS as f64, "Mean weight {mean:.02} too high");
-            assert!(stdev >= 11.0, "Stdev weight {stdev:.02} too low");
-            assert!(stdev <= 14.2, "Stdev weight {stdev:.02} too high");
+            prop_assert!(min as usize >= (AVALANCHE_MATRIX_ROWS * 5) / 16, "Min weight {min} too low");
+            prop_assert!(max as usize <= (AVALANCHE_MATRIX_ROWS * 11) / 16, "Max weight {max} too high");
+            prop_assert!(mean >= 0.49 * AVALANCHE_MATRIX_ROWS as f64, "Mean weight {mean:.02} too low");
+            prop_assert!(mean <= 0.51 * AVALANCHE_MATRIX_ROWS as f64, "Mean weight {mean:.02} too high");
+            prop_assert!(stdev >= 7.6 * (MIX_OUTPUTS as f64).sqrt(), "Stdev weight {stdev:.02} too low");
+            prop_assert!(stdev <= 8.4 * (MIX_OUTPUTS as f64).sqrt(), "Stdev weight {stdev:.02} too high");
         }
 
         #[test]
