@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775025345554,
+  "lastUpdate": 1775025349193,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -48366,6 +48366,156 @@ window.BENCHMARK_DATA = {
             "value": 44,
             "range": "± 3",
             "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a8d7a097d4d1bdf5f7625144f5279442c2d9cd63",
+          "message": "Bump benchmark-action/github-action-benchmark from 1.21.0 to 1.22.0 (#96)\n\nBumps [benchmark-action/github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark) from 1.21.0 to 1.22.0.\n- [Release notes](https://github.com/benchmark-action/github-action-benchmark/releases)\n- [Changelog](https://github.com/benchmark-action/github-action-benchmark/blob/master/CHANGELOG.md)\n- [Commits](https://github.com/benchmark-action/github-action-benchmark/compare/a7bc2366eda11037936ea57d811a43b3418d3073...a60cea5bc7b49e15c1f58f411161f99e0df48372)\n\n---\nupdated-dependencies:\n- dependency-name: benchmark-action/github-action-benchmark\n  dependency-version: 1.22.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-01T05:55:14Z",
+          "tree_id": "ae27696b69931ae356a02b91886011a8815f5a65",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/a8d7a097d4d1bdf5f7625144f5279442c2d9cd63"
+        },
+        "date": 1775025347031,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 19370,
+            "range": "± 314",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 19448,
+            "range": "± 335",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 19513,
+            "range": "± 481",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 1437207,
+            "range": "± 138381",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 146,
+            "range": "± 6",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 19359,
+            "range": "± 96",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 20218,
+            "range": "± 1049",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 20203,
+            "range": "± 669",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 1240356,
+            "range": "± 14762",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 146,
+            "range": "± 3",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/8",
+            "value": 10077,
+            "range": "± 698",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/16",
+            "value": 10093,
+            "range": "± 831",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/32",
+            "value": 10075,
+            "range": "± 501",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/64",
+            "value": 10081,
+            "range": "± 2808",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/72",
+            "value": 9953,
+            "range": "± 51",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/128",
+            "value": 10875,
+            "range": "± 46",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/256",
+            "value": 11641,
+            "range": "± 69",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/288",
+            "value": 11505,
+            "range": "± 30",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/512",
+            "value": 13235,
+            "range": "± 42",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/fork",
+            "value": 11729,
+            "range": "± 68",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: core/fill_blocks",
+            "value": 113,
+            "range": "± 4",
+            "unit": "cycles/iter"
           }
         ]
       }
