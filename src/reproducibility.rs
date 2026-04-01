@@ -1,7 +1,7 @@
 use crate::TripleMixSimdCore;
+use crate::generate::{Simd32, Simd64};
 use bytemuck::{cast, cast_slice};
 use rand_core::block::BlockRng;
-use crate::generate::{Simd32, Simd64};
 
 /// Levels of reproducibility for output of [`TripleMixPrng::fill_bytes`] and output after
 /// fill_bytes has been called.
@@ -84,10 +84,10 @@ impl Reproducibility for NotReproducible {
 #[cfg(feature = "reproducibility_same_endianness")]
 pub mod same_endianness {
     use crate::TripleMixSimdCore;
+    use crate::generate::{Simd32, Simd64};
     use crate::reproducibility::{Reproducibility, fill_bytes_alignment_aware};
     use bytemuck::{cast, cast_slice};
     use rand_core::block::BlockRng;
-    use crate::generate::{Simd32, Simd64};
 
     #[derive(Copy, Clone, Default, Debug)]
     pub struct SameEndianness;
@@ -136,16 +136,16 @@ pub mod same_endianness {
 /// length) on another machine, even if that machine has a different CPU architecture.
 #[cfg(feature = "reproducibility_cross_platform")]
 pub mod cross_platform {
-    use bytemuck::cast;
     use crate::TripleMixSimdCore;
-    use crate::reproducibility::{Reproducibility};
-    use rand_core::block::BlockRng;
-    #[cfg(target_endian = "little")]
-    use bytemuck::cast_slice;
     use crate::generate::{Simd32, Simd64};
+    use crate::reproducibility::Reproducibility;
     #[cfg(target_endian = "little")]
     use crate::reproducibility::fill_bytes_alignment_aware;
-    
+    use bytemuck::cast;
+    #[cfg(target_endian = "little")]
+    use bytemuck::cast_slice;
+    use rand_core::block::BlockRng;
+
     #[derive(Copy, Clone, Default, Debug)]
     pub struct CrossPlatform;
 
@@ -248,7 +248,10 @@ pub mod cross_platform {
     feature = "reproducibility_same_endianness"
 ))]
 #[inline(always)]
-fn fill_bytes_alignment_aware<R: Reproducibility>(block_core: &mut BlockRng<TripleMixSimdCore<R>>, bytes: &mut [u8]) {
+fn fill_bytes_alignment_aware<R: Reproducibility>(
+    block_core: &mut BlockRng<TripleMixSimdCore<R>>,
+    bytes: &mut [u8],
+) {
     let (prefix, u64s, suffix) = unsafe { bytes.align_to_mut::<u64>() };
     if !prefix.is_empty() {
         block_core.fill_bytes(bytes);

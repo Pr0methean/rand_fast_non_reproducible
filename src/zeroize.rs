@@ -43,9 +43,9 @@ mod tests {
     use crate::generate::Simd64;
     use crate::reproducibility::DefaultReproducibility;
     use crate::{BLOCK_SIZE, TripleMixPrng, TripleMixSimdCore, create_rngs};
+    use core::marker::PhantomData;
     use rand_core::Rng;
     use zeroize::Zeroize;
-    use core::marker::PhantomData;
 
     #[test]
     fn test_zeroize() {

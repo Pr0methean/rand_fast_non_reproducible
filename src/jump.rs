@@ -95,18 +95,23 @@ impl<R: Reproducibility> JumpMatrix<R> {
     /// Apply this jump to a state
     fn apply(&self, state_low: Simd64, state_high: Simd64) -> (Simd64, Simd64) {
         // new_state = mult * state + const
-        let (prod_low, prod_high) =
-            TripleMixSimdCore::<R>::mul128x128(self.mult_high, self.mult_low, state_high, state_low);
+        let (prod_low, prod_high) = TripleMixSimdCore::<R>::mul128x128(
+            self.mult_high,
+            self.mult_low,
+            state_high,
+            state_low,
+        );
 
         let (new_low, carry) =
             TripleMixSimdCore::<R>::add128_with_carry(prod_low, self.const_low, Simd64::splat(0));
-        let (new_high, _) = TripleMixSimdCore::<R>::add128_with_carry(prod_high, self.const_high, carry);
+        let (new_high, _) =
+            TripleMixSimdCore::<R>::add128_with_carry(prod_high, self.const_high, carry);
 
         (new_low, new_high)
     }
 }
 
-impl <R: Reproducibility> TripleMixSimdCore<R> {
+impl<R: Reproducibility> TripleMixSimdCore<R> {
     /// 128-bit multiplication by PER-LANE 64-bit multipliers using simd_mulsmall
     /// (high, low) = (a_high, a_low) * b (where b is per lane)
     ///
@@ -139,7 +144,12 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
     }
 
     /// Full 128x128 multiplication. Returns (low, high).
-    fn mul128x128(a_high: Simd64, a_low: Simd64, b_high: Simd64, b_low: Simd64) -> (Simd64, Simd64) {
+    fn mul128x128(
+        a_high: Simd64,
+        a_low: Simd64,
+        b_high: Simd64,
+        b_low: Simd64,
+    ) -> (Simd64, Simd64) {
         let (h1, low) = Self::mul128x64to128(a_high, a_low, b_low);
         let h2 = crate::generate::simd_wrapping_mul(a_low, b_high);
         (low, h1 + h2)
@@ -505,27 +515,32 @@ mod tests {
         let max = Simd64::splat(u64::MAX);
 
         // Basic addition without carry
-        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(one, one, zero);
+        let (sum, c) =
+            TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(one, one, zero);
         assert_eq!(sum[0], 2);
         assert_eq!(c[0], 0);
 
         // Addition with carry-in
-        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(one, one, mask);
+        let (sum, c) =
+            TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(one, one, mask);
         assert_eq!(sum[0], 3);
         assert_eq!(c[0], 0);
 
         // Addition that causes carry-out
-        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(max, one, zero);
+        let (sum, c) =
+            TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(max, one, zero);
         assert_eq!(sum[0], 0);
         assert_eq!(c[0], u64::MAX);
 
         // Addition that causes carry-out via carry-in
-        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(almost_max, one, mask);
+        let (sum, c) =
+            TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(almost_max, one, mask);
         assert_eq!(sum[0], 0);
         assert_eq!(c[0], u64::MAX);
 
         // Adding two max values with carry-in
-        let (sum, c) = TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(max, max, mask);
+        let (sum, c) =
+            TripleMixSimdCore::<DefaultReproducibility>::add128_with_carry(max, max, mask);
         // mask is effectively +1
         // FFFFFFFF + FFFFFFFF + 1 = 2^64 + FFFFFFFF = FFFFFFFF with carry 1
         assert_eq!(sum[0], u64::MAX);
@@ -536,15 +551,24 @@ mod tests {
     fn test_jump_ahead_constants_miri_slow() {
         assert_eq!(
             TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_128_MAT,
-            pow_mat_2_exp(TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_MAT, 128)
+            pow_mat_2_exp(
+                TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_MAT,
+                128
+            )
         );
         assert_eq!(
             TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_256_MAT,
-            pow_mat_2_exp(TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_MAT, 256)
+            pow_mat_2_exp(
+                TripleMixSimdCore::<DefaultReproducibility>::TINYMT_JUMP_MAT,
+                256
+            )
         );
         assert_eq!(
             TripleMixSimdCore::<DefaultReproducibility>::XOSHIRO256_JUMP_128_MAT,
-            pow_mat_256_2_exp(TripleMixSimdCore::<DefaultReproducibility>::XOSHIRO256_JUMP_MAT, 128)
+            pow_mat_256_2_exp(
+                TripleMixSimdCore::<DefaultReproducibility>::XOSHIRO256_JUMP_MAT,
+                128
+            )
         );
         // 2^256 ≡ 1 mod (2^256 - 1), so M^(2^256) should equal M^1
         assert_eq!(
