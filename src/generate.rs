@@ -409,12 +409,13 @@ pub(crate) type Simd32 = Simd<u32, { SIMD_WIDTH * 2 }>;
 #[cfg(test)]
 mod tests {
     use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH, Simd64};
-    use crate::reproducibility::{DefaultReproducibility, NotReproducible, Reproducibility};
+    use crate::reproducibility::{DefaultReproducibility, NotReproducible};
     use crate::{BLOCK_SIZE, TripleMixPrng, TripleMixSimdCore, rng};
     use bytemuck::cast_slice_mut;
     use core::simd::Simd;
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;
+    use const_format::formatcp;
     use fsum::FSum;
     use gf2::{BitMatrix, BitStore, BitVector};
     use hypors::chi_square::goodness_of_fit;
@@ -1336,148 +1337,97 @@ mod tests {
         }
     }
 
-    /// Configuration for matrix construction
-    struct MatrixConfig<R: Reproducibility> {
-        /// Number of output steps to consider (should be 3 for full 1536-bit output)
-        steps: usize,
-        /// Base state to use (must be valid)
-        base_state: TripleMixSimdCore<R>,
-    }
-
-    /// Build transition matrix from state bits to output bits
-    fn build_transition_matrix<R: Reproducibility>(
-        config: &MatrixConfig<R>,
-    ) -> (BitMatrix<u64>, Vec<String>) {
-        let state_bits = 9 * SIMD_WIDTH * 64; // 9 fields × 4 lanes × 64 bits = 2304 bits
-
-        let output_bits = config.steps * BLOCK_SIZE * 64; // steps × 8 words × 64 bits
-
-        let mut matrix = BitMatrix::<u64>::zeros(output_bits, state_bits);
-        let mut column_labels = Vec::with_capacity(state_bits);
-
-        // Define fields and their accessors
-        let fields: &[(
-            &str,
-            fn(&mut TripleMixSimdCore<R>) -> &mut [u64; 4],
-        )] = &[
-            (
-                "pcg_state_lo",
-                |c| c.pcg_state_lo.as_mut_array(),
-            ),
-            (
-                "pcg_state_hi",
-                |c| c.pcg_state_hi.as_mut_array(),
-            ),
-            (
-                "pcg_inc_lo",
-                |c| c.pcg_inc_lo.as_mut_array(),
-            ),
-            (
-                "pcg_inc_hi",
-                |c| c.pcg_inc_hi.as_mut_array(),
-            ),
-            (
-                "tm0",
-                |c| c.tm0.as_mut_array(),
-            ),
-            (
-                "tm1",
-                |c| c.tm1.as_mut_array(),
-            ),
-            (
-                "mwc_state",
-                |c| c.mwc_state.as_mut_array(),
-            ),
-            (
-                "mwc_carry",
-                |c| c.mwc_carry.as_mut_array(),
-            ),
-            (
-                "xoshiro256",
-                |c| &mut c.xoshiro256,
-            ),
-        ];
-
-        // Generate base outputs once
-        let mut base_outputs = vec![[0u64; BLOCK_SIZE]; config.steps];
-        let mut base_core = config.base_state.clone();
-        base_core.fill_blocks(&mut base_outputs);
-
-        let mut col_idx = 0;
-
-        for (field_name, mut_field) in fields {
-
-            for lane in 0..SIMD_WIDTH {
-                for bit in 0..64 {
-                    column_labels.push(format!("{}.lane{}.bit{}", field_name, lane, bit));
-
-                    // Create state with this bit flipped
-                    let mut flipped_state = config.base_state.clone();
-                    mut_field(&mut flipped_state)[lane] ^= 1 << bit;
-
-                    // Generate outputs from flipped state
-                    let mut flipped_outputs = vec![[0u64; BLOCK_SIZE]; config.steps];
-                    let mut flipped_core = flipped_state;
-                    flipped_core.fill_blocks(&mut flipped_outputs);
-
-                    // Record differences
-                    for step in 0..config.steps {
-                        for word in 0..BLOCK_SIZE {
-                            let diff = base_outputs[step][word] ^ flipped_outputs[step][word];
-                            for out_bit in 0..64 {
-                                if (diff >> out_bit) & 1 == 1 {
-                                    let row = step * BLOCK_SIZE * 64 + word * 64 + out_bit;
-                                    matrix.set(row, col_idx, true);
-                                }
-                            }
-                        }
-                    }
-
-                    col_idx += 1;
-                }
-            }
-        }
-
-        assert_eq!(
-            col_idx, state_bits,
-            "Should have exactly {} columns",
-            state_bits
-        );
-        (matrix, column_labels)
-    }
-
-    #[cfg_attr(miri, ignore)]
+    #[cfg_attr(miri, ignore)] // FIXME: This is very slow on Miri but should still be runnable.
     #[test]
-    fn test_4_step_matrix_rank_distribution() {
+    fn test_4_step_matrix_rank_distribution_miri_xslow() {
+
         #[cfg(feature = "no_std")]
         extern crate alloc;
 
         let mut rng = rng();
         let mut ranks = Vec::new();
+        #[cfg(not(miri))]
         let iterations = 1000;
         #[cfg(miri)]
         let iterations = 1;
+        const STEPS: usize = 4;
 
+        const STATE_BITS: usize = 9 * SIMD_WIDTH * 64; // 9 fields × 4 lanes × 64 bits = 2304 bits
+        const OUTPUT_BITS: usize = STEPS * BLOCK_SIZE * 64; // steps × 8 words × 64 bits
+        let mut matrix = BitMatrix::<u64>::zeros(OUTPUT_BITS, STATE_BITS);
+        let mut base_outputs = vec![[0u64; BLOCK_SIZE]; STEPS];
+        let mut flipped_outputs = vec![[0u64; BLOCK_SIZE]; STEPS];
         for _ in 0..iterations {
+            matrix.set_all(false);
             let base_state = TripleMixPrng::<DefaultReproducibility>::from_rng(&mut rng)
                 .block_core
                 .core;
-            let config = MatrixConfig {
-                steps: 4,
-                base_state,
-            };
 
-            let (mut matrix, _) = build_transition_matrix(&config);
+            // Define fields and their accessors
+            let fields: &[fn(&mut TripleMixSimdCore<DefaultReproducibility>) -> &mut [u64; 4]] = &[
+                |c| c.pcg_state_lo.as_mut_array(),
+                |c| c.pcg_state_hi.as_mut_array(),
+                |c| c.pcg_inc_lo.as_mut_array(),
+                |c| c.pcg_inc_hi.as_mut_array(),
+                |c| c.tm0.as_mut_array(),
+                |c| c.tm1.as_mut_array(),
+                |c| c.mwc_state.as_mut_array(),
+                |c| c.mwc_carry.as_mut_array(),
+                |c| &mut c.xoshiro256,
+            ];
+
+            // Generate base outputs once
+            let mut base_core = base_state.clone();
+            base_core.fill_blocks(&mut base_outputs);
+
+            let mut col_idx = 0;
+            for mut_field in fields {
+                for lane in 0..SIMD_WIDTH {
+                    for bit in 0..64 {
+
+                        // Create state with this bit flipped
+                        let mut flipped_state = base_state.clone();
+                        mut_field(&mut flipped_state)[lane] ^= 1 << bit;
+
+                        // Generate outputs from flipped state
+                        flipped_state.fill_blocks(&mut flipped_outputs);
+
+                        // Record differences
+                        for (step_idx, (base_block, flipped_block)) in base_outputs.iter().zip(flipped_outputs.iter()).enumerate() {
+                            for (word_idx, (&base_word, &flipped_word)) in base_block.iter().zip(flipped_block.iter()).enumerate() {
+                                let mut diff = base_word ^ flipped_word;
+                                while diff != 0 {
+                                    let out_bit = diff.trailing_zeros() as usize;
+                                    let row = step_idx * BLOCK_SIZE * 64 + word_idx * 64 + out_bit;
+                                    matrix.set(row, col_idx, true);
+                                    diff &= diff - 1;
+                                }
+                            }
+                        }
+
+                        col_idx += 1;
+                    }
+                }
+            }
+
+            assert_eq!(
+                col_idx, STATE_BITS, "{}",
+                formatcp!("Should have exactly {} columns", STATE_BITS)
+            );
             let echelon = matrix.to_echelon_form();
             let rank = echelon.count_ones();
-            ranks.push(rank);
+            if iterations > 1 {
+                ranks.push(rank);
+            } else {
+                assert!(rank >= STATE_BITS - 5, "Rank too low for {STATE_BITS} state bits: {}", rank);
+            }
         }
-        ranks.sort_unstable();
-        // Calculate statistics
-        let mean_rank = ranks.iter().sum::<usize>() as f64 / iterations as f64;
-        println!("Rank distribution over {} trials:", iterations);
-        println!("  Mean: {:.2}", mean_rank);
         if iterations > 1 {
+            ranks.sort_unstable();
+            // Calculate statistics
+            let mean_rank = ranks.iter().sum::<usize>() as f64 / iterations as f64;
+            println!("Rank distribution over {} trials:", iterations);
+            println!("  Mean: {:.2}", mean_rank);
             println!("  Min: {}", ranks.iter().min().unwrap());
             println!("  Max: {}", ranks.iter().max().unwrap());
             let variance = FSum::with_all(ranks.iter().map(|&r| (r as f64 - mean_rank).powi(2)))
@@ -1486,27 +1436,26 @@ mod tests {
             let std_dev = variance.sqrt();
             println!("  Std dev: {:.2}", std_dev);
             assert!(std_dev <= 2.0, "Too much variation: {:.2}", std_dev);
-        }
-        // Create histogram
-        #[cfg(not(feature = "no_std"))]
-        let mut hist = std::collections::HashMap::new();
-        #[cfg(feature = "no_std")]
-        let mut hist = alloc::collections::BTreeMap::new();
-        for &rank in &ranks {
-            *hist.entry(rank).or_insert(0) += 1;
-        }
+            // Create histogram
+            #[cfg(not(feature = "no_std"))]
+            let mut hist = std::collections::HashMap::new();
+            #[cfg(feature = "no_std")]
+            let mut hist = alloc::collections::BTreeMap::new();
+            for &rank in &ranks {
+                *hist.entry(rank).or_insert(0) += 1;
+            }
 
-        let mut hist_vec: Vec<_> = hist.into_iter().collect();
-        hist_vec.sort();
-        for (rank, count) in hist_vec {
-            println!(
-                "  Rank {}: {} trials ({:.1}%)",
-                rank,
-                count,
-                100.0 * count as f64 / iterations as f64
-            );
+            let mut hist_vec: Vec<_> = hist.into_iter().collect();
+            hist_vec.sort();
+            for (rank, count) in hist_vec {
+                println!(
+                    "  Rank {}: {} trials ({:.1}%)",
+                    rank,
+                    count,
+                    100.0 * count as f64 / iterations as f64
+                );
+            }
+            assert!(mean_rank >= (STATE_BITS as f64 - 4.5), "Mean rank too low for {STATE_BITS} state bits: {:.2}", mean_rank);
         }
-
-        assert!(mean_rank >= 2296.0, "Mean rank too low: {:.2}", mean_rank);
     }
 }

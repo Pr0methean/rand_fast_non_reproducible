@@ -2,6 +2,11 @@ use crate::TripleMixPrng;
 use crate::generate::Simd64;
 use crate::reproducibility::Reproducibility;
 
+#[cfg(all(feature = "no_std", feature = "serde"))]
+extern crate alloc;
+#[cfg(all(feature = "no_std", feature = "serde"))]
+use alloc::boxed::Box;
+
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct CoreState {
     pcg_state_lo: [u64; 4],
@@ -90,10 +95,11 @@ mod tests {
             let json = serde_json::to_string(&prng).unwrap();
             let prng_copy: TripleMixPrng<DefaultReproducibility> =
                 serde_json::from_str(&json).unwrap();
-            assert_eq!(
-                prng.block_core.core.as_bytes(),
-                prng_copy.block_core.core.as_bytes()
-            );
+            let mut bytes1 = [0u8; 288];
+            let mut bytes2 = [0u8; 288];
+            prng.block_core.core.copy_to_le_bytes(&mut bytes1);
+            prng_copy.block_core.core.copy_to_le_bytes(&mut bytes2);
+            assert_eq!(bytes1, bytes2);
             assert_eq!(
                 prng.block_core.remaining_results(),
                 prng_copy.block_core.remaining_results()
