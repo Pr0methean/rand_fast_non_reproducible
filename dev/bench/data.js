@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775014821271,
+  "lastUpdate": 1775015086650,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -45963,6 +45963,156 @@ window.BENCHMARK_DATA = {
           },
           {
             "name": "aarch64:linux: core/fill_blocks",
+            "value": 73,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7deb1cfaa41b9e60176777cab1c55a12c53bad47",
+          "message": "Fix: eliminate `cast_u8_slice_as_u64` (unsound due to alignment) and enable test_4_step_matrix_rank_distribution in Miri with reduced iterations (#93)",
+          "timestamp": "2026-04-01T03:13:46Z",
+          "tree_id": "e33dc8643d7c016ad237b9a5a89ec8189c407fc9",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/7deb1cfaa41b9e60176777cab1c55a12c53bad47"
+        },
+        "date": 1775015079898,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 12383,
+            "range": "± 212",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 12364,
+            "range": "± 194",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 12375,
+            "range": "± 193",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 788629,
+            "range": "± 60771",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 66,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 12270,
+            "range": "± 163",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 13560,
+            "range": "± 182",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 13592,
+            "range": "± 846",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 784497,
+            "range": "± 2660",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 66,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/8",
+            "value": 3415,
+            "range": "± 51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/16",
+            "value": 3409,
+            "range": "± 99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/32",
+            "value": 3399,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/64",
+            "value": 3417,
+            "range": "± 65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/72",
+            "value": 3363,
+            "range": "± 72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/128",
+            "value": 3650,
+            "range": "± 73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/256",
+            "value": 3919,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/288",
+            "value": 3875,
+            "range": "± 49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/512",
+            "value": 4464,
+            "range": "± 54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/fork",
+            "value": 3969,
+            "range": "± 51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: core/fill_blocks",
             "value": 73,
             "range": "± 0",
             "unit": "ns/iter"
