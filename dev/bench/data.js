@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775033078893,
+  "lastUpdate": 1775033093497,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -49716,6 +49716,156 @@ window.BENCHMARK_DATA = {
             "value": 55,
             "range": "± 4",
             "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b3dbf91a2a09a4b7c1c02827d3d782cba80a8de5",
+          "message": "Add a 64-bit Weyl sequence and increase output to 1024 bits (#99)\n\n* Skip some calculations and unused column-label generation so test can finish faster in Miri\n\n* Optimizations for fill_blocks: start some multiplications slightly sooner, interleave scalar xoshiro with SIMD TinyMT\n\n* Revert functional changes, because test_mix_matrix_proptest is failing (doesn't fix them though)\n\n* Fix: alternate rotating lanes left/right in round3\n\n* Fix: improve mixing by alternating round-input positions\n\n* Move constants into `mix()` that are only used there\n\n* Revert: PCG multipliers are also used in `jump()`\n\n* WIP: Add a scalar Weyl sequence and increase output to 1024 bits\n\n* Fix merge\n\n* Fix merge\n\n* Recalculated stdev bounds (advised by ChatGPT)\n\n* Fix merge\n\n* cargo fmt --all\n\n* Remove an unused constant",
+          "timestamp": "2026-04-01T08:19:35Z",
+          "tree_id": "76100722fd3d2229d7eb6359b1312db092615611",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/b3dbf91a2a09a4b7c1c02827d3d782cba80a8de5"
+        },
+        "date": 1775033091893,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "x86_64:linux:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 17705,
+            "range": "± 36",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 17793,
+            "range": "± 20",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 17793,
+            "range": "± 34",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 1134052,
+            "range": "± 2407",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 94,
+            "range": "± 1",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 17707,
+            "range": "± 84",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 18688,
+            "range": "± 31",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 18606,
+            "range": "± 33",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 1135780,
+            "range": "± 16449",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 92,
+            "range": "± 0",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/8",
+            "value": 9907,
+            "range": "± 178",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/16",
+            "value": 9906,
+            "range": "± 41",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/32",
+            "value": 9908,
+            "range": "± 242",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/64",
+            "value": 9903,
+            "range": "± 58",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/72",
+            "value": 9868,
+            "range": "± 34",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/128",
+            "value": 10747,
+            "range": "± 80",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/256",
+            "value": 11520,
+            "range": "± 41",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/288",
+            "value": 11487,
+            "range": "± 30",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/512",
+            "value": 13100,
+            "range": "± 541",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/fork",
+            "value": 11815,
+            "range": "± 114",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: core/fill_blocks",
+            "value": 137,
+            "range": "± 2",
+            "unit": "cycles/iter"
           }
         ]
       }
