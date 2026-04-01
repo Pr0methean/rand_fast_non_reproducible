@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775033039608,
+  "lastUpdate": 1775033078893,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -49565,6 +49565,156 @@ window.BENCHMARK_DATA = {
             "name": "aarch64:linux: core/fill_blocks",
             "value": 92,
             "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b3dbf91a2a09a4b7c1c02827d3d782cba80a8de5",
+          "message": "Add a 64-bit Weyl sequence and increase output to 1024 bits (#99)\n\n* Skip some calculations and unused column-label generation so test can finish faster in Miri\n\n* Optimizations for fill_blocks: start some multiplications slightly sooner, interleave scalar xoshiro with SIMD TinyMT\n\n* Revert functional changes, because test_mix_matrix_proptest is failing (doesn't fix them though)\n\n* Fix: alternate rotating lanes left/right in round3\n\n* Fix: improve mixing by alternating round-input positions\n\n* Move constants into `mix()` that are only used there\n\n* Revert: PCG multipliers are also used in `jump()`\n\n* WIP: Add a scalar Weyl sequence and increase output to 1024 bits\n\n* Fix merge\n\n* Fix merge\n\n* Recalculated stdev bounds (advised by ChatGPT)\n\n* Fix merge\n\n* cargo fmt --all\n\n* Remove an unused constant",
+          "timestamp": "2026-04-01T08:19:35Z",
+          "tree_id": "76100722fd3d2229d7eb6359b1312db092615611",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/b3dbf91a2a09a4b7c1c02827d3d782cba80a8de5"
+        },
+        "date": 1775033076184,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 7275,
+            "range": "± 1065",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 7007,
+            "range": "± 1026",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 8373,
+            "range": "± 3161",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 536034,
+            "range": "± 144424",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 37,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 7609,
+            "range": "± 2085",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 8089,
+            "range": "± 1413",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 7062,
+            "range": "± 1204",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 456676,
+            "range": "± 55333",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 38,
+            "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/8",
+            "value": 2960,
+            "range": "± 119",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/16",
+            "value": 3505,
+            "range": "± 517",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/32",
+            "value": 3190,
+            "range": "± 523",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/64",
+            "value": 2992,
+            "range": "± 574",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/72",
+            "value": 2926,
+            "range": "± 163",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/128",
+            "value": 3335,
+            "range": "± 879",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/256",
+            "value": 3444,
+            "range": "± 260",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/288",
+            "value": 3467,
+            "range": "± 659",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/from_seed/512",
+            "value": 3739,
+            "range": "± 39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: Initialization/fork",
+            "value": 3418,
+            "range": "± 103",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: core/fill_blocks",
+            "value": 55,
+            "range": "± 4",
             "unit": "ns/iter"
           }
         ]
