@@ -1,17 +1,17 @@
 use crate::generate::{Simd64, TINYMT64_LANE_MASK};
 use crate::{Reproducibility, VERSION_OID};
 use crate::{TripleMixPrng, TripleMixSimdCore};
+use bytemuck::{cast_slice, cast_slice_mut};
 use const_format::formatcp;
 use core::hint::cold_path;
 use core::marker::PhantomData;
 use core::simd::Simd;
 use core::simd::cmp::SimdPartialEq;
+use core::simd::cmp::SimdPartialOrd;
 use generic_array::GenericArray;
 use rand::RngExt;
 use rand_core::SeedableRng;
 use rand_core::block::BlockRng;
-use core::simd::cmp::SimdPartialOrd;
-use bytemuck::{cast_slice, cast_slice_mut};
 use tiny_keccak::{Hasher, IntoXof, Kmac, Xof};
 use typenum::U;
 
@@ -278,8 +278,12 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         // Dead-state check
         if ((self.tm0 | self.tm1).simd_eq(Simd::splat(0))
             | (self.mwc_state | self.mwc_carry).simd_eq(Simd::splat(0))
-            | self.mwc_state.simd_ge(TripleMixSimdCore::<R>::MCG_MULTIPLIERS)
-            | self.mwc_carry.simd_ge(TripleMixSimdCore::<R>::MCG_MULTIPLIERS)
+            | self
+                .mwc_state
+                .simd_ge(TripleMixSimdCore::<R>::MCG_MULTIPLIERS)
+            | self
+                .mwc_carry
+                .simd_ge(TripleMixSimdCore::<R>::MCG_MULTIPLIERS)
             | (self.mwc_state & self.mwc_carry)
                 .simd_eq(TripleMixSimdCore::<R>::MCG_MULTIPLIERS - Simd::splat(1))
             | (self.pcg_inc_lo & Simd::splat(1)).simd_ne(Simd::splat(1)))
@@ -332,10 +336,10 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{rng, TripleMixPrng};
     use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::DefaultReproducibility;
     use crate::seed::{DEFAULT_SEED_SIZE, get_base_kmac};
+    use crate::{TripleMixPrng, rng};
     use core::hint::black_box;
     use generic_array::GenericArray;
     use rand_core::{Rng, SeedableRng};
@@ -533,8 +537,6 @@ mod tests {
 
     #[test]
     fn test_from_rng() {
-        black_box(
-            TripleMixPrng::<DefaultReproducibility>::from_rng(&mut rng()).next_u64(),
-        );
+        black_box(TripleMixPrng::<DefaultReproducibility>::from_rng(&mut rng()).next_u64());
     }
 }

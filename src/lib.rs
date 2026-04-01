@@ -18,12 +18,12 @@ mod serde;
 #[cfg(feature = "zeroize")]
 mod zeroize;
 
-use crate::generate::{Simd32, MIX_OUTPUTS, SIMD_WIDTH};
+use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH, Simd32};
 use crate::reproducibility::{DefaultReproducibility, NotReproducible};
 use const_format::formatcp;
 use core::convert::Infallible;
 use core::marker::PhantomData;
-use core::simd::{simd_swizzle, Simd, ToBytes};
+use core::simd::{Simd, ToBytes, simd_swizzle};
 use generate::Simd64;
 use rand_core::TryRng;
 use rand_core::block::BlockRng;
@@ -44,7 +44,7 @@ pub struct TripleMixSimdCore<R: Reproducibility> {
     pub(crate) reproducibility: PhantomData<R>,
 }
 
-impl <R: Reproducibility> core::fmt::Debug for TripleMixSimdCore<R> {
+impl<R: Reproducibility> core::fmt::Debug for TripleMixSimdCore<R> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let x2 = self.mwc_carry;
         let x3 = self.mwc_state;
@@ -69,8 +69,7 @@ impl <R: Reproducibility> core::fmt::Debug for TripleMixSimdCore<R> {
     }
 }
 
-impl <R: Reproducibility> TripleMixSimdCore<R> {
-
+impl<R: Reproducibility> TripleMixSimdCore<R> {
     #[allow(unused)]
     #[inline(always)]
     fn portable_mul_lo_hi(a: Simd32, b: Simd32) -> (Simd32, Simd32) {
