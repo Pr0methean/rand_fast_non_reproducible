@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775033136744,
+  "lastUpdate": 1775033166535,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -50165,6 +50165,156 @@ window.BENCHMARK_DATA = {
             "name": "x86_64:macos: core/fill_blocks",
             "value": 143,
             "range": "± 9",
+            "unit": "cycles/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b3dbf91a2a09a4b7c1c02827d3d782cba80a8de5",
+          "message": "Add a 64-bit Weyl sequence and increase output to 1024 bits (#99)\n\n* Skip some calculations and unused column-label generation so test can finish faster in Miri\n\n* Optimizations for fill_blocks: start some multiplications slightly sooner, interleave scalar xoshiro with SIMD TinyMT\n\n* Revert functional changes, because test_mix_matrix_proptest is failing (doesn't fix them though)\n\n* Fix: alternate rotating lanes left/right in round3\n\n* Fix: improve mixing by alternating round-input positions\n\n* Move constants into `mix()` that are only used there\n\n* Revert: PCG multipliers are also used in `jump()`\n\n* WIP: Add a scalar Weyl sequence and increase output to 1024 bits\n\n* Fix merge\n\n* Fix merge\n\n* Recalculated stdev bounds (advised by ChatGPT)\n\n* Fix merge\n\n* cargo fmt --all\n\n* Remove an unused constant",
+          "timestamp": "2026-04-01T08:19:35Z",
+          "tree_id": "76100722fd3d2229d7eb6359b1312db092615611",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/b3dbf91a2a09a4b7c1c02827d3d782cba80a8de5"
+        },
+        "date": 1775033163588,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 17683,
+            "range": "± 213",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 17905,
+            "range": "± 204",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 17848,
+            "range": "± 101",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 1133024,
+            "range": "± 6680",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 143,
+            "range": "± 0",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 17677,
+            "range": "± 84",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 18540,
+            "range": "± 191",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 18597,
+            "range": "± 221",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 1132269,
+            "range": "± 5123",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 143,
+            "range": "± 1",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/8",
+            "value": 10136,
+            "range": "± 77",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/16",
+            "value": 10087,
+            "range": "± 110",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/32",
+            "value": 10109,
+            "range": "± 121",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/64",
+            "value": 10135,
+            "range": "± 139",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/72",
+            "value": 10021,
+            "range": "± 161",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/128",
+            "value": 10989,
+            "range": "± 397",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/256",
+            "value": 11865,
+            "range": "± 1858",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/288",
+            "value": 20818,
+            "range": "± 3764",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/from_seed/512",
+            "value": 13283,
+            "range": "± 1861",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: Initialization/fork",
+            "value": 11815,
+            "range": "± 2088",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: core/fill_blocks",
+            "value": 139,
+            "range": "± 2",
             "unit": "cycles/iter"
           }
         ]
