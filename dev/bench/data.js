@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775033093497,
+  "lastUpdate": 1775033127918,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -49866,6 +49866,156 @@ window.BENCHMARK_DATA = {
             "value": 137,
             "range": "± 2",
             "unit": "cycles/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b3dbf91a2a09a4b7c1c02827d3d782cba80a8de5",
+          "message": "Add a 64-bit Weyl sequence and increase output to 1024 bits (#99)\n\n* Skip some calculations and unused column-label generation so test can finish faster in Miri\n\n* Optimizations for fill_blocks: start some multiplications slightly sooner, interleave scalar xoshiro with SIMD TinyMT\n\n* Revert functional changes, because test_mix_matrix_proptest is failing (doesn't fix them though)\n\n* Fix: alternate rotating lanes left/right in round3\n\n* Fix: improve mixing by alternating round-input positions\n\n* Move constants into `mix()` that are only used there\n\n* Revert: PCG multipliers are also used in `jump()`\n\n* WIP: Add a scalar Weyl sequence and increase output to 1024 bits\n\n* Fix merge\n\n* Fix merge\n\n* Recalculated stdev bounds (advised by ChatGPT)\n\n* Fix merge\n\n* cargo fmt --all\n\n* Remove an unused constant",
+          "timestamp": "2026-04-01T08:19:35Z",
+          "tree_id": "76100722fd3d2229d7eb6359b1312db092615611",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/b3dbf91a2a09a4b7c1c02827d3d782cba80a8de5"
+        },
+        "date": 1775033120567,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 11287,
+            "range": "± 178",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 11349,
+            "range": "± 147",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 11358,
+            "range": "± 1453",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 723673,
+            "range": "± 18501",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 69,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 11362,
+            "range": "± 218",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 12550,
+            "range": "± 5658",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 12407,
+            "range": "± 296",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 727159,
+            "range": "± 47719",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 68,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/8",
+            "value": 3396,
+            "range": "± 58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/16",
+            "value": 3393,
+            "range": "± 26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/32",
+            "value": 3392,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/64",
+            "value": 3397,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/72",
+            "value": 3354,
+            "range": "± 53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/128",
+            "value": 3645,
+            "range": "± 54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/256",
+            "value": 3921,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/288",
+            "value": 3870,
+            "range": "± 51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/from_seed/512",
+            "value": 4450,
+            "range": "± 60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: Initialization/fork",
+            "value": 3991,
+            "range": "± 241",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: core/fill_blocks",
+            "value": 93,
+            "range": "± 0",
+            "unit": "ns/iter"
           }
         ]
       }
