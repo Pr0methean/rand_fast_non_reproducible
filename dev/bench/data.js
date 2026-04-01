@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775025176721,
+  "lastUpdate": 1775025199794,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -47766,6 +47766,156 @@ window.BENCHMARK_DATA = {
             "value": 73,
             "range": "± 0",
             "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a8d7a097d4d1bdf5f7625144f5279442c2d9cd63",
+          "message": "Bump benchmark-action/github-action-benchmark from 1.21.0 to 1.22.0 (#96)\n\nBumps [benchmark-action/github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark) from 1.21.0 to 1.22.0.\n- [Release notes](https://github.com/benchmark-action/github-action-benchmark/releases)\n- [Changelog](https://github.com/benchmark-action/github-action-benchmark/blob/master/CHANGELOG.md)\n- [Commits](https://github.com/benchmark-action/github-action-benchmark/compare/a7bc2366eda11037936ea57d811a43b3418d3073...a60cea5bc7b49e15c1f58f411161f99e0df48372)\n\n---\nupdated-dependencies:\n- dependency-name: benchmark-action/github-action-benchmark\n  dependency-version: 1.22.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-01T05:55:14Z",
+          "tree_id": "ae27696b69931ae356a02b91886011a8815f5a65",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/a8d7a097d4d1bdf5f7625144f5279442c2d9cd63"
+        },
+        "date": 1775025198036,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "x86_64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 18835,
+            "range": "± 1883",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 19227,
+            "range": "± 1112",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 18448,
+            "range": "± 1501",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 1134419,
+            "range": "± 93005",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 127,
+            "range": "± 9",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 18375,
+            "range": "± 1615",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 21620,
+            "range": "± 1613",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 22246,
+            "range": "± 1755",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 1183362,
+            "range": "± 40752",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 122,
+            "range": "± 3",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: Initialization/from_seed/8",
+            "value": 15251,
+            "range": "± 762",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: Initialization/from_seed/16",
+            "value": 15427,
+            "range": "± 1490",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: Initialization/from_seed/32",
+            "value": 16261,
+            "range": "± 540",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: Initialization/from_seed/64",
+            "value": 15581,
+            "range": "± 1077",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: Initialization/from_seed/72",
+            "value": 15013,
+            "range": "± 772",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: Initialization/from_seed/128",
+            "value": 16900,
+            "range": "± 1280",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: Initialization/from_seed/256",
+            "value": 18752,
+            "range": "± 1730",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: Initialization/from_seed/288",
+            "value": 17319,
+            "range": "± 1166",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: Initialization/from_seed/512",
+            "value": 19422,
+            "range": "± 1033",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: Initialization/fork",
+            "value": 17125,
+            "range": "± 732",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:macos: core/fill_blocks",
+            "value": 116,
+            "range": "± 7",
+            "unit": "cycles/iter"
           }
         ]
       }
