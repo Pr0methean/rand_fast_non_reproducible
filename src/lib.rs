@@ -23,7 +23,7 @@ use crate::reproducibility::{DefaultReproducibility, NotReproducible};
 use const_format::formatcp;
 use core::convert::Infallible;
 use core::marker::PhantomData;
-use core::simd::{simd_swizzle, Simd};
+use core::simd::{simd_swizzle, Simd, ToBytes};
 use generate::Simd64;
 use rand_core::TryRng;
 use rand_core::block::BlockRng;
@@ -32,16 +32,16 @@ use reproducibility::Reproducibility;
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct TripleMixSimdCore<R: Reproducibility> {
-    tm0: Simd64, // TinyMT64 state
-    tm1: Simd64, // TinyMT64 state, with highest bit always 0
-    mwc_state: Simd64,
-    mwc_carry: Simd64,
-    pcg_state_lo: Simd64,
-    pcg_state_hi: Simd64,
-    pcg_inc_lo: Simd64,
-    pcg_inc_hi: Simd64,
-    xoshiro256: [u64; 4],
-    reproducibility: PhantomData<R>,
+    pub(crate) tm0: Simd64, // TinyMT64 state
+    pub(crate) tm1: Simd64, // TinyMT64 state, with highest bit always 0
+    pub(crate) mwc_state: Simd64,
+    pub(crate) mwc_carry: Simd64,
+    pub(crate) pcg_state_lo: Simd64,
+    pub(crate) pcg_state_hi: Simd64,
+    pub(crate) pcg_inc_lo: Simd64,
+    pub(crate) pcg_inc_hi: Simd64,
+    pub(crate) xoshiro256: [u64; 4],
+    pub(crate) reproducibility: PhantomData<R>,
 }
 
 impl <R: Reproducibility> core::fmt::Debug for TripleMixSimdCore<R> {
@@ -125,16 +125,27 @@ impl <R: Reproducibility> TripleMixSimdCore<R> {
     }
 
     #[inline(always)]
-    fn as_bytes(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts((self as *const Self) as *const u8, size_of::<Self>()) }
+    pub fn copy_to_le_bytes(&self, dst: &mut [u8]) {
+        dst[0..32].copy_from_slice(self.tm0.to_le_bytes().as_array());
+        dst[32..64].copy_from_slice(self.tm1.to_le_bytes().as_array());
+        dst[64..96].copy_from_slice(self.mwc_state.to_le_bytes().as_array());
+        dst[96..128].copy_from_slice(self.mwc_carry.to_le_bytes().as_array());
+        dst[128..160].copy_from_slice(self.pcg_state_lo.to_le_bytes().as_array());
+        dst[160..192].copy_from_slice(self.pcg_state_hi.to_le_bytes().as_array());
+        dst[192..224].copy_from_slice(self.pcg_inc_lo.to_le_bytes().as_array());
+        dst[224..256].copy_from_slice(self.pcg_inc_hi.to_le_bytes().as_array());
+        let mut chunks = dst[256..288].chunks_exact_mut(8);
+        for &word in &self.xoshiro256 {
+            chunks.next().unwrap().copy_from_slice(&word.to_le_bytes());
+        }
     }
 }
 
 /// Instances must not be used again after being zeroized.
 #[derive(Clone, Debug)]
 pub struct TripleMixPrng<R: Reproducibility = DefaultReproducibility> {
-    block_core: BlockRng<TripleMixSimdCore<R>>,
-    reproducibility: PhantomData<R>,
+    pub(crate) block_core: BlockRng<TripleMixSimdCore<R>>,
+    pub(crate) reproducibility: PhantomData<R>,
 }
 
 pub const TRIPLE_MIX_PRNG_OID: &str = "1.3.6.1.4.1.54392.5.3311";

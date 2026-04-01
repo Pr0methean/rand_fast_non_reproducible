@@ -7,9 +7,7 @@ use crate::generate::{Simd32, Simd64};
 /// fill_bytes has been called.
 pub trait Reproducibility: Clone + Copy {
     type U8Slice<'a>: AsRef<[u8]>;
-    type U64Slice<'a>: AsRef<[u64]>;
     fn fill_bytes(core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]);
-    fn cast_u8_slice_as_u64(slice: &[u8]) -> Self::U64Slice<'_>;
     fn cast_u64_slice_as_u8(slice: &[u64]) -> Self::U8Slice<'_>;
     fn u64_as_bytes(input: u64) -> [u8; 8];
     fn u128_as_bytes(input: u128) -> [u8; 16];
@@ -39,7 +37,6 @@ pub struct NotReproducible;
 
 impl Reproducibility for NotReproducible {
     type U8Slice<'a> = &'a [u8];
-    type U64Slice<'a> = &'a [u64];
     #[inline(always)]
     fn fill_bytes(block_core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]) {
         let (prefix, u64s, suffix) = unsafe { bytes.align_to_mut::<u64>() };
@@ -53,11 +50,6 @@ impl Reproducibility for NotReproducible {
             block_core.fill_bytes(prefix);
         }
         fill_bytes_inner::<Self>(block_core, u64s, suffix);
-    }
-
-    #[inline(always)]
-    fn cast_u8_slice_as_u64(slice: &[u8]) -> &[u64] {
-        cast_slice(slice)
     }
 
     #[inline(always)]
@@ -102,15 +94,9 @@ pub mod same_endianness {
 
     impl Reproducibility for SameEndianness {
         type U8Slice<'a> = &'a [u8];
-        type U64Slice<'a> = &'a [u64];
 
         fn fill_bytes(core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]) {
             fill_bytes_alignment_aware::<Self>(core, bytes);
-        }
-
-        #[inline(always)]
-        fn cast_u8_slice_as_u64(slice: &[u8]) -> &[u64] {
-            cast_slice(slice)
         }
 
         #[inline(always)]
@@ -170,10 +156,6 @@ pub mod cross_platform {
         #[cfg(target_endian = "big")]
         type U8Slice<'a> = Vec<u8>;
         #[cfg(target_endian = "little")]
-        type U64Slice<'a> = &'a [u64];
-        #[cfg(target_endian = "big")]
-        type U64Slice<'a> = Vec<u64>;
-        #[cfg(target_endian = "little")]
         #[inline(always)]
         fn fill_bytes(block_core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]) {
             fill_bytes_alignment_aware::<Self>(block_core, bytes);
@@ -182,21 +164,6 @@ pub mod cross_platform {
         #[inline(always)]
         fn fill_bytes(block_core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]) {
             block_core.fill_bytes(bytes);
-        }
-
-        #[cfg(target_endian = "little")]
-        #[inline(always)]
-        fn cast_u8_slice_as_u64(slice: &[u8]) -> &[u64] {
-            cast_slice(slice)
-        }
-
-        #[cfg(target_endian = "big")]
-        #[inline(always)]
-        fn cast_u8_slice_as_u64(slice: &[u8]) -> Vec<u64> {
-            slice
-                .chunks_exact(8)
-                .map(|chunk| u64::from_le_bytes(chunk.try_into().unwrap()))
-                .collect()
         }
 
         #[cfg(target_endian = "little")]

@@ -11,6 +11,7 @@ use rand::RngExt;
 use rand_core::SeedableRng;
 use rand_core::block::BlockRng;
 use core::simd::cmp::SimdPartialOrd;
+use bytemuck::{cast_slice, cast_slice_mut};
 use tiny_keccak::{Hasher, IntoXof, Kmac, Xof};
 use typenum::U;
 
@@ -123,7 +124,7 @@ impl<R: Reproducibility> TripleMixPrng<R> {
         let mut xoshiro256 = [0u64; 4];
         for round in 0..4 {
             let mut round_kmac = base.clone();
-            round_kmac.update(&R::u128_as_bytes(tweak + ((round as u128) << 126)));
+            round_kmac.update(&(tweak + ((round as u128) << 126)).to_le_bytes());
 
             // Update KMAC from right half
             let mut buffer = [0u64; 18];
@@ -139,19 +140,25 @@ impl<R: Reproducibility> TripleMixPrng<R> {
             buffer[12..14].copy_from_slice(&mwc_state.as_array()[2..4]);
             buffer[14..16].copy_from_slice(&mwc_carry.as_array()[2..4]);
             buffer[16..18].copy_from_slice(&xoshiro256[2..4]);
-            round_kmac.update(R::cast_u64_slice_as_u8(&buffer).as_ref());
+
+            for word in &mut buffer {
+                *word = word.to_le();
+            }
+            round_kmac.update(cast_slice(&buffer));
 
             let mut reader = round_kmac.into_xof();
-            let mut f_out = [0u8; 144];
-            reader.squeeze(&mut f_out);
+            let mut f_out = [0u64; 18];
+            reader.squeeze(cast_slice_mut(&mut f_out));
+            for word in &mut f_out {
+                *word = u64::from_le(*word);
+            }
 
             // Xor into left half
             let mask = Simd::from_array([!0, !0, 0, 0]);
-            let data = R::cast_u8_slice_as_u64(&f_out);
-            let d0 = Simd::from_slice(&data.as_ref()[0..4]); // words 0,1,2,3
-            let d1 = Simd::from_slice(&data.as_ref()[4..8]); // words 4,5,6,7
-            let d2 = Simd::from_slice(&data.as_ref()[8..12]); // words 8,9,10,11
-            let d3 = Simd::from_slice(&data.as_ref()[12..16]); // words 12,13,14,15
+            let d0 = Simd::from_slice(&f_out.as_ref()[0..4]); // words 0,1,2,3
+            let d1 = Simd::from_slice(&f_out.as_ref()[4..8]); // words 4,5,6,7
+            let d2 = Simd::from_slice(&f_out.as_ref()[8..12]); // words 8,9,10,11
+            let d3 = Simd::from_slice(&f_out.as_ref()[12..16]); // words 12,13,14,15
             pcg_state_lo ^= d0 & mask;
             // Use a swizzle to get words 2,3 into lanes 0,1
             pcg_state_hi ^= d0.rotate_elements_left::<2>() & mask;
@@ -164,8 +171,8 @@ impl<R: Reproducibility> TripleMixPrng<R> {
 
             mwc_state ^= d3 & mask;
             mwc_carry ^= d3.rotate_elements_left::<2>() & mask;
-            xoshiro256[0] ^= data.as_ref()[16];
-            xoshiro256[1] ^= data.as_ref()[17];
+            xoshiro256[0] ^= f_out.as_ref()[16];
+            xoshiro256[1] ^= f_out.as_ref()[17];
 
             // Swap: Lanes 0,1 <-> Lanes 2,3
             pcg_state_lo = pcg_state_lo.rotate_elements_left::<2>();
@@ -230,8 +237,13 @@ impl<R: Reproducibility> TripleMixPrng<R> {
         } else {
             self.fill(&mut padding);
         }
-        fork_kmac.update(self.block_core.core.as_bytes());
-        fork_kmac.update(R::cast_u64_slice_as_u8(&padding).as_ref());
+        let mut core_bytes = [0u8; 288];
+        self.block_core.core.copy_to_le_bytes(&mut core_bytes);
+        fork_kmac.update(&core_bytes);
+        for word in &mut padding {
+            *word = word.to_le();
+        }
+        fork_kmac.update(cast_slice(&padding));
         self.block_core.reset_and_skip(0);
         let mut attempt = 0u128;
         loop {
