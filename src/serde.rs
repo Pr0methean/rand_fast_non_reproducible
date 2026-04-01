@@ -18,6 +18,7 @@ pub(crate) struct CoreState {
     mwc_state: [u64; 4],
     mwc_carry: [u64; 4],
     xoshiro256: [u64; 4],
+    scalar_weyl: u64,
     remaining_results: Box<[u64]>,
 }
 
@@ -37,6 +38,7 @@ impl<R: Reproducibility> serde::Serialize for TripleMixPrng<R> {
             mwc_state: core.mwc_state.to_array(),
             mwc_carry: core.mwc_carry.to_array(),
             xoshiro256: core.xoshiro256,
+            scalar_weyl: core.scalar_weyl,
             remaining_results: self
                 .block_core
                 .remaining_results()
@@ -69,6 +71,7 @@ impl<'de, R: Reproducibility> serde::Deserialize<'de> for TripleMixPrng<R> {
             mwc_carry: Simd64::from_array(state.mwc_carry),
             xoshiro256: state.xoshiro256,
             reproducibility: PhantomData,
+            scalar_weyl: state.scalar_weyl,
         };
         if !core.is_valid() {
             cold_path();
