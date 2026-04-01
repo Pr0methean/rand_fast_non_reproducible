@@ -236,7 +236,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 pcg_state_lo,
                 tm_secondary_out,
                 xoshiro_out,
-                scalar_weyl
+                scalar_weyl,
             );
 
             w.copy_to_slice(&mut block[0..4]);
@@ -344,10 +344,14 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let scalar2_lo = scalar2 as u32;
         let mut a = Simd32::splat(0x243f6a88);
         let scalar_mix_1 =
-            Simd32::from_array([scalar2_lo, scalar1_lo, scalar1_hi, 0, scalar1_hi, scalar2_lo, scalar1_lo, scalar2_hi]);
+            Simd32::from_array([
+            scalar2_lo, scalar1_lo, scalar1_hi, 0, scalar1_hi, scalar2_lo, scalar1_lo, scalar2_hi,
+        ]);
         let mut b = Simd32::splat(0x9e3779b9);
         let scalar_mix_2 =
-            Simd32::from_array([scalar1_hi, scalar2_hi, scalar2_hi, scalar1_hi, scalar2_lo, scalar1_lo, 0, scalar2_lo]);
+            Simd32::from_array([
+            scalar1_hi, scalar2_hi, scalar2_hi, scalar1_hi, scalar2_lo, scalar1_lo, 0, scalar2_lo,
+        ]);
         a ^= scalar_mix_1;
         let mut c = Simd32::splat(0xb7e15162);
         let mut d = Simd32::splat(0x84caa73b);
@@ -374,7 +378,9 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             23,
         );
         (d, a, b) = round3::<R>(
-            d, a, b,
+            d,
+            a,
+            b,
             &[xi[1], xi[5], xi[2], xi[4], xi[6], xi[3], xi[0]],
             11,
             25,
@@ -479,7 +485,8 @@ mod tests {
                 for bit_idx in 0..64 {
                     let mut modified_input = mix_input.clone();
                     modified_input[variable_idx * 4 + lane_idx] ^= 1u64 << bit_idx;
-                    let (mod_out0, mod_out1, mod_out2, mod_out3) = mix_from_flat_array(modified_input);
+                    let (mod_out0, mod_out1, mod_out2, mod_out3) =
+                        mix_from_flat_array(modified_input);
                     let (out_xor_0, out_xor_1, out_xor_2, out_xor_3) = (
                         mod_out0 ^ base_out0,
                         mod_out1 ^ base_out1,
@@ -559,17 +566,18 @@ mod tests {
             Simd::from_array(mix_input[20..24].try_into().unwrap()),
             Simd::from_array(mix_input[24..28].try_into().unwrap()),
         ];
-        let (base_out0, base_out1, base_out2, base_out3) = TripleMixSimdCore::<DefaultReproducibility>::mix(
-            input_simds[0],
-            input_simds[1],
-            input_simds[2],
-            input_simds[3],
-            input_simds[4],
-            input_simds[5],
-            input_simds[6],
-            mix_input[28],
-            mix_input[29],
-        );
+        let (base_out0, base_out1, base_out2, base_out3) =
+            TripleMixSimdCore::<DefaultReproducibility>::mix(
+                input_simds[0],
+                input_simds[1],
+                input_simds[2],
+                input_simds[3],
+                input_simds[4],
+                input_simds[5],
+                input_simds[6],
+                mix_input[28],
+                mix_input[29],
+            );
         (base_out0, base_out1, base_out2, base_out3)
     }
 
@@ -757,8 +765,14 @@ mod tests {
                 mean <= (MIX_OUTPUTS as f64 * 129.0),
                 "Mean weight {mean:.02} too high"
             );
-            assert!(stdev >= 7.6 * (MIX_OUTPUTS as f64).sqrt(), "Stdev weight {stdev:.02} too low");
-            assert!(stdev <= 8.4 * (MIX_OUTPUTS as f64).sqrt(), "Stdev weight {stdev:.02} too high");
+            assert!(
+                stdev >= 7.6 * (MIX_OUTPUTS as f64).sqrt(),
+                "Stdev weight {stdev:.02} too low"
+            );
+            assert!(
+                stdev <= 8.4 * (MIX_OUTPUTS as f64).sqrt(),
+                "Stdev weight {stdev:.02} too high"
+            );
         }
     }
 
@@ -1408,16 +1422,16 @@ mod tests {
 
             // Define fields and their accessors
             let fields: &[fn(&mut TripleMixSimdCore<DefaultReproducibility>) -> &mut [u64; 4]] = &[
-            |c| c.pcg_state_lo.as_mut_array(),
-            |c| c.pcg_state_hi.as_mut_array(),
-            |c| c.pcg_inc_lo.as_mut_array(),
-            |c| c.pcg_inc_hi.as_mut_array(),
-            |c| c.tm0.as_mut_array(),
-            |c| c.tm1.as_mut_array(),
-            |c| c.mwc_state.as_mut_array(),
-            |c| c.mwc_carry.as_mut_array(),
-            |c| &mut c.xoshiro256,
-        ];
+                |c| c.pcg_state_lo.as_mut_array(),
+                |c| c.pcg_state_hi.as_mut_array(),
+                |c| c.pcg_inc_lo.as_mut_array(),
+                |c| c.pcg_inc_hi.as_mut_array(),
+                |c| c.tm0.as_mut_array(),
+                |c| c.tm1.as_mut_array(),
+                |c| c.mwc_state.as_mut_array(),
+                |c| c.mwc_carry.as_mut_array(),
+                |c| &mut c.xoshiro256,
+            ];
 
             // Generate base outputs once
             let mut base_core = base_state.clone();
