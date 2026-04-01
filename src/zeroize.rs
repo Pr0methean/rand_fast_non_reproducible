@@ -13,6 +13,7 @@ impl<R: Reproducibility> zeroize::Zeroize for TripleMixSimdCore<R> {
         self.mwc_state = Simd::splat(0);
         self.mwc_carry = Simd::splat(0);
         self.xoshiro256 = [0; 4];
+        self.scalar_weyl = 0;
         // Prevent dead-write elimination
         core::hint::black_box(&*self);
     }
@@ -60,6 +61,7 @@ mod tests {
             mwc_carry: Simd64::splat(0),
             xoshiro256: [0; 4],
             reproducibility: PhantomData,
+            scalar_weyl: 0,
         };
         let mut expected_output = [0u8; BLOCK_SIZE * size_of::<u64>() * 2];
         TripleMixPrng::<DefaultReproducibility>::from_core(zero_core)
