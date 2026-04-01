@@ -281,6 +281,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         self.jump_pcg(steps);
         let x_pow = pow_mat_256(Self::XOSHIRO256_JUMP_MAT, steps);
         self.xoshiro256 = apply_mat_256(&x_pow, self.xoshiro256);
+        let weyl_modulus_u128 = Self::SCALAR_WEYL_MODULUS as u128;
+        self.scalar_weyl = ((self.scalar_weyl as u128 + (steps % (weyl_modulus_u128))) % (weyl_modulus_u128)) as u64;
     }
 
     #[inline]
@@ -298,6 +300,9 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         // xoshiro256 period is 2^256-1; jump by multiples * 2^128 steps
         let x_pow = pow_mat_256(Self::XOSHIRO256_JUMP_128_MAT, multiples);
         self.xoshiro256 = apply_mat_256(&x_pow, self.xoshiro256);
+                let weyl_modulus_128 = Self::SCALAR_WEYL_MODULUS as u128;
+        let weyl_jump = mul_mod(Self::WEYL_JUMP_2_128 as u128, multiples, weyl_modulus_128);
+        self.scalar_weyl = ((self.scalar_weyl as u128 + weyl_jump + weyl_modulus_128) % weyl_modulus_128) as u64;
     }
 
     #[inline]
@@ -315,6 +320,9 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         // 2^256 ≡ 1 mod (2^256 - 1), so multiples * 2^256 ≡ multiples steps
         let x_pow = pow_mat_256(Self::XOSHIRO256_JUMP_256_MAT, multiples);
         self.xoshiro256 = apply_mat_256(&x_pow, self.xoshiro256);
+        let weyl_modulus_128 = Self::SCALAR_WEYL_MODULUS as u128;
+        let weyl_jump = mul_mod(Self::WEYL_JUMP_2_256 as u128, multiples, weyl_modulus_128);
+        self.scalar_weyl = ((self.scalar_weyl as u128 + weyl_jump + weyl_modulus_128) % weyl_modulus_128) as u64;
     }
 
     #[inline]
