@@ -415,6 +415,7 @@ mod tests {
     use core::simd::Simd;
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;
+    use const_format::formatcp;
     use fsum::FSum;
     use gf2::{BitMatrix, BitStore, BitVector};
     use hypors::chi_square::goodness_of_fit;
@@ -1336,6 +1337,7 @@ mod tests {
         }
     }
 
+    #[cfg_attr(miri, ignore)] // FIXME: This is very slow on Miri but should still be runnable.
     #[test]
     fn test_4_step_matrix_rank_distribution_miri_xslow() {
 
@@ -1350,15 +1352,16 @@ mod tests {
         let iterations = 1;
         const STEPS: usize = 4;
 
+        const STATE_BITS: usize = 9 * SIMD_WIDTH * 64; // 9 fields × 4 lanes × 64 bits = 2304 bits
+        const OUTPUT_BITS: usize = STEPS * BLOCK_SIZE * 64; // steps × 8 words × 64 bits
+        let mut matrix = BitMatrix::<u64>::zeros(OUTPUT_BITS, STATE_BITS);
+        let mut base_outputs = vec![[0u64; BLOCK_SIZE]; STEPS];
+        let mut flipped_outputs = vec![[0u64; BLOCK_SIZE]; STEPS];
         for _ in 0..iterations {
+            matrix.set_all(false);
             let base_state = TripleMixPrng::<DefaultReproducibility>::from_rng(&mut rng)
                 .block_core
                 .core;
-            let state_bits = 9 * SIMD_WIDTH * 64; // 9 fields × 4 lanes × 64 bits = 2304 bits
-
-            let output_bits = STEPS * BLOCK_SIZE * 64; // steps × 8 words × 64 bits
-
-            let mut matrix = BitMatrix::<u64>::zeros(output_bits, state_bits);
 
             // Define fields and their accessors
             let fields: &[fn(&mut TripleMixSimdCore<DefaultReproducibility>) -> &mut [u64; 4]] = &[
@@ -1374,14 +1377,11 @@ mod tests {
             ];
 
             // Generate base outputs once
-            let mut base_outputs = vec![[0u64; BLOCK_SIZE]; STEPS];
             let mut base_core = base_state.clone();
             base_core.fill_blocks(&mut base_outputs);
 
             let mut col_idx = 0;
-            let mut flipped_outputs = vec![[0u64; BLOCK_SIZE]; STEPS];
             for mut_field in fields {
-
                 for lane in 0..SIMD_WIDTH {
                     for bit in 0..64 {
 
@@ -1390,8 +1390,7 @@ mod tests {
                         mut_field(&mut flipped_state)[lane] ^= 1 << bit;
 
                         // Generate outputs from flipped state
-                        let mut flipped_core = flipped_state;
-                        flipped_core.fill_blocks(&mut flipped_outputs);
+                        flipped_state.fill_blocks(&mut flipped_outputs);
 
                         // Record differences
                         for (step_idx, (base_block, flipped_block)) in base_outputs.iter().zip(flipped_outputs.iter()).enumerate() {
@@ -1412,18 +1411,21 @@ mod tests {
             }
 
             assert_eq!(
-                col_idx, state_bits,
-                "Should have exactly {} columns",
-                state_bits
+                col_idx, STATE_BITS, "{}",
+                formatcp!("Should have exactly {} columns", STATE_BITS)
             );
             let echelon = matrix.to_echelon_form();
             let rank = echelon.count_ones();
-            ranks.push(rank);
+            if iterations > 1 {
+                ranks.push(rank);
+            } else {
+                assert!(rank >= STATE_BITS - 5, "Rank too low for {STATE_BITS} state bits: {}", rank);
+            }
         }
-        ranks.sort_unstable();
-        // Calculate statistics
-        let mean_rank = ranks.iter().sum::<usize>() as f64 / iterations as f64;
         if iterations > 1 {
+            ranks.sort_unstable();
+            // Calculate statistics
+            let mean_rank = ranks.iter().sum::<usize>() as f64 / iterations as f64;
             println!("Rank distribution over {} trials:", iterations);
             println!("  Mean: {:.2}", mean_rank);
             println!("  Min: {}", ranks.iter().min().unwrap());
@@ -1453,7 +1455,7 @@ mod tests {
                     100.0 * count as f64 / iterations as f64
                 );
             }
+            assert!(mean_rank >= (STATE_BITS as f64 - 4.5), "Mean rank too low for {STATE_BITS} state bits: {:.2}", mean_rank);
         }
-        assert!(mean_rank >= 2296.0, "Mean rank too low: {:.2}", mean_rank);
     }
 }
