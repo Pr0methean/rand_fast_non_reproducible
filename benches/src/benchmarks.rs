@@ -1,7 +1,6 @@
 use criterion::measurement::Measurement;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
-use const_format::formatcp;
 use core::time::Duration;
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 use criterion_cycles_per_byte::CyclesPerByte;
@@ -17,11 +16,8 @@ use rand_triplemix::reproducibility::same_endianness::SameEndianness;
 use rand_triplemix::reproducibility::NotReproducible;
 use rand_triplemix::seed::{DEFAULT_SEED_SIZE, LARGE_SEED_SIZE};
 use rand_triplemix::{TripleMixPrng, BLOCK_SIZE};
-use std::env::consts::{ARCH, OS};
 use core::hint::black_box;
 use core::mem::size_of;
-
-const PLATFORM: &str = formatcp!("{ARCH}:{OS}");
 
 trait DynCloneRng: DynClone + Rng {}
 impl<T: DynClone + Rng> DynCloneRng for T {}
@@ -34,7 +30,7 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
     const LARGE_FILL_LEN: usize = 1024 * 1024;
     let prngs = create_prngs();
     for alignment in [0, 1, MAX_ALIGNMENT] {
-        let mut group = c.benchmark_group(format!("{PLATFORM}: fill_bytes 16KiB (misalignment {alignment})"));
+        let mut group = c.benchmark_group(format!("fill_bytes 16KiB (misalignment {alignment})"));
         group.throughput(Throughput::Bytes(BUFFER_LEN as u64));
         for (prng_name, prng) in prngs.iter() {
             let mut prng = clone_box(&**prng);
@@ -50,7 +46,7 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
         }
         group.finish();
     }
-    let mut group = c.benchmark_group(formatcp!("{PLATFORM}: fill_bytes 1MiB"));
+    let mut group = c.benchmark_group("fill_bytes 1MiB");
     group.throughput(Throughput::Bytes(LARGE_FILL_LEN as u64));
     for (prng_name, prng) in prngs.iter() {
         let mut fill_bytes_prng = clone_box(&**prng);
@@ -70,7 +66,7 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
     }
     group.finish();
     const U64_ITERATIONS: usize = 12;
-    let mut group = c.benchmark_group(formatcp!("{PLATFORM}: next_u64"));
+    let mut group = c.benchmark_group("next_u64");
     group.throughput(Throughput::Bytes(
         (size_of::<u64>() * U64_ITERATIONS) as u64,
     ));
