@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775025199794,
+  "lastUpdate": 1775025226221,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -47915,6 +47915,156 @@ window.BENCHMARK_DATA = {
             "name": "x86_64:macos: core/fill_blocks",
             "value": 116,
             "range": "± 7",
+            "unit": "cycles/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a8d7a097d4d1bdf5f7625144f5279442c2d9cd63",
+          "message": "Bump benchmark-action/github-action-benchmark from 1.21.0 to 1.22.0 (#96)\n\nBumps [benchmark-action/github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark) from 1.21.0 to 1.22.0.\n- [Release notes](https://github.com/benchmark-action/github-action-benchmark/releases)\n- [Changelog](https://github.com/benchmark-action/github-action-benchmark/blob/master/CHANGELOG.md)\n- [Commits](https://github.com/benchmark-action/github-action-benchmark/compare/a7bc2366eda11037936ea57d811a43b3418d3073...a60cea5bc7b49e15c1f58f411161f99e0df48372)\n\n---\nupdated-dependencies:\n- dependency-name: benchmark-action/github-action-benchmark\n  dependency-version: 1.22.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-01T05:55:14Z",
+          "tree_id": "ae27696b69931ae356a02b91886011a8815f5a65",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/a8d7a097d4d1bdf5f7625144f5279442c2d9cd63"
+        },
+        "date": 1775025225312,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "x86_64:linux:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 19277,
+            "range": "± 88",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 19311,
+            "range": "± 23",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 19312,
+            "range": "± 24",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 1234363,
+            "range": "± 2197",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 96,
+            "range": "± 0",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 19241,
+            "range": "± 20",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 20097,
+            "range": "± 56",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 20079,
+            "range": "± 43",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 1231814,
+            "range": "± 8767",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 96,
+            "range": "± 1",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/8",
+            "value": 9851,
+            "range": "± 39",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/16",
+            "value": 9850,
+            "range": "± 31",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/32",
+            "value": 9857,
+            "range": "± 436",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/64",
+            "value": 9854,
+            "range": "± 25",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/72",
+            "value": 9822,
+            "range": "± 52",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/128",
+            "value": 10662,
+            "range": "± 38",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/256",
+            "value": 11482,
+            "range": "± 34",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/288",
+            "value": 11458,
+            "range": "± 52",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/from_seed/512",
+            "value": 13063,
+            "range": "± 31",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: Initialization/fork",
+            "value": 11524,
+            "range": "± 38",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: core/fill_blocks",
+            "value": 112,
+            "range": "± 0",
             "unit": "cycles/iter"
           }
         ]
