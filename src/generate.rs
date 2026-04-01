@@ -67,7 +67,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
     ]);
 
     pub(crate) const SCALAR_WEYL_MODULUS: u64 = u64::MAX - 58;
-    pub(crate) const SCALAR_WEYL_COMPLEMENT: u64 = 59;
 
     /// Multiplies two vectors. Requires that all elements of b be less than 2^32. Returns (low, hi)
     /// halves of result.
