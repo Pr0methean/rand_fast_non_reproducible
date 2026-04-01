@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
-[dependencies]
+[dev-dependencies]
 rand_triplemix = { path = ".." }
 criterion = "0.8"
 rand = { workspace = true, features = ["thread_rng", "sys_rng"] }
@@ -22,5 +22,5 @@ name = "benchmarks"
 path = "src/benchmarks.rs"
 harness = false  # Suppress use of libtest harness, since we're using criterion
 
-[target.'cfg(any(target_arch = "x86_64", target_arch = "x86"))'.dependencies]
+[target.'cfg(any(target_arch = "x86_64", target_arch = "x86"))'.dev-dependencies]
 criterion-cycles-per-byte = "0.8"
