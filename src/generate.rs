@@ -201,7 +201,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             // TinyMT Step 0: Mask and initial XOR
             let tm0_masked = tm0 & Simd::splat(TINYMT64_LANE_MASK);
             let mut tm_x = tm0_masked ^ tm1;
-            let tm_y = tm0_masked + tm1;
+            let mut tm_y = tm0_masked + tm1;
 
             // TinyMT Step 1: First shift
             tm_x ^= tm_x << Simd::splat(12);
@@ -217,12 +217,9 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             // TinyMT Step 3: Third shift
             tm_x ^= tm_x << Simd::splat(32);
 
-            // TinyMT Step 4: Fourth shift
+            // TinyMT Step 4: Fourth shift & final output
+            tm_y ^= (tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT);
             tm_x ^= tm_x << Simd::splat(11);
-
-            // TinyMT Step 5: Final output and transition prep
-            let tm_out =
-                tm_y ^ ((tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT));
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
             tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
@@ -231,7 +228,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let (w, x, y, z) = TripleMixSimdCore::<R>::mix(
                 mwc_state,
                 pcg_output,
-                tm_out,
+                tm_y,
                 mwc_carry,
                 i_mixed,
                 pcg_state_lo,
