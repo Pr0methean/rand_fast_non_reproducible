@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 rand_triplemix = { path = ".." }
-criterion = "0.8"
+gungraun = "0.17.2"
 rand = { workspace = true, features = ["thread_rng", "sys_rng"] }
 rand_core = { workspace = true }
 const_format = { workspace = true }
@@ -21,6 +21,3 @@ reproducibility_cross_platform = ["rand_triplemix/reproducibility_cross_platform
 name = "benchmarks"
 path = "src/benchmarks.rs"
 harness = false  # Suppress use of libtest harness, since we're using criterion
-
-[target.'cfg(any(target_arch = "x86_64", target_arch = "x86"))'.dependencies]
-criterion-cycles-per-byte = "0.8"
