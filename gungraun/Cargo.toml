@@ -9,8 +9,6 @@ rand_triplemix = { path = ".." }
 gungraun = "0.17.2"
 rand = { workspace = true, features = ["thread_rng", "sys_rng"] }
 rand_core = { workspace = true }
-const_format = { workspace = true }
-dyn-clone = "1.0.20"
 
 [features]
 bench_include_threadrng = []
