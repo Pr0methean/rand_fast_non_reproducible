@@ -83,6 +83,45 @@ jobs:
         alert-threshold: '125%'
         comment-on-alert: true
         fail-on-alert: true
+  mca:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - run: sudo apt install valgrind
+      - run: rustup toolchain add nightly-x86_64-unknown-linux-gnu
+      - name: Compile endless_bytes example
+        run: cargo rustc --example endless_bytes --release -- --emit asm
+      - name: Run llvm-mca
+        run: llvm-mca -json --iterations=256 target/release/examples/endless_bytes.s
+  gungraun:
+    needs: unit-tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, ubuntu-24.04-arm ]
+      fail-fast: false
+    permissions:
+      contents: write
+      deployments: write
+      pull-requests: write
+    steps:
+    - name: Harden the runner (Audit all outbound calls)
+      uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+      with:
+        egress-policy: audit
+    - uses: taiki-e/install-action@de6f06126afb86b5250a16ff961c57360c5edccc # v2.72.0
+      with:
+        tool: gungraun-runner
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: bencherdev/bencher@d28a9ba7264ba776a56305c8a054a5db434097d5 # v0.6.0
+    - name: Run Gungraun benchmark
+      run: cargo +nightly bench -p gungraun-benches --features reproducibility_cross_platform
   gungraun:
     needs: unit-tests
     runs-on: ${{ matrix.os }}
