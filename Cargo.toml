@@ -6,10 +6,7 @@ license = "Apache-2.0"
 description = "Pseudorandom number generator that's faster than ChaCha12Rng and has a 1.99*2<sup>382</sup>-block period"
 
 [workspace]
-members = [
-    ".",        # The main crate in the current directory
-    "benches",  # The new benchmark-only crate
-]
+members = [".", "gungraun"]
 resolver = "2"
 
 [workspace.dependencies]
