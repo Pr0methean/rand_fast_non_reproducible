@@ -875,7 +875,8 @@ mod tests {
         const CHUNK_SIZE: usize = 1 << 11;
         const CHUNK_COUNT: usize = N / CHUNK_SIZE;
         #[cfg(not(miri))]
-        const P_THRESHOLD: f64 = 1e-6;
+        const COMBINED_P_THRESHOLD: f64 = 0.005;
+        const SEPARATE_P_THRESHOLD: f64 = 1e-6;
         for mut prng in crate::create_rngs::<NotReproducible>() {
             // Flatten to 2D for better cache locality
             let mut bins = [[0u32; 4]; 64 * 64];
@@ -907,37 +908,63 @@ mod tests {
 
             // Testing phase - convert back to 3D view for readability
             #[cfg(not(miri))]
-            for i in 0..64 {
-                for j in 0..64 {
-                    let idx = j * 64 + i;
+            {
+                let mut observed = Vec::with_capacity(64 * 64 * 4 * 2);
+                let mut expected = Vec::with_capacity(64 * 64 * 4 * 2);
 
-                    if j > i {
-                        let p = goodness_of_fit(
-                            bins[idx].map(f64::from),
-                            [N as f64 * 0.25; 4],
-                            P_THRESHOLD,
-                        )
-                        .unwrap()
-                        .p_value;
-                        assert!(
-                            p >= P_THRESHOLD,
-                            "Chi-square test failed for bins: ({:?}, p={p:.10}) for i={i},j={j}",
-                            bins[idx]
-                        );
+                for i in 0..64 {
+                    for j in 0..64 {
+                        let idx = j * 64 + i;
+
+                        if j > i {
+                            observed.extend(bins[idx].map(f64::from));
+                            expected.extend([N as f64 * 0.25; 4]);
+                        }
+
+                        observed.extend(lagged_bins[idx].map(f64::from));
+                        expected.extend([(N - 1) as f64 * 0.25; 4]);
                     }
+                }
 
-                    let p = goodness_of_fit(
-                        lagged_bins[idx].map(f64::from),
-                        [(N - 1) as f64 * 0.25; 4],
-                        P_THRESHOLD,
-                    )
+                let p = goodness_of_fit(observed, expected, COMBINED_P_THRESHOLD)
                     .unwrap()
                     .p_value;
-                    assert!(
-                        p >= P_THRESHOLD,
-                        "Chi-square test failed for lagged bins: ({:?}, p={p:.10}) for i={i},j={j}",
-                        lagged_bins[idx]
-                    );
+                if p <= COMBINED_P_THRESHOLD {
+                    // Identify the culprit
+                    for i in 0..64 {
+                        for j in 0..64 {
+                            let idx = j * 64 + i;
+
+                            if j > i {
+                                let p = goodness_of_fit(
+                                    bins[idx].map(f64::from),
+                                    [N as f64 * 0.25; 4],
+                                    SEPARATE_P_THRESHOLD,
+                                )
+                                .unwrap()
+                                .p_value;
+                                assert!(
+                                    p >= SEPARATE_P_THRESHOLD,
+                                    "Chi-square test failed for bins: ({:?}, p={p:.10}) for i={i},j={j}",
+                                    bins[idx]
+                                );
+                            }
+
+                            let p = goodness_of_fit(
+                                lagged_bins[idx].map(f64::from),
+                                [(N - 1) as f64 * 0.25; 4],
+                                SEPARATE_P_THRESHOLD,
+                            )
+                            .unwrap()
+                            .p_value;
+                            assert!(
+                                p >= SEPARATE_P_THRESHOLD,
+                                "Chi-square test failed for lagged bins: ({:?}, p={p:.10}) for i={i},j={j}",
+                                lagged_bins[idx]
+                            );
+                        }
+                    }
+                    panic!("Combined chi-square test failed (p={p:.10}), but no individual bits failed");
                 }
             }
 
