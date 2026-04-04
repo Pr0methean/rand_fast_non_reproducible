@@ -67,6 +67,42 @@ jobs:
       with:
         egress-policy: audit
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: Run benchmarks
+      run: cargo +nightly bench -p benches --features reproducibility_cross_platform -- --output-format bencher | tee bench-output.txt
+      timeout-minutes: 20
+    - name: Store benchmark result
+      uses: benchmark-action/github-action-benchmark@a60cea5bc7b49e15c1f58f411161f99e0df48372 # v1.22.0
+      with:
+        name: Rust Benchmark
+        tool: 'cargo'
+        output-file-path: bench-output.txt
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        summary-always: true
+        auto-push: ${{ github.event_name != 'pull_request' }}
+        # Show alert with commit comment on detecting possible performance regression
+        alert-threshold: '125%'
+        comment-on-alert: true
+        fail-on-alert: true
+  gungraun:
+    needs: unit-tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, ubuntu-24.04-arm ]
+      fail-fast: false
+    permissions:
+      contents: write
+      deployments: write
+      pull-requests: write
+    steps:
+    - name: Harden the runner (Audit all outbound calls)
+      uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+      with:
+        egress-policy: audit
+    - uses: taiki-e/install-action@de6f06126afb86b5250a16ff961c57360c5edccc # v2.72.0
+      with:
+        tool: gungraun-runner
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - uses: bencherdev/bencher@d28a9ba7264ba776a56305c8a054a5db434097d5 # v0.6.0
     - name: Run Gungraun benchmark
-      run: cargo +nightly bench -p benches --features reproducibility_cross_platform
+      run: cargo +nightly bench -p gungraun --features reproducibility_cross_platform
