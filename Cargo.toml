@@ -25,7 +25,9 @@ serde = { version = "1.0", optional = true, default-features = false }
 zeroize = { version = "1.8", optional = true }
 once_cell = { version = "1.21.4", optional = true, default-features = false }
 rand = { workspace = true }
-llvm-mca = "0.1.0"
+llvm-mca = { version = "0.1.0", optional = true }
+
+[target.'cfg(not(miri))'.dependencies]
 
 [features]
 jump = []  # Allows advancing this PRNG by an arbitrary amount.
@@ -35,6 +37,7 @@ zeroize = ["zeroize/zeroize_derive"]
 serde = ["serde/serde_derive"]
 no_std = ["once_cell/race", "once_cell/alloc", "serde/alloc"]
 large_seeds_by_default = []  # Makes 288 bytes the default seed size. Enable this only if you're using fast hardware RNGs to produce seeds.
+llvm-mca = ["dep:llvm-mca"]
 
 [lib]
 bench = false  # Suppress use of libtest harness, since we're using criterion

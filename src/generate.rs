@@ -12,7 +12,6 @@ use core::simd::cmp::SimdPartialOrd;
 use core::simd::num::SimdInt;
 use core::simd::num::SimdUint;
 use core::slice::from_mut;
-use llvm_mca::{llvm_mca_begin, llvm_mca_end};
 use rand_core::block::Generator;
 
 impl<R: Reproducibility> TripleMixSimdCore<R> {
@@ -134,11 +133,11 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
     #[inline(always)]
     pub(crate) fn fill_blocks(&mut self, blocks: &mut [[u64; BLOCK_SIZE]]) {
-        llvm_mca_begin!("fill_blocks");
         if blocks.is_empty() {
             return;
         }
-
+        #[cfg(feature = "llvm-mca")]
+        llvm_mca::llvm_mca_begin!("fill_blocks");
         let pcg_inc_lo = self.pcg_inc_lo;
         let pcg_inc_hi = self.pcg_inc_hi;
         let i_mixed = pcg_inc_hi + pcg_inc_lo;
@@ -251,7 +250,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         self.mwc_carry = mwc_carry;
         self.xoshiro256 = xoshiro256;
         self.scalar_weyl = scalar_weyl;
-        llvm_mca_end!("fill_blocks");
+        #[cfg(feature = "llvm-mca")]
+        llvm_mca::llvm_mca_end!("fill_blocks");
     }
 
     #[inline(always)]
