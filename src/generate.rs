@@ -376,21 +376,19 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             13,
             23,
         );
-        (d, a, b) = round3::<R>(
-            d,
-            a,
-            b,
-            &[xi[1], xi[5], xi[2], xi[4], xi[6], xi[3], xi[0]],
-            11,
-            25,
-            7,
-        );
 
-        // --- Strong final cross-lane avalanche ---
         a ^= b.rotate_elements_right::<2>();
         b += c.rotate_elements_left::<3>();
-        c += d.rotate_elements_right::<1>();
-        d ^= a.rotate_elements_left::<2>();
+        c ^= d.rotate_elements_right::<1>();
+        d += a.rotate_elements_left::<2>();
+
+        // extra nonlinear cross-coupling
+        let t0 = a ^ c;
+        let t1 = b + d;
+        c += a.rotate_elements_left::<3>();
+        d ^= b.rotate_elements_right::<1>();
+        b ^= t0.rotate_elements_right::<2>();
+        a += t1.rotate_elements_left::<1>();
 
         // Convert back to u64x4 by casting and packing
         (
