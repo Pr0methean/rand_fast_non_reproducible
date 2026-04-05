@@ -387,8 +387,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let t1 = b + d;
         c += a.rotate_elements_left::<3>();
         d ^= b.rotate_elements_right::<1>();
-        a += t1.rotate_elements_left::<1>();
         b ^= t0.rotate_elements_right::<2>();
+        a += t1.rotate_elements_left::<1>();
 
         // Convert back to u64x4 by casting and packing
         (
