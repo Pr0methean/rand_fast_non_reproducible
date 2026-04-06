@@ -1,0 +1,21 @@
+[package]
+name = "gungraun-benches"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+rand_triplemix = { path = ".." }
+gungraun = "0.17.2"
+rand = { workspace = true, features = ["thread_rng", "sys_rng"] }
+rand_core = { workspace = true }
+
+[features]
+bench_include_threadrng = []
+reproducibility_same_endianness = ["rand_triplemix/reproducibility_same_endianness"]
+reproducibility_cross_platform = ["rand_triplemix/reproducibility_cross_platform"]
+
+[[bench]]
+name = "benchmarks"
+path = "src/benchmarks.rs"
+harness = false  # Suppress use of libtest harness, since we're using criterion
