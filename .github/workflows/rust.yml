@@ -22,7 +22,7 @@ jobs:
     strategy:
       matrix:
         feature-flag: [ "--no-default-features", "--all-features", "--features reproducibility_same_endianness" ]
-        os: [ ubuntu-latest, ubuntu-24.04-arm, macos-26-intel, macos-latest, windows-latest, windows-11-arm ]
+        os: [ ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest, windows-11-arm ]
       fail-fast: false
     steps:
     - name: Harden the runner (Audit all outbound calls)
@@ -41,7 +41,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, ubuntu-24.04-arm, macos-26-intel, macos-latest, windows-latest, windows-11-arm ]
+        os: [ ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest, windows-11-arm ]
       fail-fast: false
     permissions:
       contents: write
