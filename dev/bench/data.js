@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775602812614,
+  "lastUpdate": 1775603014472,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -55115,6 +55115,156 @@ window.BENCHMARK_DATA = {
             "name": "aarch64:macos: core/fill_blocks",
             "value": 48,
             "range": "± 2",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c0a9fac0dd755c7cb86e21298a7170ced4af293c",
+          "message": "Build(deps): Bump bencherdev/bencher from 0.6.0 to 0.6.1 (#107)\n\nBumps [bencherdev/bencher](https://github.com/bencherdev/bencher) from 0.6.0 to 0.6.1.\n- [Release notes](https://github.com/bencherdev/bencher/releases)\n- [Commits](https://github.com/bencherdev/bencher/compare/d28a9ba7264ba776a56305c8a054a5db434097d5...595a6d60abd1c71b1dfb7bbdd52be7bc63b0f8c3)\n\n---\nupdated-dependencies:\n- dependency-name: bencherdev/bencher\n  dependency-version: 0.6.1\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-07T22:26:46Z",
+          "tree_id": "03947eeea1f5a8a4627b52feb2135321972eef89",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/c0a9fac0dd755c7cb86e21298a7170ced4af293c"
+        },
+        "date": 1775603013408,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:linux:TripleMixPrng: fill_bytes 16KiB/misalignment 0",
+            "value": 9883,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux:TripleMixPrng: fill_bytes 16KiB/misalignment 1",
+            "value": 9934,
+            "range": "± 68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux:TripleMixPrng: fill_bytes 16KiB/misalignment 7",
+            "value": 9934,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux:TripleMixPrng: fill_bytes 1MB/fill_bytes",
+            "value": 633150,
+            "range": "± 185",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux:TripleMixPrng: next_u64/TripleMixPrng",
+            "value": 52,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 0",
+            "value": 9939,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 1",
+            "value": 11084,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 16KiB/misalignment 7",
+            "value": 11076,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux:TripleMixPrng<CrossPlatform>: fill_bytes 1MB/fill_bytes",
+            "value": 635863,
+            "range": "± 159",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux:TripleMixPrng<CrossPlatform>: next_u64/TripleMixPrng",
+            "value": 52,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: Initialization/from_seed/8",
+            "value": 3384,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: Initialization/from_seed/16",
+            "value": 3384,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: Initialization/from_seed/32",
+            "value": 3384,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: Initialization/from_seed/64",
+            "value": 3384,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: Initialization/from_seed/72",
+            "value": 3347,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: Initialization/from_seed/128",
+            "value": 3660,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: Initialization/from_seed/256",
+            "value": 3902,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: Initialization/from_seed/288",
+            "value": 3834,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: Initialization/from_seed/512",
+            "value": 4427,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: Initialization/fork",
+            "value": 3946,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: core/fill_blocks",
+            "value": 79,
+            "range": "± 0",
             "unit": "ns/iter"
           }
         ]
