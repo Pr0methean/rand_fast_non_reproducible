@@ -104,7 +104,7 @@ jobs:
       with:
         tool: gungraun-runner
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-    - uses: bencherdev/bencher@d28a9ba7264ba776a56305c8a054a5db434097d5 # v0.6.0
+    - uses: bencherdev/bencher@595a6d60abd1c71b1dfb7bbdd52be7bc63b0f8c3 # v0.6.1
     - name: Run Gungraun benchmark
       run: RUSTFLAGS="-C target-feature=-avx512f" cargo +nightly bench -p gungraun-benches --features reproducibility_cross_platform
   endianness_miri:
