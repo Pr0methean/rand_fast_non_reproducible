@@ -823,21 +823,34 @@ mod tests {
         const N: usize = 1 << 28;
         #[cfg(miri)]
         const N: usize = 1 << 12;
-        for mut prng in crate::create_rngs::<NotReproducible>() {
-            let mut frequencies = [0u32; u8::MAX as usize + 1];
+        let mut total_frequencies = [0u32; u8::MAX as usize + 1];
+        let mut frequencies = [0u32; u8::MAX as usize + 1];
+        let prngs = crate::create_rngs::<NotReproducible>();
+        let prng_count = prngs.len();
+        for mut prng in prngs {
+            frequencies.fill(0);
             for _ in 0..N {
                 let byte: u8 = prng.random();
                 frequencies[byte as usize] += 1;
+                total_frequencies[byte as usize] += 1;
             }
             let chi_square = goodness_of_fit(
                 frequencies.map(f64::from),
                 core::iter::repeat_n((N >> 8) as f64, u8::MAX as usize + 1),
-                0.005,
+                0.001,
             )
             .unwrap();
             println!("{:?}", chi_square);
             assert!(!chi_square.reject_null);
         }
+                    let chi_square = goodness_of_fit(
+                frequencies.map(f64::from),
+                core::iter::repeat_n(((prng_count * N) >> 8) as f64, u8::MAX as usize + 1),
+                0.005,
+            )
+            .unwrap();
+            println!("{:?}", chi_square);
+            assert!(!chi_square.reject_null);
     }
 
     #[test]
@@ -846,21 +859,34 @@ mod tests {
         const N: usize = 1 << 28;
         #[cfg(miri)]
         const N: usize = 1 << 12;
-        for mut prng in crate::create_rngs::<NotReproducible>() {
-            let mut frequencies = vec![0u32; u16::MAX as usize + 1];
+        let mut total_frequencies = vec![0u32; u16::MAX as usize + 1];
+        let mut frequencies = vec![0u32; u16::MAX as usize + 1];
+        let prngs = crate::create_rngs::<NotReproducible>();
+        let prng_count = prngs.len();
+        for mut prng in prngs {
+            frequencies.fill(0);
             for _ in 0..N {
                 let word: u16 = prng.random();
                 frequencies[word as usize] += 1;
+                total_frequencies[word as usize] += 1;
             }
             let chi_square = goodness_of_fit(
-                frequencies.into_iter().map(f64::from),
+                frequencies.iter().copied().map(f64::from),
                 core::iter::repeat_n((N as f64) / ((1 >> 16) as f64), u16::MAX as usize + 1),
-                0.005,
+                0.001,
             )
             .unwrap();
             println!("{:?}", chi_square);
             assert!(!chi_square.reject_null);
         }
+        let total_chi_square = goodness_of_fit(
+            total_frequencies.into_iter().map(f64::from),
+            core::iter::repeat_n(((N * prng_count) as f64) / ((1 >> 16) as f64), u16::MAX as usize + 1),
+            0.005,
+        )
+        .unwrap();
+        println!("{:?}", total_chi_square);
+        assert!(!total_chi_square.reject_null);
     }
 
     #[cfg_attr(miri, ignore)]
