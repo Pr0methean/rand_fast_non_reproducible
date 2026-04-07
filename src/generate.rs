@@ -843,14 +843,14 @@ mod tests {
             println!("{:?}", chi_square);
             assert!(!chi_square.reject_null);
         }
-                    let chi_square = goodness_of_fit(
-                frequencies.map(f64::from),
-                core::iter::repeat_n(((prng_count * N) >> 8) as f64, u8::MAX as usize + 1),
-                0.005,
-            )
-            .unwrap();
-            println!("{:?}", chi_square);
-            assert!(!chi_square.reject_null);
+        let chi_square = goodness_of_fit(
+            total_frequencies.map(f64::from),
+            core::iter::repeat_n(((prng_count * N) >> 8) as f64, u8::MAX as usize + 1),
+            0.005,
+        )
+        .unwrap();
+        println!("{:?}", chi_square);
+        assert!(!chi_square.reject_null);
     }
 
     #[test]
