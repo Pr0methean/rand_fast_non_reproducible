@@ -11,14 +11,16 @@ The PRNG has the following properties:
 
 * The output block size is 64 bytes (8 u64's).
 * The state size is 256 bytes: 508 bits of identity, 1532 bits of mutable state, 8 bits of overhead.
-* The period is greater than 576460752303423211×2<sup>960</sup> blocks and greater than 2<sup>1019</sup> - 2<sup>968</sup> - 2<sup>965</sup> blocks, because it's the product of the subgenerators' coprime periods:
+* The period is greater than 2<sup>1087</sup> - 2<sup>1036</sup> - 2<sup>1034</sup> blocks, because it's the product of 
+  the subgenerators' coprime periods, which are:
   * PCG64: 2<sup>128</sup>
   * Xoshiro256**: 2<sup>256</sup> - 1
   * TinyMT64: 2<sup>127</sup> - 1
-  * MCG (lane 0): 2<sup>127</sup> - 742×2<sup>63</sup> - 1
-  * MCG (lane 1): 2<sup>127</sup> - 5571×2<sup>63</sup> - 1
-  * MCG (lane 2): 2<sup>127</sup> - 1431×2<sup>63</sup> - 1
-  * MCG (lane 3): 2<sup>127</sup> - 1107×2<sup>63</sup> - 1
+  * MCG (lane 0): 2<sup>128</sup> - 742×2<sup>64</sup> - 1
+  * MCG (lane 1): 2<sup>128</sup> - 5572×2<sup>64</sup> - 1
+  * MCG (lane 2): 2<sup>128</sup> - 1432×2<sup>64</sup> - 1
+  * MCG (lane 3): 2<sup>128</sup> - 1108×2<sup>64</sup> - 1
+  * Scalar Weyl sequence: 2<sup>64</sup> - 59
 * The 3-step output mapping achieves an average linear rank of 1531.94, with standard deviation less than 0.3.
 * The generator is exactly 2-equidistributed for 64-bit outputs. All ordered pairs of two u64's will be produced the
   same number of times over the entire period. 
