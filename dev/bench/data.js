@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775614938447,
+  "lastUpdate": 1775614948335,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -58266,6 +58266,156 @@ window.BENCHMARK_DATA = {
             "value": 103,
             "range": "± 1",
             "unit": "cycles/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d8105751d6f06b6af825cfb3534bfcc73b388d3a",
+          "message": "Benchmark tweaks (#115)\n\n* Switch to 128 iterations for llvm-mca, for comparability to criterion and gungraun at 16k\n\n* Reorganize benchmarks so that different implementations doing same job are in same group",
+          "timestamp": "2026-04-08T01:53:00Z",
+          "tree_id": "616e92b6f25d9a875e3130e2e4279f8c73bc27ab",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/d8105751d6f06b6af825cfb3534bfcc73b388d3a"
+        },
+        "date": 1775614946777,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 0)/TripleMixPrng",
+            "value": 6231,
+            "range": "± 478",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 0)/TripleMixPrng<CrossPlatform>",
+            "value": 6450,
+            "range": "± 520",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 1)/TripleMixPrng",
+            "value": 6497,
+            "range": "± 631",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 1)/TripleMixPrng<CrossPlatform>",
+            "value": 6104,
+            "range": "± 247",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 7)/TripleMixPrng",
+            "value": 5875,
+            "range": "± 91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 7)/TripleMixPrng<CrossPlatform>",
+            "value": 6101,
+            "range": "± 406",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 1MiB/TripleMixPrng",
+            "value": 374196,
+            "range": "± 5480",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 1MiB/TripleMixPrng<CrossPlatform>",
+            "value": 374112,
+            "range": "± 4077",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: next_u64/TripleMixPrng",
+            "value": 67,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: next_u64/TripleMixPrng<CrossPlatform>",
+            "value": 67,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/8",
+            "value": 2942,
+            "range": "± 34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/16",
+            "value": 2941,
+            "range": "± 61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/32",
+            "value": 2944,
+            "range": "± 39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/64",
+            "value": 2943,
+            "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/72",
+            "value": 2927,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/128",
+            "value": 3188,
+            "range": "± 43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/256",
+            "value": 3438,
+            "range": "± 81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/360",
+            "value": 3394,
+            "range": "± 40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/512",
+            "value": 3902,
+            "range": "± 59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/fork",
+            "value": 3460,
+            "range": "± 40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "core/fill_blocks",
+            "value": 47,
+            "range": "± 0",
+            "unit": "ns/iter"
           }
         ]
       }
