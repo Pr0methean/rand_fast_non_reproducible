@@ -83,7 +83,7 @@ jobs:
       - name: Compile endless_bytes example
         run: cargo +nightly rustc --example endless_bytes --release --features llvm-mca -- --emit asm
       - name: Run llvm-mca
-        run: llvm-mca -json --iterations=256 target/release/examples/endless_bytes*.s
+        run: llvm-mca -json --iterations=128 target/release/examples/endless_bytes*.s
   gungraun:
     runs-on: ${{ matrix.os }}
     strategy:
