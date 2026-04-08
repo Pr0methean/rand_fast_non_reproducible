@@ -89,14 +89,6 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
                 accum ^= prng.next_u64();
                 accum ^= prng.next_u64();
                 accum ^= prng.next_u64();
-                accum ^= prng.next_u64();
-                accum ^= prng.next_u64();
-                accum ^= prng.next_u64();
-                accum ^= prng.next_u64();
-                accum ^= prng.next_u64();
-                accum ^= prng.next_u64();
-                accum ^= prng.next_u64();
-                accum ^= prng.next_u64();
                 accum
             })
         });
