@@ -10,33 +10,22 @@ Requires the `portable_simd` feature, which is currently nightly-only.
 The PRNG has the following properties:
 
 * The output block size is 64 bytes (8 u64's).
-* The state size is 256 bytes: 508 bits of identity, 1532 bits of mutable state, 8 bits of overhead.
-* The period is greater than 576460752303423211×2<sup>960</sup> blocks and greater than 2<sup>1019</sup> - 2<sup>968</sup> - 2<sup>965</sup> blocks, because it's the product of the subgenerators' coprime periods:
+* The state size is 296 bytes: 508 bits of identity, 1852 bits of mutable state, 8 bits of overhead.
+* The period is greater than 2<sup>1087</sup> - 2<sup>1036</sup> - 2<sup>1034</sup> blocks, because it's the product of 
+  the subgenerators' coprime periods, which are:
   * PCG64: 2<sup>128</sup>
   * Xoshiro256**: 2<sup>256</sup> - 1
   * TinyMT64: 2<sup>127</sup> - 1
-  * MCG (lane 0): 2<sup>127</sup> - 742×2<sup>63</sup> - 1
-  * MCG (lane 1): 2<sup>127</sup> - 5571×2<sup>63</sup> - 1
-  * MCG (lane 2): 2<sup>127</sup> - 1431×2<sup>63</sup> - 1
-  * MCG (lane 3): 2<sup>127</sup> - 1107×2<sup>63</sup> - 1
-* The 3-step output mapping achieves an average linear rank of 1531.94, with standard deviation less than 0.3.
-* The generator is exactly 2-equidistributed for 64-bit outputs. All ordered pairs of two u64's will be produced the
-  same number of times over the entire period. 
-* It is also approximately k-equidistributed for 64-bit outputs for 2 ≤ k ≤ 11. This means that over its full 
-  period for any given seed, every possible sequence of k consecutive 64-bit values occurs, and no sequence 
-  occurs fewer than 1 − 2<sup>-51</sup> times as often as any other.
-* The state size is 192 bytes, of which only 4 bits is overhead.
-* The period is greater than 2<sup>763</sup> - 2<sup>712</sup> - 2<sup>710</sup> blocks, which is the product of the subgenerators' coprime periods:
-  * Xoroshiro++: 2<sup>128</sup> − 1
-  * TinyMT64: 2<sup>127</sup> − 1
-  * MCG (lane 0): 2<sup>127</sup> − 742×2<sup>63</sup> − 1
-  * MCG (lane 1): 2<sup>127</sup> − 5571×2<sup>63</sup> − 1
-  * MCG (lane 2): 2<sup>127</sup> − 1431×2<sup>63</sup> − 1
-  * MCG (lane 3): 2<sup>127</sup> − 1107×2<sup>63</sup> − 1
-* The 3-step output mapping achieves an average linear rank of 1531.94, with standard deviation less than 0.3.
-* Can be created with a seed of any length, but will initialize fastest with a seed of 72, 144, 216 or 288 bytes.
-* The initial identity and state are derived from the seed using a Feistel permutation. A 2048-bit seed should make all
-  but one in 10<sup>111</sup> valid states possible, and a 2100-bit seed should make all valid states possible.
+  * MCG (lane 0): 2<sup>128</sup> - 742×2<sup>64</sup> - 1
+  * MCG (lane 1): 2<sup>128</sup> - 5572×2<sup>64</sup> - 1
+  * MCG (lane 2): 2<sup>128</sup> - 1432×2<sup>64</sup> - 1
+  * MCG (lane 3): 2<sup>128</sup> - 1108×2<sup>64</sup> - 1
+  * Scalar Weyl sequence: 2<sup>64</sup> - 59
+* Every possible 64-byte block is produced no more than 1 + 2<sup>-63</sup> times as often as any other possible block.
+* Can be created with a seed of any length, but will initialize fastest with a seed of 72, 144, 216, 288, or 360 bytes.
+* The initial identity and state are derived from the seed using a Feistel permutation. Each possible valid internal 
+  state results from no more than 1 + 2<sup>-61</sup> (the _preimage ratio_) times as many 360-byte seeds as any other, 
+  assuming that SHA3-512-KMAC behaves like a random function.
 * The seeding function ensures no sub-generator will have the same state in two different SIMD lanes.
 * `fork()` and `fork_with_domain_separation()` derive a statistically independent state from the current state and then
   update the parent PRNG's state.
