@@ -1,25 +1,25 @@
 use criterion::measurement::Measurement;
-use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 use const_format::formatcp;
 use core::time::Duration;
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 use criterion_cycles_per_byte::CyclesPerByte;
-use dyn_clone::{DynClone, clone_box};
+use dyn_clone::{clone_box, DynClone};
 #[cfg(feature = "bench_include_threadrng")]
 use rand::rng;
 use rand::rngs::SysRng;
 use rand_core::{Rng, SeedableRng, TryRng};
-use rand_triplemix::reproducibility::NotReproducible;
 #[cfg(feature = "reproducibility_cross_platform")]
 use rand_triplemix::reproducibility::cross_platform::CrossPlatform;
 #[cfg(feature = "reproducibility_same_endianness")]
 use rand_triplemix::reproducibility::same_endianness::SameEndianness;
+use rand_triplemix::reproducibility::NotReproducible;
 use rand_triplemix::seed::{DEFAULT_SEED_SIZE, LARGE_SEED_SIZE};
-use rand_triplemix::{BLOCK_SIZE, TripleMixPrng};
+use rand_triplemix::{TripleMixPrng, BLOCK_SIZE};
 use std::env::consts::{ARCH, OS};
-use std::hint::black_box;
-use std::mem::size_of;
+use core::hint::black_box;
+use core::mem::size_of;
 
 const PLATFORM: &str = formatcp!("{ARCH}:{OS}");
 
@@ -32,13 +32,13 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
     const BUFFER_LEN: usize = 16 * 1024;
 
     const LARGE_FILL_LEN: usize = 1024 * 1024;
-    for (name, mut prng) in create_prngs() {
-        let mut group = c.benchmark_group(format!("{}:{}: fill_bytes 16KiB", PLATFORM, name));
+    let prngs = create_prngs();
+    for alignment in [0, 1, MAX_ALIGNMENT] {
+        let mut group = c.benchmark_group(format!("{PLATFORM}: fill_bytes 16KiB (misalignment {alignment})"));
         group.throughput(Throughput::Bytes(BUFFER_LEN as u64));
-        for alignment in [0, 1, MAX_ALIGNMENT] {
-            let mut prng = clone_box(&*prng);
-            let misaligned_name = format!("misalignment {}", alignment);
-            group.bench_function(misaligned_name, move |b| {
+        for (prng_name, prng) in prngs.iter() {
+            let mut prng = clone_box(&**prng);
+            group.bench_function(prng_name.to_string(), move |b| {
                 let mut buffer = vec![0u64; BUFFER_LEN / size_of::<u64>() + 1]; // 1 MiB plus de-alignment padding
                 let (_, buffer, _) = unsafe { buffer.align_to_mut::<u8>() };
                 let misaligned_buffer = &mut buffer[alignment..(BUFFER_LEN + alignment)];
@@ -49,11 +49,13 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
             });
         }
         group.finish();
-        let mut group = c.benchmark_group(format!("{}:{}: fill_bytes 1MB", PLATFORM, name));
-        group.throughput(Throughput::Bytes(LARGE_FILL_LEN as u64));
-        let mut fill_bytes_prng = clone_box(&*prng);
+    }
+    let mut group = c.benchmark_group(formatcp!("{PLATFORM}: fill_bytes 1MiB"));
+    group.throughput(Throughput::Bytes(LARGE_FILL_LEN as u64));
+    for (prng_name, prng) in prngs.iter() {
+        let mut fill_bytes_prng = clone_box(&**prng);
         const ITERATIONS: usize = LARGE_FILL_LEN / BUFFER_LEN;
-        group.bench_function("fill_bytes", move |b| {
+        group.bench_function(prng_name.to_string(), move |b| {
             let mut buffer = vec![0u64; BUFFER_LEN / size_of::<u64>()];
             let (_, buffer, _) = unsafe { buffer.align_to_mut::<u8>() };
             b.iter(|| {
@@ -65,15 +67,25 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
                 acc
             })
         });
-        group.finish();
-        const U64_ITERATIONS: usize = 12;
-        let mut group = c.benchmark_group(format!("{PLATFORM}:{name}: next_u64"));
-        group.throughput(Throughput::Bytes(
-            (size_of::<u64>() * U64_ITERATIONS) as u64,
-        ));
-        group.bench_function("TripleMixPrng", move |b| {
+    }
+    group.finish();
+    const U64_ITERATIONS: usize = 12;
+    let mut group = c.benchmark_group(formatcp!("{PLATFORM}: next_u64"));
+    group.throughput(Throughput::Bytes(
+        (size_of::<u64>() * U64_ITERATIONS) as u64,
+    ));
+    for (prng_name, mut prng) in prngs.into_iter() {
+        group.bench_function(prng_name.to_string(), move |b| {
             b.iter(|| {
                 let mut accum = prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
+                accum ^= prng.next_u64();
                 accum ^= prng.next_u64();
                 accum ^= prng.next_u64();
                 accum ^= prng.next_u64();
@@ -84,8 +96,8 @@ fn generate<T: Measurement + 'static>(c: &mut Criterion<T>) {
                 accum
             })
         });
-        group.finish();
     }
+    group.finish();
 }
 
 fn create_prngs() -> Vec<(&'static str, Box<dyn DynCloneRng>)> {
@@ -116,7 +128,7 @@ fn core<T: Measurement>(c: &mut Criterion<T>) {
     let mut seed = [0u8; DEFAULT_SEED_SIZE];
     SysRng.try_fill_bytes(&mut seed).unwrap();
     let mut prng = TripleMixPrng::<NotReproducible>::from(&seed);
-    let mut group = c.benchmark_group(formatcp!("{PLATFORM}: core"));
+    let mut group = c.benchmark_group("core");
     group.throughput(Throughput::Bytes((BLOCK_SIZE * size_of::<u64>()) as u64));
     let mut block = [[0u64; BLOCK_SIZE]];
     group.bench_function("fill_blocks", move |b| {
@@ -128,7 +140,7 @@ fn core<T: Measurement>(c: &mut Criterion<T>) {
 }
 
 fn init<T: Measurement>(c: &mut Criterion<T>) {
-    let mut group = c.benchmark_group(formatcp!("{PLATFORM}: Initialization"));
+    let mut group = c.benchmark_group("initialization");
 
     // Seed and instance setup
     let mut seed_4096 = [0u8; 512];
