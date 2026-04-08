@@ -42,9 +42,10 @@ macro_rules! once_kmac {
 /// This is the recommended seed size when instantiating TripleMixPrng from a fast hardware entropy
 /// source such as RDSEED on x86-64 or RNDRRS on aarch64, if you trust that source enough not to mix
 /// it with any slower source the way the operating system usually does. It will always be at least
-/// 256 bytes, because TripleMixPrng's internal state contains 2040 variable bits and the extra 8
-/// bits help ensure all or nearly all valid states are possible as initial states.
-pub const LARGE_SEED_SIZE: usize = 288;
+/// as large as TripleMixPrng's internal state minus the number of overhead bits, and it will
+/// provide a whole number of input blocks to the SHA3-512-KMAC as long as one is being used to
+/// derive the initial state from the seed.
+pub const LARGE_SEED_SIZE: usize = 360;
 
 /// This is the recommended seed size when instantiating TripleMixPrng from a SysRng. Windows, MacOS
 /// and Linux CSPRNGs are designed to provide only 256 bits of security, so this is the smallest
