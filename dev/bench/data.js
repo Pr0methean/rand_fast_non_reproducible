@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775614921582,
+  "lastUpdate": 1775614938447,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -58116,6 +58116,156 @@ window.BENCHMARK_DATA = {
             "value": 80,
             "range": "± 0",
             "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d8105751d6f06b6af825cfb3534bfcc73b388d3a",
+          "message": "Benchmark tweaks (#115)\n\n* Switch to 128 iterations for llvm-mca, for comparability to criterion and gungraun at 16k\n\n* Reorganize benchmarks so that different implementations doing same job are in same group",
+          "timestamp": "2026-04-08T01:53:00Z",
+          "tree_id": "616e92b6f25d9a875e3130e2e4279f8c73bc27ab",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/d8105751d6f06b6af825cfb3534bfcc73b388d3a"
+        },
+        "date": 1775614937148,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 0)/TripleMixPrng",
+            "value": 13259,
+            "range": "± 66",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 0)/TripleMixPrng<CrossPlatform>",
+            "value": 13268,
+            "range": "± 100",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 1)/TripleMixPrng",
+            "value": 13323,
+            "range": "± 40",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 1)/TripleMixPrng<CrossPlatform>",
+            "value": 13601,
+            "range": "± 3199",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 7)/TripleMixPrng",
+            "value": 13335,
+            "range": "± 40",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 7)/TripleMixPrng<CrossPlatform>",
+            "value": 13502,
+            "range": "± 3223",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 1MiB/TripleMixPrng",
+            "value": 837827,
+            "range": "± 13943",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 1MiB/TripleMixPrng<CrossPlatform>",
+            "value": 836911,
+            "range": "± 25054",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: next_u64/TripleMixPrng",
+            "value": 145,
+            "range": "± 1",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: next_u64/TripleMixPrng<CrossPlatform>",
+            "value": 146,
+            "range": "± 4",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/8",
+            "value": 11415,
+            "range": "± 136",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/16",
+            "value": 11410,
+            "range": "± 37",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/32",
+            "value": 11416,
+            "range": "± 45",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/64",
+            "value": 11414,
+            "range": "± 55",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/72",
+            "value": 11393,
+            "range": "± 53",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/128",
+            "value": 12400,
+            "range": "± 30",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/256",
+            "value": 13376,
+            "range": "± 55",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/360",
+            "value": 13183,
+            "range": "± 131",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/512",
+            "value": 15160,
+            "range": "± 57",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/fork",
+            "value": 13611,
+            "range": "± 587",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "core/fill_blocks",
+            "value": 103,
+            "range": "± 1",
+            "unit": "cycles/iter"
           }
         ]
       }
