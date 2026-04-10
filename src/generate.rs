@@ -974,6 +974,7 @@ mod tests {
                     let y = (second & 0xFF) as usize;
                     low_byte_bins[x][y] += 1;
                 }
+                chunk[0] = chunk[CHUNK_SIZE - 1];
             }
 
             // Testing phase - convert back to 3D view for readability
