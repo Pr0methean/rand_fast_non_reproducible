@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775801911495,
+  "lastUpdate": 1775801984584,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -59316,6 +59316,156 @@ window.BENCHMARK_DATA = {
             "value": 81,
             "range": "± 1",
             "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7b023f8346f0e5f2852fccbcb7d8b57b46a4ca9f",
+          "message": "Inject inputs in first part of round, and split mixing function to handle only 5 inputs at a time (#116)\n\n* Inject first few inputs before multiplication\n\n* Reduce round3 to use 5 inputs\n\n* Reduce second half of mix to use 5 inputs\n\n* Split mix into first and second halves to reduce register pressure\n\n* Update stats\n\n* Update stats\n\n* Commit a new script used for PractRand testing via gnu parallel (previously each seed was started manually and all ran at once)",
+          "timestamp": "2026-04-10T05:53:11Z",
+          "tree_id": "86b788ed24474174e4cd01e02032ca1b068f3318",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/7b023f8346f0e5f2852fccbcb7d8b57b46a4ca9f"
+        },
+        "date": 1775801981559,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "x86_64:windows: fill_bytes 16KiB (misalignment 0)/TripleMixPrng",
+            "value": 11937,
+            "range": "± 167",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: fill_bytes 16KiB (misalignment 0)/TripleMixPrng<CrossPlatform>",
+            "value": 11902,
+            "range": "± 45",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: fill_bytes 16KiB (misalignment 1)/TripleMixPrng",
+            "value": 12044,
+            "range": "± 121",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: fill_bytes 16KiB (misalignment 1)/TripleMixPrng<CrossPlatform>",
+            "value": 12687,
+            "range": "± 56",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: fill_bytes 16KiB (misalignment 7)/TripleMixPrng",
+            "value": 12106,
+            "range": "± 134",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: fill_bytes 16KiB (misalignment 7)/TripleMixPrng<CrossPlatform>",
+            "value": 12721,
+            "range": "± 99",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: fill_bytes 1MiB/TripleMixPrng",
+            "value": 765433,
+            "range": "± 8345",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: fill_bytes 1MiB/TripleMixPrng<CrossPlatform>",
+            "value": 773241,
+            "range": "± 40377",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: next_u64/TripleMixPrng",
+            "value": 198,
+            "range": "± 10",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:windows: next_u64/TripleMixPrng<CrossPlatform>",
+            "value": 197,
+            "range": "± 2",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/8",
+            "value": 34404,
+            "range": "± 459",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/16",
+            "value": 34399,
+            "range": "± 394",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/32",
+            "value": 34524,
+            "range": "± 900",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/64",
+            "value": 34688,
+            "range": "± 650",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/72",
+            "value": 34387,
+            "range": "± 532",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/128",
+            "value": 37099,
+            "range": "± 1479",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/256",
+            "value": 39874,
+            "range": "± 353",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/360",
+            "value": 39771,
+            "range": "± 2988",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/from_seed/512",
+            "value": 45605,
+            "range": "± 4317",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "initialization/fork",
+            "value": 39903,
+            "range": "± 295",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "core/fill_blocks",
+            "value": 96,
+            "range": "± 0",
+            "unit": "cycles/iter"
           }
         ]
       }
