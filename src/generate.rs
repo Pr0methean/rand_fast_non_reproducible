@@ -294,8 +294,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             x0: Simd32,
             x1: Simd32,
             x2: Simd32,
-            x3: Simd32,
-            x4: Simd32,
             x5: Simd32,
             x6: Simd32,
             shift1: u32,
@@ -338,8 +336,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
             // ---- Phase 2: remaining inputs + rotations ----
 
-            a ^= x3;
-            b += x4;
             c ^= x5;
 
             // Rotate a early (frees old a dependency chain)
@@ -380,12 +376,12 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         b += scalar_mix_2;
         c += scalar_mix_1;
         d ^= scalar_mix_2;
-        (a, b, c) = round3::<R>(a, b, c, x0, x1, x2, x3, x4, x5, x6, 7, 25, 11);
+        (a, b, c) = round3::<R>(a, b, c, x0, x1, x2, x3, x4, 7, 25, 11);
         (b, c, d) = round3::<R>(
             b,
             c,
             d,
-            x3, x4, x5, x6, x0, x1, x2,
+            x5, x6, x3, x0, x1,
             5,
             17,
             9,
@@ -394,7 +390,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             c,
             d,
             a,
-            x5, x2, x6, x1, x4, x0, x3,
+            x4, x5, x6, x2, x3,
             3,
             13,
             23,
