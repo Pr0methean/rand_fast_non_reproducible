@@ -977,7 +977,12 @@ mod tests {
                         for (second_byte_index, second_byte) in second_bytes.into_iter().enumerate() {
                             let byte_position_index = first_byte_index * 8 + second_byte_index;
                             let byte_pair_index = first_byte as usize * 256 + second_byte as usize;
-                            byte_bins[byte_position_index][byte_pair_index] += 1;
+                            byte_lagged_bins[byte_position_index][byte_pair_index] += 1;
+                            if second_byte_index != first_byte_index {
+                                let first_index_byte_second_word = second.to_le_bytes()[first_byte_index];
+                                let byte_pair_index = first_index_byte_second_word as usize * 256 + second_byte as usize;
+                                byte_bins[byte_position_index][byte_pair_index] += 1;
+                            }
                         }
                     }
                 }
