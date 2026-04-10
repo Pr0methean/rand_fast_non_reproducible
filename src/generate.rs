@@ -966,13 +966,14 @@ mod tests {
 
                             nonlagged_row[nonlagged_bin] += 1;
                             lagged_row[lagged_bin] += 1;
-                            let x = (first & 0xFF) as usize;
-                            let y = (second & 0xFF) as usize;
-                            low_byte_bins[x][y] += 1;
                         }
                     }
                 }
-                chunk[0] = chunk[CHUNK_SIZE - 1];
+                for [first, second] in chunk.array_windows().copied() {
+                    let x = (first & 0xFF) as usize;
+                    let y = (second & 0xFF) as usize;
+                    low_byte_bins[x][y] += 1;
+                }
             }
 
             // Testing phase - convert back to 3D view for readability
@@ -1035,13 +1036,25 @@ mod tests {
                     }
                     panic!("Combined chi-square test failed (p={p:.10}), but no individual bits failed");
                 }
-
+                let expected_count_per_u8_pair = N as f64 / (1 << 16) as f64;
                 let low_byte_p = goodness_of_fit(
                     low_byte_bins.as_flattened().into_iter().copied().map(f64::from),
-                    repeat_n(N as f64 / (1 << 16) as f64, 1 << 16),
+                    repeat_n(expected_count_per_u8_pair, 1 << 16),
                     COMBINED_P_THRESHOLD
                 ).unwrap().p_value;
-                assert!(low_byte_p >= COMBINED_P_THRESHOLD);
+                if low_byte_p < COMBINED_P_THRESHOLD {
+                    for x in 0..256 {
+                        for y in 0..256 {
+                            let observed = low_byte_bins[x][y] as f64;
+                            if observed > expected_count_per_u8_pair * 1.5 {
+                                eprintln!("Low-byte pair too frequent: {:?}->{:?} (expected {:.0}, observed {:.0}", x, y, expected_count_per_u8_pair, observed);
+                            } else if observed < expected_count_per_u8_pair * 0.5 {
+                                eprintln!("Low-byte pair too infrequent: {:?}->{:?} (expected {:.0}, observed {:.0}", x, y, expected_count_per_u8_pair, observed);
+                            }
+                        }
+                    }
+                    panic!("Low byte chi-square test failed (p={low_byte_p:.10})");
+                }
             }
 
             #[cfg(miri)]
