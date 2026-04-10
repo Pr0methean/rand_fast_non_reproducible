@@ -967,11 +967,13 @@ mod tests {
 
                             nonlagged_row[nonlagged_bin] += 1;
                             lagged_row[lagged_bin] += 1;
-                            let x = (first & 0xFF) as usize;
-                            let y = (second & 0xFF) as usize;
-                            low_byte_bins[x][y] += 1;
                         }
                     }
+                }
+                for [first, second] in chunk.array_windows().copied() {
+                    let x = (first & 0xFF) as usize;
+                    let y = (second & 0xFF) as usize;
+                    low_byte_bins[x][y] += 1;
                 }
                 for [first, second] in chunk.array_windows().copied() {
                     let first_bytes = first.to_le_bytes();
