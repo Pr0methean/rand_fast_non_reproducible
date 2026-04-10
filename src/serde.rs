@@ -90,7 +90,7 @@ impl<'de, R: Reproducibility> serde::Deserialize<'de> for TripleMixPrng<R> {
 #[cfg(test)]
 mod tests {
     use crate::reproducibility::DefaultReproducibility;
-    use crate::{TripleMixPrng, create_rngs};
+    use crate::{TripleMixPrng, TripleMixSimdCore, create_rngs};
 
     #[test]
     fn test_round_trip() {
