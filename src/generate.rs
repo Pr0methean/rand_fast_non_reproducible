@@ -236,13 +236,14 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
             let tm_secondary_out = tm0 - tm1;
+            // Use updated MWC state and carry in only second half
             TripleMixSimdCore::<R>::second_half_mix(
                 tm_y,
                 tm_secondary_out,
                 block,
                 mwc_state,
-                pcg_output,
-                i_mixed,
+                pcg_output.reverse(),
+                mwc_carry,
                 a, b, c
             );
         }
@@ -293,7 +294,30 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let x4 = R::simd64_as_simd32(x4);
         let (a, b, c) = Self::first_half_mix(scalar1, scalar2, x0, x1, x2, x3, x4);
 
-        Self::second_half_mix(x5, x6, output, x2, x3, x4, a, b, c);
+        Self::second_half_mix(x5, x6, output, x2, x3.reverse(), x4, a, b, c);
+    }
+
+    #[inline(always)]
+    fn first_half_mix(scalar1: u64, scalar2: u64, x0: Simd32, x1: Simd32, x2: Simd32, x3: Simd32, x4: Simd32) -> (Simd32, Simd32, Simd32) {
+        let scalar1_hi = (scalar1 >> 32) as u32;
+        let scalar1_lo = scalar1 as u32;
+        let scalar2_hi = (scalar2 >> 32) as u32;
+        let scalar2_lo = scalar2 as u32;
+        let mut a = Simd32::splat(0x243f6a88);
+        let scalar_mix_1 =
+            Simd32::from_array([
+                scalar2_lo, scalar1_lo, scalar1_hi, 0, scalar1_hi, scalar2_lo, scalar1_lo, scalar2_hi,
+            ]);
+        let mut b = Simd32::splat(0x9e3779b9);
+        let scalar_mix_2 =
+            Simd32::from_array([
+                scalar1_hi, scalar2_hi, scalar2_hi, scalar1_hi, scalar2_lo, scalar1_lo, 0, scalar2_lo,
+            ]);
+        a ^= scalar_mix_1;
+        let mut c = Simd32::splat(0xb7e15162);
+        b += scalar_mix_2;
+        c += scalar_mix_1;
+        Self::round3(a, b, c, x0, x1, x2, x3, x4, 7, 25, 11)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -302,6 +326,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let x5 = R::simd64_as_simd32(x5);
         let x6 = R::simd64_as_simd32(x6);
         let mut d = Simd32::splat(0x84caa73b);
+        d += a.rotate_elements_left::<2>();
         (b, c, d) = Self::round3(
             b,
             c,
@@ -324,7 +349,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         a ^= b.rotate_elements_right::<2>();
         b += c.rotate_elements_left::<3>();
         c ^= d.rotate_elements_right::<1>();
-        d += a.rotate_elements_left::<2>();
 
         // extra nonlinear cross-coupling
         let t0 = a ^ c;
@@ -411,29 +435,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         a += cr2;
 
         (a, b, c)
-    }
-
-    #[inline(always)]
-    fn first_half_mix(scalar1: u64, scalar2: u64, x0: Simd32, x1: Simd32, x2: Simd32, x3: Simd32, x4: Simd32) -> (Simd32, Simd32, Simd32) {
-        let scalar1_hi = (scalar1 >> 32) as u32;
-        let scalar1_lo = scalar1 as u32;
-        let scalar2_hi = (scalar2 >> 32) as u32;
-        let scalar2_lo = scalar2 as u32;
-        let mut a = Simd32::splat(0x243f6a88);
-        let scalar_mix_1 =
-            Simd32::from_array([
-                scalar2_lo, scalar1_lo, scalar1_hi, 0, scalar1_hi, scalar2_lo, scalar1_lo, scalar2_hi,
-            ]);
-        let mut b = Simd32::splat(0x9e3779b9);
-        let scalar_mix_2 =
-            Simd32::from_array([
-                scalar1_hi, scalar2_hi, scalar2_hi, scalar1_hi, scalar2_lo, scalar1_lo, 0, scalar2_lo,
-            ]);
-        a ^= scalar_mix_1;
-        let mut c = Simd32::splat(0xb7e15162);
-        b += scalar_mix_2;
-        c += scalar_mix_1;
-        Self::round3(a, b, c, x0, x1, x2, x3, x4, 7, 25, 11)
     }
 }
 
