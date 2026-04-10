@@ -946,6 +946,7 @@ mod tests {
             // Flatten to 2D for better cache locality
             let mut bins = [[0u32; 4]; 64 * 64];
             let mut lagged_bins = [[0u32; 4]; 64 * 64];
+            let mut byte_lagged_bins = vec![[0u32; 256 * 256]; 8 * 8];
             let mut byte_bins = vec![[0u32; 256 * 256]; 8 * 8];
             // Process in a cache-friendly order
             let mut chunk = [0u64; CHUNK_SIZE + 1];
@@ -976,7 +977,12 @@ mod tests {
                         for (second_byte_index, second_byte) in second_bytes.into_iter().enumerate() {
                             let byte_position_index = first_byte_index * 8 + second_byte_index;
                             let byte_pair_index = first_byte as usize * 256 + second_byte as usize;
-                            byte_bins[byte_position_index][byte_pair_index] += 1;
+                            byte_lagged_bins[byte_position_index][byte_pair_index] += 1;
+                            if second_byte_index != first_byte_index {
+                                let first_index_byte_second_word = second.to_le_bytes()[first_byte_index];
+                                let byte_pair_index = first_index_byte_second_word as usize * 256 + second_byte as usize;
+                                byte_bins[byte_position_index][byte_pair_index] += 1;
+                            }
                         }
                     }
                 }
@@ -1044,14 +1050,47 @@ mod tests {
                     panic!("Combined chi-square test failed (p={p:.10}), but no individual bits failed");
                 }
                 let expected_count_per_u8_pair = (N - 1) as f64 / (1 << 16) as f64;
-                let low_byte_p = goodness_of_fit(
-                    byte_bins.as_flattened().into_iter().copied().map(f64::from),
+                let lagged_byte_p = goodness_of_fit(
+                    byte_lagged_bins.as_flattened().into_iter().copied().map(f64::from),
                     repeat_n(expected_count_per_u8_pair, (1 << 16) * 8 * 8),
                     COMBINED_P_THRESHOLD
                 ).unwrap().p_value;
-                if low_byte_p < COMBINED_P_THRESHOLD {
+                if lagged_byte_p < COMBINED_P_THRESHOLD {
                     for first_byte_index in 0..=7 {
                         for second_byte_index in 0..=7 {
+                            let byte_position_index = first_byte_index * 8 + second_byte_index;
+                            for first_byte in 0..=u8::MAX {
+                                for second_byte in 0..=u8::MAX {
+                                    let byte_pair_index = first_byte as usize * 256 + second_byte as usize;
+                                    let observed = byte_lagged_bins[byte_position_index][byte_pair_index] as f64;
+                                    if observed > expected_count_per_u8_pair * 1.5 {
+                                        eprintln!("Low-byte pair too frequent: {:?} in byte {:?} -> {:?} in byte {:?} (expected {:.0}, observed {:.0}",
+                                                first_byte, first_byte_index, second_byte, second_byte_index, expected_count_per_u8_pair, observed);
+                                    } else if observed < expected_count_per_u8_pair * 0.5 {
+                                        eprintln!("Low-byte pair too infrequent: {:?} in byte {:?} -> {:?} in byte {:?} (expected {:.0}, observed {:.0}",
+                                                first_byte, first_byte_index, second_byte, second_byte_index, expected_count_per_u8_pair, observed);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    panic!("Low byte chi-square test failed (p={lagged_byte_p:.10})");
+                }
+                let mut expected_byte_bins = vec![[expected_count_per_u8_pair + 1.0; 256 * 256]; 8 * 8];
+                for i in 0..=7 {
+                    expected_byte_bins[i * 9].fill(0.0);
+                }
+                let byte_p = goodness_of_fit(
+                    byte_bins.as_flattened().into_iter().copied().map(f64::from),
+                    expected_byte_bins.as_flattened().into_iter().copied(),
+                    COMBINED_P_THRESHOLD
+                ).unwrap().p_value;
+                if byte_p < COMBINED_P_THRESHOLD {
+                    for first_byte_index in 0..=7 {
+                        for second_byte_index in 0..=7 {
+                            if second_byte_index == first_byte_index {
+                                continue;
+                            }
                             let byte_position_index = first_byte_index * 8 + second_byte_index;
                             for first_byte in 0..=u8::MAX {
                                 for second_byte in 0..=u8::MAX {
@@ -1068,7 +1107,7 @@ mod tests {
                             }
                         }
                     }
-                    panic!("Low byte chi-square test failed (p={low_byte_p:.10})");
+                    panic!("Low byte chi-square test failed (p={lagged_byte_p:.10})");
                 }
             }
 
