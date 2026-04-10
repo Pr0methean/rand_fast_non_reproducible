@@ -1064,10 +1064,10 @@ mod tests {
                                     let byte_pair_index = first_byte as usize * 256 + second_byte as usize;
                                     let observed = byte_lagged_bins[byte_position_index][byte_pair_index] as f64;
                                     if observed > expected_count_per_u8_pair * 1.5 {
-                                        eprintln!("Low-byte pair too frequent: {:?} in byte {:?} -> {:?} in byte {:?} (expected {:.0}, observed {:.0}",
+                                        eprintln!("Lagged byte pair too frequent: {:?} in byte {:?} -> {:?} in byte {:?} (expected {:.0}, observed {:.0}",
                                                 first_byte, first_byte_index, second_byte, second_byte_index, expected_count_per_u8_pair, observed);
                                     } else if observed < expected_count_per_u8_pair * 0.5 {
-                                        eprintln!("Low-byte pair too infrequent: {:?} in byte {:?} -> {:?} in byte {:?} (expected {:.0}, observed {:.0}",
+                                        eprintln!("Lagged byte pair too infrequent: {:?} in byte {:?} -> {:?} in byte {:?} (expected {:.0}, observed {:.0}",
                                                 first_byte, first_byte_index, second_byte, second_byte_index, expected_count_per_u8_pair, observed);
                                     }
                                 }
@@ -1097,10 +1097,10 @@ mod tests {
                                     let byte_pair_index = first_byte as usize * 256 + second_byte as usize;
                                     let observed = byte_bins[byte_position_index][byte_pair_index] as f64;
                                     if observed > expected_count_per_u8_pair * 1.5 {
-                                        eprintln!("Low-byte pair too frequent: {:?} in byte {:?} -> {:?} in byte {:?} (expected {:.0}, observed {:.0}",
+                                        eprintln!("Byte pair too frequent: {:?} in byte {:?} -> {:?} in byte {:?} (expected {:.0}, observed {:.0}",
                                                 first_byte, first_byte_index, second_byte, second_byte_index, expected_count_per_u8_pair, observed);
                                     } else if observed < expected_count_per_u8_pair * 0.5 {
-                                        eprintln!("Low-byte pair too infrequent: {:?} in byte {:?} -> {:?} in byte {:?} (expected {:.0}, observed {:.0}",
+                                        eprintln!("Byte pair too infrequent: {:?} in byte {:?} -> {:?} in byte {:?} (expected {:.0}, observed {:.0}",
                                                 first_byte, first_byte_index, second_byte, second_byte_index, expected_count_per_u8_pair, observed);
                                     }
                                 }
