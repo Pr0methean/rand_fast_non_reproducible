@@ -73,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        cpu: [ "raptorlake", "arrowlake", "novalake", "znver4" ]
+        cpu: [ "raptorlake", "arrowlake", "novalake", "znver3", "znver4" ]
       fail-fast: false
     steps:
       - name: Harden the runner (Audit all outbound calls)
