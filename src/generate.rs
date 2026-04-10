@@ -1120,7 +1120,7 @@ mod tests {
 
     #[test]
     fn test_avalanche_miri_slow() {
-        const LOW_AVALANCHE_THRESHOLD: u64 = 28 * BLOCK_SIZE as u64;
+        const LOW_AVALANCHE_THRESHOLD: u64 = 29 * BLOCK_SIZE as u64;
         println!("Low-avalanche threshold: {LOW_AVALANCHE_THRESHOLD} bits");
         let mut total_low_avalanche_checks = 0;
         let mut total_checks = 0;
