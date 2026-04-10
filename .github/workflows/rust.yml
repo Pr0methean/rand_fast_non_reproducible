@@ -87,7 +87,7 @@ jobs:
       - name: Compile endless_bytes example
         run: RUSTFLAGS="-C target-cpu=${{ matrix.cpu }}" cargo +nightly rustc --target x86_64-unknown-linux-gnu --example endless_bytes --release --features llvm-mca -- --emit asm
       - name: Run llvm-mca
-        run: llvm-mca -json --mcpu=${{ matrix.cpu }} --iterations=128 target/release/examples/endless_bytes*.s
+        run: llvm-mca -json --mcpu=${{ matrix.cpu }} --iterations=128 target/x86_64-unknown-linux-gnu/release/examples/endless_bytes*.s
   gungraun:
     runs-on: ${{ matrix.os }}
     strategy:
