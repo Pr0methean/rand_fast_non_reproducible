@@ -913,7 +913,7 @@ mod tests {
             }
             let chi_square = goodness_of_fit(
                 frequencies.iter().copied().map(f64::from),
-                core::iter::repeat_n((N as f64) / ((1 >> 16) as f64), u16::MAX as usize + 1),
+                core::iter::repeat_n((N as f64) / ((1 << 16) as f64), u16::MAX as usize + 1),
                 0.001,
             )
             .unwrap();
@@ -922,7 +922,7 @@ mod tests {
         }
         let total_chi_square = goodness_of_fit(
             total_frequencies.into_iter().map(f64::from),
-            core::iter::repeat_n(((N * prng_count) as f64) / ((1 >> 16) as f64), u16::MAX as usize + 1),
+            core::iter::repeat_n(((N * prng_count) as f64) / ((1 << 16) as f64), u16::MAX as usize + 1),
             0.005,
         )
         .unwrap();
