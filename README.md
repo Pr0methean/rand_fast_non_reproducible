@@ -32,7 +32,7 @@ The PRNG has the following properties:
 * Within each lane, the mutable-state bits form a single cycle.
 * The mixing function uses SIMD-lane-specific constants, so it will not generate closely related output in different 
   lanes even when those lanes have a similar internal state.
-* Runs in 0.52-0.58 cycles per byte on Ubuntu with AVX2, versus 0.59-0.71 for ChaCha12Rng.
+* Runs in 0.50-0.52 cycles per byte on Raptor Lake (Ubuntu and Windows), versus 0.59-0.71 for ChaCha12Rng.
 * Byte-sequence entropy measurements (based on 16 GiB from an instance produced by 
   `TripleMixPrng::<NotReproducible>::almost_all_zeroes_state()` on an AVX2 CPU, calculated using 
   https://github.com/Pr0methean/EntroPy) are:
