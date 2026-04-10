@@ -487,7 +487,7 @@ mod tests {
     use fsum::FSum;
     use gf2::{BitMatrix, BitStore, BitVector};
     use hypors::chi_square::goodness_of_fit;
-    use itertools::Itertools;
+    use itertools::{repeat_n, Itertools};
     #[cfg(not(miri))]
     use proptest::{prelude::any, prop_assert, proptest};
     use rand::RngExt;
@@ -946,6 +946,7 @@ mod tests {
             // Flatten to 2D for better cache locality
             let mut bins = [[0u32; 4]; 64 * 64];
             let mut lagged_bins = [[0u32; 4]; 64 * 64];
+            let mut low_byte_bins = [[0u32; 256]; 256];
             // Process in a cache-friendly order
             let mut chunk = [0u64; CHUNK_SIZE + 1];
             chunk[0] = prng.next_u64();
@@ -965,6 +966,9 @@ mod tests {
 
                             nonlagged_row[nonlagged_bin] += 1;
                             lagged_row[lagged_bin] += 1;
+                            let x = (first & 0xFF) as usize;
+                            let y = (second & 0xFF) as usize;
+                            low_byte_bins[x][y] += 1;
                         }
                     }
                 }
@@ -1031,6 +1035,13 @@ mod tests {
                     }
                     panic!("Combined chi-square test failed (p={p:.10}), but no individual bits failed");
                 }
+
+                let low_byte_p = goodness_of_fit(
+                    low_byte_bins.as_flattened().into_iter().copied().map(f64::from),
+                    repeat_n(N as f64 / (1 << 16) as f64, 1 << 16),
+                    COMBINED_P_THRESHOLD
+                ).unwrap().p_value;
+                assert!(low_byte_p >= COMBINED_P_THRESHOLD);
             }
 
             #[cfg(miri)]
