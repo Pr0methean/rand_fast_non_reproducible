@@ -98,8 +98,8 @@ mod tests {
             let json = serde_json::to_string(&prng).unwrap();
             let prng_copy: TripleMixPrng<DefaultReproducibility> =
                 serde_json::from_str(&json).unwrap();
-            let mut bytes1 = [0u8; 288];
-            let mut bytes2 = [0u8; 288];
+            let mut bytes1 = [0u8; BYTE_SIZE];
+            let mut bytes2 = [0u8; BYTE_SIZE];
             prng.block_core.core.copy_to_le_bytes(&mut bytes1);
             prng_copy.block_core.core.copy_to_le_bytes(&mut bytes2);
             assert_eq!(bytes1, bytes2);

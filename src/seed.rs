@@ -545,7 +545,7 @@ mod tests {
 
     #[test]
     fn test_all_zero_seeds_different_lengths() {
-        let short_seed = [0u8; DEFAULT_SEED_SIZE];
+        let short_seed = [0u8; SMALL_SEED_SIZE];
         let mut short_seed_prng = TripleMixPrng::<DefaultReproducibility>::from(short_seed);
         let long_seed = [0u8; LARGE_SEED_SIZE];
         let mut long_seed_prng = TripleMixPrng::<DefaultReproducibility>::from(long_seed);
