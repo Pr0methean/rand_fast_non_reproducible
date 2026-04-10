@@ -1,7 +1,7 @@
 use crate::generate::{Simd64, TINYMT64_LANE_MASK};
 use crate::{Reproducibility, VERSION_OID};
 use crate::{TripleMixPrng, TripleMixSimdCore};
-use bytemuck::{cast_slice, cast_slice_mut};
+use bytemuck::cast_slice;
 use const_format::formatcp;
 use core::hint::cold_path;
 use core::marker::PhantomData;
@@ -73,17 +73,8 @@ pub(crate) fn get_base_fork_kmac() -> Kmac {
 impl<R: Reproducibility, T: AsRef<[u8]>> From<T> for TripleMixPrng<R> {
     #[inline(always)]
     fn from(raw_seed: T) -> Self {
-        const KMAC_BLOCK_SIZE: usize = 72;
         let mut base_kmac = get_base_kmac();
-        let raw_len = raw_seed.as_ref().len();
-        let padded_len = KMAC_BLOCK_SIZE * raw_len.div_ceil(KMAC_BLOCK_SIZE);
-        if padded_len == raw_len {
-            base_kmac.update(raw_seed.as_ref());
-        } else {
-            let mut padded_seed = vec![0u8; padded_len];
-            padded_seed[..raw_len].copy_from_slice(raw_seed.as_ref());
-            base_kmac.update(&padded_seed);
-        }
+        base_kmac.update(raw_seed.as_ref());
         let mut attempt = 0u128;
         loop {
             let core = Self::permute(&base_kmac, attempt);
@@ -116,83 +107,57 @@ impl<R: Reproducibility> TripleMixPrng<R> {
     }
     #[inline(always)]
     fn permute(base: &Kmac, tweak: u128) -> TripleMixSimdCore<R> {
-        let mut pcg_state_lo = Simd64::splat(0);
-        let mut pcg_state_hi = Simd64::splat(0);
-        let mut pcg_inc_lo = Simd64::splat(0);
-        let mut pcg_inc_hi = Simd64::splat(0);
-        let mut tm0 = Simd64::splat(0);
-        let mut tm1 = Simd64::splat(0);
-        let mut mwc_state = Simd64::splat(0);
-        let mut mwc_carry = Simd64::splat(0);
-        let mut xoshiro256 = [0u64; 4];
-        let mut scalar_weyl: u64 = 0;
-        for round in 0..4 {
-            let mut round_kmac = base.clone();
-            round_kmac.update(&(tweak + ((round as u128) << 126)).to_le_bytes());
+        const N_WORDS: usize = 38;
+        let half_size = TripleMixSimdCore::<R>::BYTE_SIZE / 2;
 
-            // Update KMAC from right half
-            let mut buffer = [0u64; 19];
-            // This loop looks scalar, but modern LLVM will see
-            // the fixed 128-bit extract pattern and emit VEXTRACTI128
-            // or VPERM2I128 directly into the buffer.
-            buffer[0..2].copy_from_slice(&pcg_state_lo.as_array()[2..4]);
-            buffer[2..4].copy_from_slice(&pcg_state_hi.as_array()[2..4]);
-            buffer[4..6].copy_from_slice(&pcg_inc_lo.as_array()[2..4]);
-            buffer[6..8].copy_from_slice(&pcg_inc_hi.as_array()[2..4]);
-            buffer[8..10].copy_from_slice(&tm0.as_array()[2..4]);
-            buffer[10..12].copy_from_slice(&tm1.as_array()[2..4]);
-            buffer[12..14].copy_from_slice(&mwc_state.as_array()[2..4]);
-            buffer[14..16].copy_from_slice(&mwc_carry.as_array()[2..4]);
-            buffer[16..18].copy_from_slice(&xoshiro256[2..4]);
-            buffer[18] = scalar_weyl;
-            for word in &mut buffer {
-                *word = word.to_le();
-            }
-            round_kmac.update(cast_slice(&buffer));
+        // TripleMixSimdCore has 2360 non-overhead bits, but KMAC's internal state is only 1600
+        // bits, so we use two XOFs to ensure permutation is subjective for large enough seeds.
+        let mut reader0 = base.clone();
+        let mut reader1 = base.clone();
+        reader0.update(tweak.to_be_bytes().as_ref());
+        reader1.update((u128::MAX - tweak).to_le_bytes().as_ref());
+        let mut reader0 = reader0.into_xof();
+        let mut reader1 = reader1.into_xof();
+        let mut buf = vec![0u8; TripleMixSimdCore::<R>::BYTE_SIZE];
+        reader0.squeeze(&mut buf[0..half_size]);
+        reader1.squeeze(&mut buf[half_size..]);
 
-            let mut reader = round_kmac.into_xof();
-            let mut f_out = [0u64; 19];
-            reader.squeeze(cast_slice_mut(&mut f_out));
-            for word in &mut f_out {
-                *word = u64::from_le(*word);
-            }
-
-            // Xor into left half
-            let mask = Simd::from_array([!0, !0, 0, 0]);
-            let d0 = Simd::from_slice(&f_out.as_ref()[0..4]); // words 0,1,2,3
-            let d1 = Simd::from_slice(&f_out.as_ref()[4..8]); // words 4,5,6,7
-            let d2 = Simd::from_slice(&f_out.as_ref()[8..12]); // words 8,9,10,11
-            let d3 = Simd::from_slice(&f_out.as_ref()[12..16]); // words 12,13,14,15
-            pcg_state_lo ^= d0 & mask;
-            // Use a swizzle to get words 2,3 into lanes 0,1
-            pcg_state_hi ^= d0.rotate_elements_left::<2>() & mask;
-
-            pcg_inc_lo ^= d1 & mask;
-            pcg_inc_hi ^= d1.rotate_elements_left::<2>() & mask;
-
-            tm0 ^= d2 & mask;
-            tm1 ^= d2.rotate_elements_left::<2>() & mask;
-
-            mwc_state ^= d3 & mask;
-            mwc_carry ^= d3.rotate_elements_left::<2>() & mask;
-            xoshiro256[0] ^= f_out.as_ref()[16];
-            xoshiro256[1] ^= f_out.as_ref()[17];
-            scalar_weyl ^= f_out.as_ref()[18];
-
-            // Swap: Lanes 0,1 <-> Lanes 2,3
-            pcg_state_lo = pcg_state_lo.rotate_elements_left::<2>();
-            pcg_state_hi = pcg_state_hi.rotate_elements_left::<2>();
-            pcg_inc_lo = pcg_inc_lo.rotate_elements_left::<2>();
-            pcg_inc_hi = pcg_inc_hi.rotate_elements_left::<2>();
-            tm0 = tm0.rotate_elements_left::<2>();
-            tm1 = tm1.rotate_elements_left::<2>();
-            mwc_state = mwc_state.rotate_elements_left::<2>();
-            mwc_carry = mwc_carry.rotate_elements_left::<2>();
-            xoshiro256.rotate_left(2);
+        let mut words = [0u64; N_WORDS];
+        for (i, chunk) in buf.chunks_exact(8).enumerate() {
+            words[i] = u64::from_le_bytes(chunk.try_into().unwrap());
         }
 
-        tm0 &= Simd::splat(TINYMT64_LANE_MASK);
-        pcg_inc_lo |= Simd::splat(1);
+        let mut pcg_state_lo = Simd64::from_array(words[0..4].try_into().unwrap());
+        let mut pcg_state_hi = Simd64::from_array(words[4..8].try_into().unwrap());
+        let mut pcg_inc_lo   = Simd64::from_array(words[8..12].try_into().unwrap());
+        let mut pcg_inc_hi = Simd64::from_array(words[12..16].try_into().unwrap());
+
+        let mut tm0          = Simd64::from_array(words[16..20].try_into().unwrap());
+        let mut tm1 = Simd64::from_array(words[20..24].try_into().unwrap());
+
+        let mut mwc_state = Simd64::from_array(words[24..28].try_into().unwrap());
+        let mut mwc_carry = Simd64::from_array(words[28..32].try_into().unwrap());
+
+        let xoshiro256   = [words[32], words[33], words[34], words[35]];
+        let mut scalar_weyl = words[36];
+
+        fn mix4(a: &mut Simd64, b: &mut Simd64) {
+            *a = *a + *b;
+            *b ^= a.rotate_elements_left::<1>();
+            *a = a.rotate_elements_left::<3>();
+        }
+        mix4(&mut pcg_state_lo, &mut pcg_state_hi);
+        mix4(&mut pcg_inc_lo, &mut pcg_inc_hi);
+        mix4(&mut tm0, &mut tm1);
+        mix4(&mut mwc_state, &mut mwc_carry);
+        scalar_weyl = scalar_weyl
+                .wrapping_add(words[37])
+                .rotate_left(17)
+                ^ 0x9e3779b97f4a7c15;
+
+        pcg_inc_lo |= Simd64::splat(1);
+        tm0 &= Simd64::splat(TINYMT64_LANE_MASK);
+        
         TripleMixSimdCore::<R> {
             pcg_state_lo,
             pcg_state_hi,
