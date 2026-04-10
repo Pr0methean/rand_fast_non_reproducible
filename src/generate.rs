@@ -196,7 +196,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
             Self::advance_xoshiro(&mut xoshiro256);
             let pcg_output = R::simd64_as_simd32(pcg_output);
-            let pcg_state_lo = R::simd64_as_simd32(pcg_state_lo);
             // TinyMT Step 0: Mask and initial XOR
             let tm0_masked = tm0 & Simd::splat(TINYMT64_LANE_MASK);
             let mut tm_x = tm0_masked ^ tm1;
@@ -216,18 +215,18 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
             let tm_y = R::simd64_as_simd32(tm_y);
 
+            let mwc_borrow = mwc_carry.simd_lt(mwc_kx_lo).to_simd().cast::<u64>();
+            let mwc_next_state = mwc_carry - mwc_kx_lo;
+
             let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
                 xoshiro_out,
-                scalar_weyl,
                 R::simd64_as_simd32(mwc_carry),
                 pcg_output,
                 i_mixed,
-                pcg_state_lo,
+                R::simd64_as_simd32(mwc_next_state),
                 tm_y);
-            // pcg_state_lo, mwc_carry, xoshiro_out, scalar_weyl are not used in the second half of the mix
+            // mwc_carry, xoshiro_out, scalar_weyl are not used in the second half of the mix
 
-            let mwc_borrow = mwc_carry.simd_lt(mwc_kx_lo).to_simd().cast::<u64>();
-            let mwc_next_state = mwc_carry - mwc_kx_lo;
             mwc_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
             mwc_state = mwc_next_state;
 
@@ -236,14 +235,15 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
             let tm_secondary_out = tm0 - tm1;
+            let pcg_output = pcg_output.reverse();
             // Use updated MWC state and carry in only second half
             TripleMixSimdCore::<R>::second_half_mix(
                 tm_secondary_out,
                 mwc_carry,
                 block,
-                R::simd64_as_simd32(mwc_state),
-                pcg_output.reverse(),
-                tm_y,
+                R::simd64_as_simd32(pcg_state_lo),
+                R::simd64_as_simd32(Simd::splat(scalar_weyl)),
+                pcg_output,
                 a, b, c
             );
         }
@@ -292,26 +292,24 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let x2 = R::simd64_as_simd32(x2);
         let x3 = R::simd64_as_simd32(x3);
         let x4 = R::simd64_as_simd32(x4);
-        let (a, b, c) = Self::first_half_mix(scalar1, scalar2, x0, x1, x2, x3, x4);
+        let (a, b, c) = Self::first_half_mix(scalar1, x0, x1, x2, x3, x4);
 
-        Self::second_half_mix(x5, x6, output, x2, x3.reverse(), x4, a, b, c);
+        Self::second_half_mix(x5, x6, output, x2, R::simd64_as_simd32(Simd::splat(scalar2)), x4, a, b, c);
     }
 
     #[inline(always)]
-    fn first_half_mix(scalar1: u64, scalar2: u64, x0: Simd32, x1: Simd32, x2: Simd32, x3: Simd32, x4: Simd32) -> (Simd32, Simd32, Simd32) {
+    fn first_half_mix(scalar1: u64, x0: Simd32, x1: Simd32, x2: Simd32, x3: Simd32, x4: Simd32) -> (Simd32, Simd32, Simd32) {
         let scalar1_hi = (scalar1 >> 32) as u32;
         let scalar1_lo = scalar1 as u32;
-        let scalar2_hi = (scalar2 >> 32) as u32;
-        let scalar2_lo = scalar2 as u32;
         let mut a = Simd32::splat(0x243f6a88);
         let scalar_mix_1 =
             Simd32::from_array([
-                scalar2_lo, scalar1_lo, scalar1_hi, 0, scalar1_hi, scalar2_lo, scalar1_lo, scalar2_hi,
+                0, scalar1_lo, scalar1_hi, 0, scalar1_hi, u32::MAX, scalar1_lo, scalar1_lo.wrapping_add(scalar1_hi),
             ]);
         let mut b = Simd32::splat(0x9e3779b9);
         let scalar_mix_2 =
             Simd32::from_array([
-                scalar1_hi, scalar2_hi, scalar2_hi, scalar1_hi, scalar2_lo, scalar1_lo, 0, scalar2_lo,
+                scalar1_hi, u32::MAX, 0, scalar1_hi, scalar1_lo ^ scalar1_hi, scalar1_lo, 0, scalar1_lo,
             ]);
         a ^= scalar_mix_1;
         let mut c = Simd32::splat(0xb7e15162);
