@@ -322,49 +322,26 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             23,
         );
 
-        // ---- Pre-mix (keep this light, breaks symmetry cheaply) ----
         a ^= b.rotate_elements_right::<2>();
         b += c.rotate_elements_left::<3>();
         c ^= d.rotate_elements_right::<1>();
         d += a.rotate_elements_left::<1>();
 
-        // ---- Single nonlinear expansion (2 multiplies total) ----
-        // These are the only new multiplies per block
-        let p0 = a * b;
-        let p1 = c * d;
+        // extra nonlinear cross-coupling
+        let t0 = c ^ (a >> 9);
+        let t1 = d + (b >> 10);
+        let t2 = b ^ (c >> 6);
+        let t3 = a + (d >> 7);
+        b ^= t0.rotate_elements_right::<2>();
+        a += t1.rotate_elements_left::<1>();
+        d ^= t2.rotate_elements_right::<3>();
+        c ^= t3.rotate_elements_left::<4>();
 
-        // Cross-couple to avoid shared structure
-        let q0 = p0 ^ p1.rotate_elements_left::<1>();
-        let q1 = p1 ^ p0.rotate_elements_right::<2>();
-
-        // High → low diffusion (important for DC6)
-        let r0 = q0 ^ (q0 >> Simd32::splat(13));
-        let r1 = q1 ^ (q1 >> Simd32::splat(15));
-
-        // ---- Asymmetric projection into outputs ----
-        // Each output gets a *different* nonlinear combination
-        let mut oa = a ^ r0;
-        let mut ob = b + r1;
-        let mut oc = c ^ (r0 + r1);
-        let mut od = d + (r0 ^ r1.rotate_elements_left::<3>());
-
-        // ---- Final divergence layer ----
-        oa ^= ob.rotate_elements_left::<1>();
-        ob += oc.rotate_elements_left::<2>();
-        oc ^= od.rotate_elements_left::<3>();
-        od += oa.rotate_elements_left::<4>();
-
-        // ---- Final high→low cleanup ----
-        oa ^= oa >> Simd32::splat(15);
-        ob ^= ob >> Simd32::splat(13);
-        oc ^= oc >> Simd32::splat(16);
-        od ^= od >> Simd32::splat(14);
-
-        // ---- Store ----
-        R::simd32_as_simd64(oa).copy_to_slice(&mut output[0..4]);
-        R::simd32_as_simd64(ob).copy_to_slice(&mut output[4..8]);
-        R::simd32_as_simd64(oc).copy_to_slice(&mut output[8..12]);
-        R::simd32_as_simd64(od).copy_to_slice(&mut output[12..16]);
+        // Convert back to u64x4 by casting and packing
+        R::simd32_as_simd64(a).copy_to_slice(&mut output[0..4]);
+        R::simd32_as_simd64(b).copy_to_slice(&mut output[4..8]);
+        R::simd32_as_simd64(c).copy_to_slice(&mut output[8..12]);
+        R::simd32_as_simd64(d).copy_to_slice(&mut output[12..16]);
     }
 
     #[allow(clippy::too_many_arguments)]
