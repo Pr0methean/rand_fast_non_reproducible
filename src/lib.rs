@@ -123,6 +123,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             (ab_lo, ab_hi, bc_lo, bc_hi)
         }
     }
+    
+    pub const BYTE_SIZE: usize = 296;
 
     #[inline(always)]
     pub fn copy_to_le_bytes(&self, dst: &mut [u8]) {
@@ -138,6 +140,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         for &word in &self.xoshiro256 {
             chunks.next().unwrap().copy_from_slice(&word.to_le_bytes());
         }
+        dst[288..296].copy_from_slice(&self.scalar_weyl.to_le_bytes());
     }
 }
 

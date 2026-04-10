@@ -47,12 +47,14 @@ macro_rules! once_kmac {
 /// derive the initial state from the seed.
 pub const LARGE_SEED_SIZE: usize = 360;
 
+pub const SMALL_SEED_SIZE: usize = 72;
+
 /// This is the recommended seed size when instantiating TripleMixPrng from a SysRng. Windows, MacOS
 /// and Linux CSPRNGs are designed to provide only 256 bits of security, so this is the smallest
 /// size that's at least 32 bytes and provides a whole number of input blocks to the SHA3-512-KMAC.
 /// It will make the TripleMixPrng faster to create than any larger seed size.
 #[cfg(not(feature = "large_seeds_by_default"))]
-pub const DEFAULT_SEED_SIZE: usize = 72;
+pub const DEFAULT_SEED_SIZE: usize = SMALL_SEED_SIZE;
 
 #[cfg(feature = "large_seeds_by_default")]
 pub const DEFAULT_SEED_SIZE: usize = LARGE_SEED_SIZE;
@@ -232,16 +234,16 @@ impl<R: Reproducibility> TripleMixPrng<R> {
         } else {
             Kmac::v256(FORK_DOMAIN_STRING, domain_separation.as_ref())
         };
-        let mut padding = [0u64; 3]; // 24 bytes + 192-byte core state = 216 bytes = 3 blocks
+        let mut padding = [0u64; 8]; // 64 bytes + 296-byte core state = 360 bytes = 5 blocks
         let remaining = self.block_core.remaining_results();
         let remaining_len = remaining.len();
         if remaining_len > 0 {
             padding[0] = remaining_len as u64;
-            padding[1..(remaining.len() + 1).min(3)].copy_from_slice(remaining);
+            padding[1..(remaining.len() + 1).min(8)].copy_from_slice(remaining);
         } else {
             self.fill(&mut padding);
         }
-        let mut core_bytes = [0u8; 288];
+        let mut core_bytes = [0u8; 296];
         self.block_core.core.copy_to_le_bytes(&mut core_bytes);
         fork_kmac.update(&core_bytes);
         for word in &mut padding {
@@ -342,8 +344,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 mod tests {
     use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::DefaultReproducibility;
-    use crate::seed::{DEFAULT_SEED_SIZE, get_base_kmac, LARGE_SEED_SIZE};
-    use crate::{TripleMixPrng, rng};
+    use crate::seed::{DEFAULT_SEED_SIZE, get_base_kmac, LARGE_SEED_SIZE, SMALL_SEED_SIZE};
+    use crate::{TripleMixPrng, rng, TripleMixSimdCore};
     use core::hint::black_box;
     use generic_array::GenericArray;
     use rand_core::{Rng, SeedableRng};
@@ -547,19 +549,31 @@ mod tests {
         let mut short_seed_prng = TripleMixPrng::<DefaultReproducibility>::from(short_seed);
         let long_seed = [0u8; LARGE_SEED_SIZE];
         let mut long_seed_prng = TripleMixPrng::<DefaultReproducibility>::from(long_seed);
-        for _ in 0..32 {
-            assert_ne!(short_seed_prng.next_u64(), long_seed_prng.next_u64());
+        let mut short_seed_prng_bytes = [0u8; TripleMixSimdCore::<DefaultReproducibility>::BYTE_SIZE];
+        short_seed_prng.block_core.core.copy_to_le_bytes(&mut short_seed_prng_bytes);
+        let mut long_seed_prng_bytes = [0u8; TripleMixSimdCore::<DefaultReproducibility>::BYTE_SIZE];
+        long_seed_prng.block_core.core.copy_to_le_bytes(&mut long_seed_prng_bytes);
+        assert_ne!(short_seed_prng_bytes, long_seed_prng_bytes);
+        for out_index in 0..32 {
+            assert_ne!(short_seed_prng.next_u64(), long_seed_prng.next_u64(),
+                       "Same output after {out_index} u64's");
         }
     }
 
     #[test]
     fn test_all_zero_seeds_forked_different_lengths() {
-        let short_seed = [0u8; DEFAULT_SEED_SIZE];
+        let short_seed = [0u8; SMALL_SEED_SIZE];
         let mut short_seed_prng = TripleMixPrng::<DefaultReproducibility>::from(short_seed).fork();
         let long_seed = [0u8; LARGE_SEED_SIZE];
         let mut long_seed_prng = TripleMixPrng::<DefaultReproducibility>::from(long_seed).fork();
-        for _ in 0..32 {
-            assert_ne!(short_seed_prng.next_u64(), long_seed_prng.next_u64());
+        let mut short_seed_prng_bytes = [0u8; TripleMixSimdCore::<DefaultReproducibility>::BYTE_SIZE];
+        short_seed_prng.block_core.core.copy_to_le_bytes(&mut short_seed_prng_bytes);
+        let mut long_seed_prng_bytes = [0u8; TripleMixSimdCore::<DefaultReproducibility>::BYTE_SIZE];
+        long_seed_prng.block_core.core.copy_to_le_bytes(&mut long_seed_prng_bytes);
+        assert_ne!(short_seed_prng_bytes, long_seed_prng_bytes);
+        for out_index in 0..32 {
+            assert_ne!(short_seed_prng.next_u64(), long_seed_prng.next_u64(),
+                       "Same output after {out_index} u64's");
         }
     }
 
