@@ -302,6 +302,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let x5 = R::simd64_as_simd32(x5);
         let x6 = R::simd64_as_simd32(x6);
         let mut d = Simd32::splat(0x84caa73b);
+        d += a.rotate_elements_left::<2>();
         (b, c, d) = Self::round3(
             b,
             c,
@@ -324,7 +325,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         a ^= b.rotate_elements_right::<2>();
         b += c.rotate_elements_left::<3>();
         c ^= d.rotate_elements_right::<1>();
-        d += a.rotate_elements_left::<2>();
 
         // extra nonlinear cross-coupling
         let t0 = a ^ c;
