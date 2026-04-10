@@ -157,6 +157,13 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             0x94d049bb133111eb,
         ]);
 
+        const PCG_ALT_MULTIPLIERS: Simd64 = Simd::from_array([
+            0xcafef00dd15ea5e5,
+            0xa02bdbf7bb3c0a7,
+            0xac28fa16a64abf96,
+            0x5a5a0f0f0f0fa5a5,
+        ]);
+
         for block in blocks {
             // Kick off the highest latency operations (multipliers) early
             // a_low * b (where b is pcg_mult)
@@ -235,16 +242,18 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
             let tm_secondary_out = tm0 - tm1;
-            let pcg_output = pcg_output.reverse();
+            let pcg_alt = simd_wrapping_mul(pcg_state_hi ^ (pcg_state_lo >> 1), PCG_ALT_MULTIPLIERS);
+            let xoshiro_scrambled = xoshiro_out.rotate_left(23) ^ (xoshiro_out >> 17);
             // Use updated MWC state and carry in only second half
             TripleMixSimdCore::<R>::second_half_mix(
-                tm_secondary_out,
+                scalar_weyl,
+                xoshiro_scrambled,
+                pcg_alt,
                 mwc_carry,
-                block,
+                R::simd64_as_simd32(tm_secondary_out),
                 R::simd64_as_simd32(pcg_state_lo),
-                R::simd64_as_simd32(Simd::splat(scalar_weyl)),
-                pcg_output,
-                a, b, c
+                a, b, c,
+                block
             );
         }
 
@@ -294,42 +303,54 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let x4 = R::simd64_as_simd32(x4);
         let (a, b, c) = Self::first_half_mix(scalar1, x0, x1, x2, x3, x4);
 
-        Self::second_half_mix(x5, x6, output, x2, R::simd64_as_simd32(Simd::splat(scalar2)), x4, a, b, c);
+        Self::second_half_mix(scalar2, scalar1, x5, x6, x2, x3.reverse(), a, b, c, output);
     }
 
     #[inline(always)]
     fn first_half_mix(scalar1: u64, x0: Simd32, x1: Simd32, x2: Simd32, x3: Simd32, x4: Simd32) -> (Simd32, Simd32, Simd32) {
-        let scalar1_hi = (scalar1 >> 32) as u32;
-        let scalar1_lo = scalar1 as u32;
+        let s = scalar1;
+        let s_mix = s ^ (s >> 33);
+        let s_mix = s_mix.wrapping_mul(0xff51afd7ed558ccd);
+        let s_mix = s_mix ^ (s_mix >> 33);
+        let scalar_vec = Simd32::splat(s_mix as u32)
+            ^ Simd32::from_array([0,1,2,3,4,5,6,7]).rotate_elements_left::<3>();
         let mut a = Simd32::splat(0x243f6a88);
-        let scalar_mix_1 =
-            Simd32::from_array([
-                0, scalar1_lo, scalar1_hi, 0, scalar1_hi, u32::MAX, scalar1_lo, scalar1_lo.wrapping_add(scalar1_hi),
-            ]);
         let mut b = Simd32::splat(0x9e3779b9);
-        let scalar_mix_2 =
-            Simd32::from_array([
-                scalar1_hi, u32::MAX, 0, scalar1_hi, scalar1_lo ^ scalar1_hi, scalar1_lo, 0, scalar1_lo,
-            ]);
-        a ^= scalar_mix_1;
         let mut c = Simd32::splat(0xb7e15162);
-        b += scalar_mix_2;
-        c += scalar_mix_1;
+        b += x4;
+        a ^= scalar_vec;
+        c += scalar_vec.rotate_elements_right::<3>();
         Self::round3(a, b, c, x0, x1, x2, x3, x4, 7, 25, 11)
     }
 
     #[allow(clippy::too_many_arguments)]
     #[inline(always)]
-    fn second_half_mix(x5: Simd64, x6: Simd64, output: &mut [u64; 16], x2: Simd32, x3: Simd32, x4: Simd32, mut a: Simd32, mut b: Simd32, mut c: Simd32) {
+    fn second_half_mix(scalar1: u64, scalar2: u64, x5: Simd64, x6: Simd64, x2: Simd32, x3: Simd32, mut a: Simd32, mut b: Simd32, mut c: Simd32, output: &mut [u64; 16]) {
         let x5 = R::simd64_as_simd32(x5);
         let x6 = R::simd64_as_simd32(x6);
         let mut d = Simd32::splat(0x84caa73b);
+        let scalar1_hi = (scalar1 >> 32) as u32;
+        let scalar1_lo = scalar1 as u32;
+        let scalar2_hi = (scalar2 >> 32) as u32;
+        let scalar2_lo = scalar2 as u32;
+        let scalar_vec = Simd32::from_array([
+            scalar1_hi,
+            scalar1_hi.wrapping_sub(scalar1_lo),
+            scalar1_lo,
+            scalar2_hi,
+            scalar1_lo.rotate_left(23),
+            scalar2_lo ^ scalar1_hi,
+            scalar2_lo.wrapping_mul(Self::PCG_MULT_LO_3 as u32),
+            scalar1_hi.wrapping_add(scalar1_hi >> 2),
+        ]);
         d += a.rotate_elements_left::<2>();
+        b ^= scalar_vec;
+        c += scalar_vec.rotate_elements_left::<1>();
         (b, c, d) = Self::round3(
             b,
             c,
             d,
-            x5, x6, x3, x4, x2,
+            x5, x6, x2, a, x3,
             5,
             17,
             9,
@@ -338,7 +359,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             c,
             d,
             a,
-            x4, x5, x6, x2, x3,
+            x2, x3, x5, x6, b,
             3,
             13,
             23,
@@ -424,6 +445,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
         // Dependent chain kept tight
         let cr = rotl32(b, shift3);
+        a ^= b.rotate_elements_left::<1>();
         c ^= cr;
 
         let ar4 = a.rotate_elements_right::<4>();
