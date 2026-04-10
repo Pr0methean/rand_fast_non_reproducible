@@ -140,7 +140,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         llvm_mca::llvm_mca_begin!("fill_blocks");
         let pcg_inc_lo = self.pcg_inc_lo;
         let pcg_inc_hi = self.pcg_inc_hi;
-        let i_mixed = pcg_inc_hi + pcg_inc_lo;
+        let i_mixed = R::simd64_as_simd32(pcg_inc_hi + pcg_inc_lo);
         let mut pcg_state_lo = self.pcg_state_lo;
         let mut pcg_state_hi = self.pcg_state_hi;
         let mut tm0 = self.tm0;
@@ -197,6 +197,24 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             mwc_state = mwc_next_state;
 
             scalar_weyl = (scalar_weyl + 1) % Self::SCALAR_WEYL_MODULUS;
+            // Generate scalar xoshiro256** output
+            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
+            Self::advance_xoshiro(&mut xoshiro256);
+            let mwc_state = R::simd64_as_simd32(mwc_state);
+            let mwc_carry = R::simd64_as_simd32(mwc_carry);
+            let pcg_output = R::simd64_as_simd32(pcg_output);
+            let pcg_state_lo = R::simd64_as_simd32(pcg_state_lo);
+
+            let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
+                xoshiro_out,
+                scalar_weyl,
+                mwc_state,
+                pcg_output,
+                i_mixed,
+                pcg_state_lo,
+                mwc_carry);
+            // pcg_state_lo, mwc_carry, xoshiro_out, scalar_weyl are not used in the second half of the mix
+
             // TinyMT Step 0: Mask and initial XOR
             let tm0_masked = tm0 & Simd::splat(TINYMT64_LANE_MASK);
             let mut tm_x = tm0_masked ^ tm1;
@@ -205,13 +223,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             // TinyMT Step 1: First shift
             tm_x ^= tm_x << Simd::splat(12);
 
-            // Generate scalar xoshiro256** output
-            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
-
             // TinyMT Step 2: Second shift
             tm_x ^= tm_x >> Simd::splat(32);
-
-            Self::advance_xoshiro(&mut xoshiro256);
 
             // TinyMT Step 3: Third shift
             tm_x ^= tm_x << Simd::splat(32);
@@ -223,18 +236,14 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
             let tm_secondary_out = tm0 - tm1;
-
-            TripleMixSimdCore::<R>::mix(
+            TripleMixSimdCore::<R>::second_half_mix(
+                tm_y,
+                tm_secondary_out,
+                block,
                 mwc_state,
                 pcg_output,
-                tm_y,
-                mwc_carry,
                 i_mixed,
-                pcg_state_lo,
-                tm_secondary_out,
-                xoshiro_out,
-                scalar_weyl,
-                block
+                a, b, c
             );
         }
 
@@ -282,121 +291,31 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let x2 = R::simd64_as_simd32(x2);
         let x3 = R::simd64_as_simd32(x3);
         let x4 = R::simd64_as_simd32(x4);
+        let (a, b, c) = Self::first_half_mix(scalar1, scalar2, x0, x1, x2, x3, x4);
+
+        Self::second_half_mix(x5, x6, output, x2, x3, x4, a, b, c);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[inline(always)]
+    fn second_half_mix(x5: Simd64, x6: Simd64, output: &mut [u64; 16], x2: Simd32, x3: Simd32, x4: Simd32, mut a: Simd32, mut b: Simd32, mut c: Simd32) {
         let x5 = R::simd64_as_simd32(x5);
         let x6 = R::simd64_as_simd32(x6);
-
-        #[allow(clippy::too_many_arguments)]
-        #[inline(always)]
-        fn round3<R: Reproducibility>(
-            mut a: Simd32,
-            mut b: Simd32,
-            mut c: Simd32,
-            x0: Simd32,
-            x1: Simd32,
-            x2: Simd32,
-            x3: Simd32,
-            x4: Simd32,
-            x5: Simd32,
-            x6: Simd32,
-            shift1: u32,
-            shift2: u32,
-            shift3: u32,
-        ) -> (Simd32, Simd32, Simd32) {
-            #[inline(always)]
-            fn rotl32(x: Simd32, k: u32) -> Simd32 {
-                (x << Simd32::splat(k)) | (x >> Simd32::splat(32 - k))
-            }
-
-            // ---- Phase 1: nonlinear core, consume mul outputs early ----
-
-            // --- First nonlinear layer ---
-            let (m0_lo, m0_hi, m1_lo, m1_hi) = TripleMixSimdCore::<R>::mul_lo_hi_triad(a, b, c);
-
-            let br1 = b.rotate_elements_left::<1>();
-            let cr2 = c.rotate_elements_right::<2>();
-            a ^= br1;
-            let ar3 = a.rotate_elements_left::<3>();
-            b += cr2;
-            c ^= ar3;
-
-            // --- Input injection ---
-
-            // Inject first inputs immediately
-            a += x0;
-            b ^= x1;
-            c += x2;
-
-            // Consume mul outputs ASAP (short lifetime)
-            let br2 = b.rotate_elements_right::<2>();
-            a ^= m1_hi + br2;
-
-            let cl3 = c.rotate_elements_left::<3>();
-            b ^= m0_lo ^ cl3;
-
-            let ar1 = a.rotate_elements_right::<1>();
-            c ^= m0_hi + ar1;
-
-            // m0_hi / m0_lo / m1_hi now dead
-
-            // ---- Phase 2: remaining inputs + rotations ----
-
-            a ^= x3;
-            b += x4;
-            c ^= x5;
-
-            // Rotate a early (frees old a dependency chain)
-            a = rotl32(a, shift1);
-
-            // Final input
-            b ^= x6;
-
-            // Dependent chain kept tight
-            let cr = rotl32(b, shift3);
-            c ^= cr;
-
-            let ar4 = a.rotate_elements_right::<4>();
-            b += m1_lo + ar4; // last use of m1_lo
-
-            let cr2 = rotl32(c, shift2);
-            a += cr2;
-
-            (a, b, c)
-        }
-        let scalar1_hi = (scalar1 >> 32) as u32;
-        let scalar1_lo = scalar1 as u32;
-        let scalar2_hi = (scalar2 >> 32) as u32;
-        let scalar2_lo = scalar2 as u32;
-        let mut a = Simd32::splat(0x243f6a88);
-        let scalar_mix_1 =
-            Simd32::from_array([
-            scalar2_lo, scalar1_lo, scalar1_hi, 0, scalar1_hi, scalar2_lo, scalar1_lo, scalar2_hi,
-        ]);
-        let mut b = Simd32::splat(0x9e3779b9);
-        let scalar_mix_2 =
-            Simd32::from_array([
-            scalar1_hi, scalar2_hi, scalar2_hi, scalar1_hi, scalar2_lo, scalar1_lo, 0, scalar2_lo,
-        ]);
-        a ^= scalar_mix_1;
-        let mut c = Simd32::splat(0xb7e15162);
         let mut d = Simd32::splat(0x84caa73b);
-        b += scalar_mix_2;
-        c += scalar_mix_1;
-        d ^= scalar_mix_2;
-        (a, b, c) = round3::<R>(a, b, c, x0, x1, x2, x3, x4, x5, x6, 7, 25, 11);
-        (b, c, d) = round3::<R>(
+        (b, c, d) = Self::round3(
             b,
             c,
             d,
-            x3, x4, x5, x6, x0, x1, x2,
+            x5, x6, x3, x4, x2,
             5,
             17,
             9,
         );
-        (c, d, a) = round3::<R>(
+        (c, d, a) = Self::round3(
             c,
             d,
             a,
-            x5, x2, x6, x1, x4, x0, x3,
+            x4, x5, x6, x2, x3,
             3,
             13,
             23,
@@ -420,6 +339,101 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         R::simd32_as_simd64(b).copy_to_slice(&mut output[4..8]);
         R::simd32_as_simd64(c).copy_to_slice(&mut output[8..12]);
         R::simd32_as_simd64(d).copy_to_slice(&mut output[12..16]);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[inline(always)]
+    fn round3(
+        mut a: Simd32,
+        mut b: Simd32,
+        mut c: Simd32,
+        x0: Simd32,
+        x1: Simd32,
+        x2: Simd32,
+        x5: Simd32,
+        x6: Simd32,
+        shift1: u32,
+        shift2: u32,
+        shift3: u32,
+    ) -> (Simd32, Simd32, Simd32) {
+        #[inline(always)]
+        fn rotl32(x: Simd32, k: u32) -> Simd32 {
+            (x << Simd32::splat(k)) | (x >> Simd32::splat(32 - k))
+        }
+
+        // ---- Phase 1: nonlinear core, consume mul outputs early ----
+
+        // Inject first inputs immediately
+        a += x0;
+        b ^= x1;
+        c += x2;
+
+        // --- First nonlinear layer ---
+        let (m0_lo, m0_hi, m1_lo, m1_hi) = TripleMixSimdCore::<R>::mul_lo_hi_triad(a, b, c);
+
+        let br1 = b.rotate_elements_left::<1>();
+        let cr2 = c.rotate_elements_right::<2>();
+        a ^= br1;
+        let ar3 = a.rotate_elements_left::<3>();
+        b += cr2;
+        c ^= ar3;
+
+        // Consume mul outputs ASAP (short lifetime)
+        let br2 = b.rotate_elements_right::<2>();
+        a ^= m1_hi + br2;
+
+        let cl3 = c.rotate_elements_left::<3>();
+        b ^= m0_lo ^ cl3;
+
+        let ar1 = a.rotate_elements_right::<1>();
+        c ^= m0_hi + ar1;
+
+        // m0_hi / m0_lo / m1_hi now dead
+
+        // ---- Phase 2: remaining inputs + rotations ----
+
+        c ^= x5;
+
+        // Rotate a early (frees old a dependency chain)
+        a = rotl32(a, shift1);
+
+        // Final input
+        b ^= x6;
+
+        // Dependent chain kept tight
+        let cr = rotl32(b, shift3);
+        c ^= cr;
+
+        let ar4 = a.rotate_elements_right::<4>();
+        b += m1_lo + ar4; // last use of m1_lo
+
+        let cr2 = rotl32(c, shift2);
+        a += cr2;
+
+        (a, b, c)
+    }
+
+    #[inline(always)]
+    fn first_half_mix(scalar1: u64, scalar2: u64, x0: Simd32, x1: Simd32, x2: Simd32, x3: Simd32, x4: Simd32) -> (Simd32, Simd32, Simd32) {
+        let scalar1_hi = (scalar1 >> 32) as u32;
+        let scalar1_lo = scalar1 as u32;
+        let scalar2_hi = (scalar2 >> 32) as u32;
+        let scalar2_lo = scalar2 as u32;
+        let mut a = Simd32::splat(0x243f6a88);
+        let scalar_mix_1 =
+            Simd32::from_array([
+                scalar2_lo, scalar1_lo, scalar1_hi, 0, scalar1_hi, scalar2_lo, scalar1_lo, scalar2_hi,
+            ]);
+        let mut b = Simd32::splat(0x9e3779b9);
+        let scalar_mix_2 =
+            Simd32::from_array([
+                scalar1_hi, scalar2_hi, scalar2_hi, scalar1_hi, scalar2_lo, scalar1_lo, 0, scalar2_lo,
+            ]);
+        a ^= scalar_mix_1;
+        let mut c = Simd32::splat(0xb7e15162);
+        b += scalar_mix_2;
+        c += scalar_mix_1;
+        Self::round3(a, b, c, x0, x1, x2, x3, x4, 7, 25, 11)
     }
 }
 
