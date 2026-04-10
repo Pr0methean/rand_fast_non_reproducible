@@ -971,9 +971,15 @@ mod tests {
                     }
                 }
                 for [first, second] in chunk.array_windows().copied() {
-                    let x = (first & 0xFF) as usize;
-                    let y = (second & 0xFF) as usize;
-                    low_byte_bins[x][y] += 1;
+                    let first_bytes = first.to_le_bytes();
+                    let second_bytes = second.to_le_bytes();
+                    for (first_byte_index, first_byte) in first_bytes.into_iter().enumerate() {
+                        for (second_byte_index, second_byte) in second_bytes.into_iter().enumerate() {
+                            let byte_position_index = first_byte_index * 8 + second_byte_index;
+                            let byte_pair_index = first_byte as usize * 256 + second_byte as usize;
+                            byte_bins[byte_position_index][byte_pair_index] += 1;
+                        }
+                    }
                 }
                 for [first, second] in chunk.array_windows().copied() {
                     let first_bytes = first.to_le_bytes();
