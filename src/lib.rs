@@ -28,6 +28,7 @@ use generate::Simd64;
 use rand_core::TryRng;
 use rand_core::block::BlockRng;
 use reproducibility::Reproducibility;
+use crate::seed::LARGE_SEED_SIZE;
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -222,6 +223,10 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
         rngs.push(TripleMixPrng::from(&seed));
         SysRng.try_fill_bytes(&mut seed).unwrap();
         rngs.push(TripleMixPrng::from(&seed));
+        let mut large_seed = [0u8; LARGE_SEED_SIZE];
+        rngs.push(TripleMixPrng::from(&large_seed));
+        SysRng.try_fill_bytes(&mut large_seed).unwrap();
+        rngs.push(TripleMixPrng::from(&large_seed));
     }
     rngs
 }
