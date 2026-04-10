@@ -309,6 +309,11 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
             // ---- Phase 1: nonlinear core, consume mul outputs early ----
 
+            // Inject first inputs immediately
+            a += x0;
+            b ^= x1;
+            c += x2;
+
             // --- First nonlinear layer ---
             let (m0_lo, m0_hi, m1_lo, m1_hi) = TripleMixSimdCore::<R>::mul_lo_hi_triad(a, b, c);
 
@@ -318,13 +323,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let ar3 = a.rotate_elements_left::<3>();
             b += cr2;
             c ^= ar3;
-
-            // --- Input injection ---
-
-            // Inject first inputs immediately
-            a += x0;
-            b ^= x1;
-            c += x2;
 
             // Consume mul outputs ASAP (short lifetime)
             let br2 = b.rotate_elements_right::<2>();
