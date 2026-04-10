@@ -123,6 +123,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             (ab_lo, ab_hi, bc_lo, bc_hi)
         }
     }
+    
+    pub const BYTE_SIZE: usize = 296;
 
     pub const BYTE_SIZE: usize = 296;
 
