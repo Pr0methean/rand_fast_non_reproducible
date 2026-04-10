@@ -328,12 +328,14 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         d += a.rotate_elements_left::<1>();
 
         // extra nonlinear cross-coupling
-        let t0 = a ^ c;
-        let t1 = b + d;
-        c += a.rotate_elements_left::<3>();
-        d ^= b.rotate_elements_right::<1>();
+        let t0 = c ^ (a >> 15);
+        let t1 = d + (b >> 13);
         b ^= t0.rotate_elements_right::<2>();
         a += t1.rotate_elements_left::<1>();
+        let t2 = b ^ (d >> 14);
+        let t3 = a + (c >> 17);
+        c ^= t2.rotate_elements_left::<4>();
+        d ^= t3;
 
         // Convert back to u64x4 by casting and packing
         R::simd32_as_simd64(a).copy_to_slice(&mut output[0..4]);
