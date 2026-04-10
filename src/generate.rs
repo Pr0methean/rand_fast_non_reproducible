@@ -1036,7 +1036,7 @@ mod tests {
                     }
                     panic!("Combined chi-square test failed (p={p:.10}), but no individual bits failed");
                 }
-                let expected_count_per_u8_pair = N as f64 / (1 << 16) as f64;
+                let expected_count_per_u8_pair = (N - 1) as f64 / (1 << 16) as f64;
                 let low_byte_p = goodness_of_fit(
                     low_byte_bins.as_flattened().into_iter().copied().map(f64::from),
                     repeat_n(expected_count_per_u8_pair, 1 << 16),
