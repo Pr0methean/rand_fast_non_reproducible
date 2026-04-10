@@ -140,7 +140,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         llvm_mca::llvm_mca_begin!("fill_blocks");
         let pcg_inc_lo = self.pcg_inc_lo;
         let pcg_inc_hi = self.pcg_inc_hi;
-        let i_mixed = pcg_inc_hi + pcg_inc_lo;
+        let i_mixed = R::simd64_as_simd32(pcg_inc_hi + pcg_inc_lo);
         let mut pcg_state_lo = self.pcg_state_lo;
         let mut pcg_state_hi = self.pcg_state_hi;
         let mut tm0 = self.tm0;
@@ -197,6 +197,24 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             mwc_state = mwc_next_state;
 
             scalar_weyl = (scalar_weyl + 1) % Self::SCALAR_WEYL_MODULUS;
+            // Generate scalar xoshiro256** output
+            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
+            Self::advance_xoshiro(&mut xoshiro256);
+            let mwc_state = R::simd64_as_simd32(mwc_state);
+            let mwc_carry = R::simd64_as_simd32(mwc_carry);
+            let pcg_output = R::simd64_as_simd32(pcg_output);
+            let pcg_state_lo = R::simd64_as_simd32(pcg_state_lo);
+
+            let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
+                xoshiro_out,
+                scalar_weyl,
+                mwc_state,
+                pcg_output,
+                i_mixed,
+                pcg_state_lo,
+                mwc_carry);
+            // pcg_state_lo, mwc_carry, xoshiro_out, scalar_weyl are not used in the second half of the mix
+
             // TinyMT Step 0: Mask and initial XOR
             let tm0_masked = tm0 & Simd::splat(TINYMT64_LANE_MASK);
             let mut tm_x = tm0_masked ^ tm1;
@@ -205,13 +223,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             // TinyMT Step 1: First shift
             tm_x ^= tm_x << Simd::splat(12);
 
-            // Generate scalar xoshiro256** output
-            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
-
             // TinyMT Step 2: Second shift
             tm_x ^= tm_x >> Simd::splat(32);
-
-            Self::advance_xoshiro(&mut xoshiro256);
 
             // TinyMT Step 3: Third shift
             tm_x ^= tm_x << Simd::splat(32);
@@ -223,18 +236,14 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
             let tm_secondary_out = tm0 - tm1;
-
-            TripleMixSimdCore::<R>::mix(
+            TripleMixSimdCore::<R>::second_half_mix(
+                tm_y,
+                tm_secondary_out,
+                block,
                 mwc_state,
                 pcg_output,
-                tm_y,
-                mwc_carry,
                 i_mixed,
-                pcg_state_lo,
-                tm_secondary_out,
-                xoshiro_out,
-                scalar_weyl,
-                block
+                a, b, c
             );
         }
 
