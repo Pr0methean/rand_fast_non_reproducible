@@ -73,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        cpu: [ "cascadelake", "znver3" ]
+        cpu: [ "znver3" ]
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
@@ -83,6 +83,7 @@ jobs:
         with:
           persist-credentials: false
       - run: sudo apt-get install -y llvm
+      - run: cargo +nightly install cargo-cross
       - name: Compile endless_bytes example
         run: RUSTFLAGS="-C target-cpu=${{ matrix.cpu }}" cargo +nightly rustc --example endless_bytes --release --features llvm-mca -- --emit asm
       - name: Run llvm-mca
