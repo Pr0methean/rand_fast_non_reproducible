@@ -325,6 +325,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         a ^= b.rotate_elements_right::<2>();
         b += c.rotate_elements_left::<3>();
         c ^= d.rotate_elements_right::<1>();
+        d += a.rotate_elements_left::<1>();
 
         // extra nonlinear cross-coupling
         let t0 = a ^ c;
