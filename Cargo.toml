@@ -34,8 +34,8 @@ jump = []  # Allows advancing this PRNG by an arbitrary amount.
 reproducibility_same_endianness = []  # Lets you guarantee that two instances will generate the same sequence.
 reproducibility_cross_platform = []  # Lets you guarantee that two instances will generate the same sequence.
 zeroize = ["zeroize/zeroize_derive"]
-serde = ["serde/serde_derive"]
-no_std = ["once_cell/race", "once_cell/alloc", "serde/alloc"]
+serde = ["serde/serde_derive", "serde/alloc"]
+no_std = ["once_cell/race", "once_cell/alloc"]
 large_seeds_by_default = []  # Makes 288 bytes the default seed size. Enable this only if you're using fast hardware RNGs to produce seeds.
 llvm-mca = ["dep:llvm-mca"]
 
