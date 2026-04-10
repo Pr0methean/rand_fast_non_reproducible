@@ -111,12 +111,10 @@ jobs:
     - uses: bencherdev/bencher@595a6d60abd1c71b1dfb7bbdd52be7bc63b0f8c3 # v0.6.1
     - name: Run Gungraun benchmark
       run: RUSTFLAGS="-C target-feature=-avx512f" cargo +nightly bench -p gungraun-benches --features reproducibility_cross_platform
-  endianness_miri:
-    name: "Test reproducibility across endiannesses"
+  miri:
+    name: "Miri big-endian test"
     needs:
-    - unit-tests
-    - gungraun
-    - mca
+    - benchmarks
     runs-on: ubuntu-latest
     steps:
       - name: Harden the runner (Audit all outbound calls)
