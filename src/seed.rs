@@ -342,7 +342,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 mod tests {
     use crate::generate::{MIX_OUTPUTS, SIMD_WIDTH};
     use crate::reproducibility::DefaultReproducibility;
-    use crate::seed::{DEFAULT_SEED_SIZE, get_base_kmac};
+    use crate::seed::{DEFAULT_SEED_SIZE, get_base_kmac, LARGE_SEED_SIZE};
     use crate::{TripleMixPrng, rng};
     use core::hint::black_box;
     use generic_array::GenericArray;
@@ -367,6 +367,7 @@ mod tests {
         #[cfg(feature = "no_std")]
         let mut previous_outputs = alloc::collections::BTreeSet::new();
         for mut prng in crate::create_rngs::<DefaultReproducibility>() {
+            previous_outputs.clear();
             for _ in 0..FORKS {
                 for _ in 0..SAMPLES_PER_FORK {
                     let next = prng.next_u64();
@@ -389,6 +390,7 @@ mod tests {
         #[cfg(feature = "no_std")]
         let mut previous_outputs = alloc::collections::BTreeSet::new();
         for mut parent_prng in crate::create_rngs::<DefaultReproducibility>() {
+            previous_outputs.clear();
             for _ in 0..FORKS {
                 let mut prng = parent_prng.fork();
                 for _ in 0..SAMPLES_PER_FORK {
@@ -536,6 +538,28 @@ mod tests {
         // the final state should be high-entropy in all lanes.
         for i in 0..4 {
             assert_ne!(p.pcg_state_lo.as_array()[i], 0, "Lane {} remained zero", i);
+        }
+    }
+
+    #[test]
+    fn test_all_zero_seeds_different_lengths() {
+        let short_seed = [0u8; DEFAULT_SEED_SIZE];
+        let mut short_seed_prng = TripleMixPrng::<DefaultReproducibility>::from(short_seed);
+        let long_seed = [0u8; LARGE_SEED_SIZE];
+        let mut long_seed_prng = TripleMixPrng::<DefaultReproducibility>::from(long_seed);
+        for _ in 0..32 {
+            assert_ne!(short_seed_prng.next_u64(), long_seed_prng.next_u64());
+        }
+    }
+
+    #[test]
+    fn test_all_zero_seeds_forked_different_lengths() {
+        let short_seed = [0u8; DEFAULT_SEED_SIZE];
+        let mut short_seed_prng = TripleMixPrng::<DefaultReproducibility>::from(short_seed).fork();
+        let long_seed = [0u8; LARGE_SEED_SIZE];
+        let mut long_seed_prng = TripleMixPrng::<DefaultReproducibility>::from(long_seed).fork();
+        for _ in 0..32 {
+            assert_ne!(short_seed_prng.next_u64(), long_seed_prng.next_u64());
         }
     }
 
