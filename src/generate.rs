@@ -191,30 +191,12 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let pcg_rot = pcg_x >> 59;
             let pcg_output = (pcg_m >> pcg_rot) | (pcg_m << (Simd64::splat(64) - pcg_rot));
 
-            let mwc_borrow = mwc_carry.simd_lt(mwc_kx_lo).to_simd().cast::<u64>();
-            let mwc_next_state = mwc_carry - mwc_kx_lo;
-            mwc_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
-            mwc_state = mwc_next_state;
-
             scalar_weyl = (scalar_weyl + 1) % Self::SCALAR_WEYL_MODULUS;
             // Generate scalar xoshiro256** output
             let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
             Self::advance_xoshiro(&mut xoshiro256);
-            let mwc_state = R::simd64_as_simd32(mwc_state);
-            let mwc_carry = R::simd64_as_simd32(mwc_carry);
             let pcg_output = R::simd64_as_simd32(pcg_output);
             let pcg_state_lo = R::simd64_as_simd32(pcg_state_lo);
-
-            let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
-                xoshiro_out,
-                scalar_weyl,
-                mwc_state,
-                pcg_output,
-                i_mixed,
-                pcg_state_lo,
-                mwc_carry);
-            // pcg_state_lo, mwc_carry, xoshiro_out, scalar_weyl are not used in the second half of the mix
-
             // TinyMT Step 0: Mask and initial XOR
             let tm0_masked = tm0 & Simd::splat(TINYMT64_LANE_MASK);
             let mut tm_x = tm0_masked ^ tm1;
@@ -231,6 +213,24 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
             // TinyMT Step 4: Fourth shift & final output
             tm_y ^= (tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT);
+
+            let tm_y = R::simd64_as_simd32(tm_y);
+
+            let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
+                xoshiro_out,
+                scalar_weyl,
+                R::simd64_as_simd32(mwc_carry),
+                pcg_output,
+                i_mixed,
+                pcg_state_lo,
+                tm_y);
+            // pcg_state_lo, mwc_carry, xoshiro_out, scalar_weyl are not used in the second half of the mix
+
+            let mwc_borrow = mwc_carry.simd_lt(mwc_kx_lo).to_simd().cast::<u64>();
+            let mwc_next_state = mwc_carry - mwc_kx_lo;
+            mwc_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
+            mwc_state = mwc_next_state;
+
             tm_x ^= tm_x << Simd::splat(11);
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
             tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
@@ -238,12 +238,12 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let tm_secondary_out = tm0 - tm1;
             // Use updated MWC state and carry in only second half
             TripleMixSimdCore::<R>::second_half_mix(
-                tm_y,
                 tm_secondary_out,
-                block,
-                mwc_state,
-                pcg_output.reverse(),
                 mwc_carry,
+                block,
+                R::simd64_as_simd32(mwc_state),
+                pcg_output.reverse(),
+                tm_y,
                 a, b, c
             );
         }
