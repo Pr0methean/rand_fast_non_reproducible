@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775860551024,
+  "lastUpdate": 1775860644618,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -60659,6 +60659,156 @@ window.BENCHMARK_DATA = {
             "name": "initialization/fork",
             "value": 3945,
             "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "core/fill_blocks",
+            "value": 81,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "68b65dc3b56a68a7c0d2f525499833fdc4c6decd",
+          "message": "Rename Miri test and move after benchmarks (#121)",
+          "timestamp": "2026-04-10T14:44:35-07:00",
+          "tree_id": "462c5e500c86c8306002a5ea867290ecee8fa805",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/68b65dc3b56a68a7c0d2f525499833fdc4c6decd"
+        },
+        "date": 1775860636991,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 0)/TripleMixPrng",
+            "value": 10146,
+            "range": "± 147",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 0)/TripleMixPrng<CrossPlatform>",
+            "value": 10150,
+            "range": "± 183",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 1)/TripleMixPrng",
+            "value": 10208,
+            "range": "± 1303",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 1)/TripleMixPrng<CrossPlatform>",
+            "value": 10914,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 7)/TripleMixPrng",
+            "value": 10243,
+            "range": "± 142",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 7)/TripleMixPrng<CrossPlatform>",
+            "value": 10914,
+            "range": "± 211",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 1MiB/TripleMixPrng",
+            "value": 649459,
+            "range": "± 7171",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 1MiB/TripleMixPrng<CrossPlatform>",
+            "value": 649370,
+            "range": "± 20393",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: next_u64/TripleMixPrng",
+            "value": 117,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: next_u64/TripleMixPrng<CrossPlatform>",
+            "value": 117,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/8",
+            "value": 3391,
+            "range": "± 82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/16",
+            "value": 3392,
+            "range": "± 78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/32",
+            "value": 3390,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/64",
+            "value": 3399,
+            "range": "± 187",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/72",
+            "value": 3354,
+            "range": "± 57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/128",
+            "value": 3645,
+            "range": "± 60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/256",
+            "value": 3922,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/360",
+            "value": 3888,
+            "range": "± 398",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/512",
+            "value": 4449,
+            "range": "± 58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/fork",
+            "value": 3978,
+            "range": "± 72",
             "unit": "ns/iter"
           },
           {
