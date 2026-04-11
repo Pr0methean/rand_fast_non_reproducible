@@ -123,6 +123,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             (ab_lo, ab_hi, bc_lo, bc_hi)
         }
     }
+    
+    pub const BYTE_SIZE: usize = 296;
 
     #[inline(always)]
     pub fn copy_to_le_bytes(&self, dst: &mut [u8]) {
@@ -138,6 +140,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         for &word in &self.xoshiro256 {
             chunks.next().unwrap().copy_from_slice(&word.to_le_bytes());
         }
+        dst[288..296].copy_from_slice(&self.scalar_weyl.to_le_bytes());
     }
 }
 
@@ -185,7 +188,7 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
     rngs.push(TripleMixPrng::<R>::almost_all_zeroes_state());
     #[cfg(not(miri))]
     {
-        use crate::seed::DEFAULT_SEED_SIZE;
+        use crate::seed::SMALL_SEED_SIZE;
         use core::simd::Simd;
         use rand::rngs::SysRng;
 
@@ -218,10 +221,14 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
             scalar_weyl: 0,
             reproducibility: PhantomData,
         }));
-        let mut seed = [0u8; DEFAULT_SEED_SIZE];
+        let mut seed = [0u8; SMALL_SEED_SIZE];
         rngs.push(TripleMixPrng::from(&seed));
         SysRng.try_fill_bytes(&mut seed).unwrap();
         rngs.push(TripleMixPrng::from(&seed));
+        let mut large_seed = [0u8; seed::LARGE_SEED_SIZE];
+        rngs.push(TripleMixPrng::from(&large_seed));
+        SysRng.try_fill_bytes(&mut large_seed).unwrap();
+        rngs.push(TripleMixPrng::from(&large_seed));
     }
     rngs
 }
