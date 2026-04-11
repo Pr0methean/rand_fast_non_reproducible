@@ -188,7 +188,7 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
     rngs.push(TripleMixPrng::<R>::almost_all_zeroes_state());
     #[cfg(not(miri))]
     {
-        use crate::seed::DEFAULT_SEED_SIZE;
+        use crate::seed::SMALL_SEED_SIZE;
         use core::simd::Simd;
         use rand::rngs::SysRng;
 
@@ -221,7 +221,7 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
             scalar_weyl: 0,
             reproducibility: PhantomData,
         }));
-        let mut seed = [0u8; DEFAULT_SEED_SIZE];
+        let mut seed = [0u8; SMALL_SEED_SIZE];
         rngs.push(TripleMixPrng::from(&seed));
         SysRng.try_fill_bytes(&mut seed).unwrap();
         rngs.push(TripleMixPrng::from(&seed));
