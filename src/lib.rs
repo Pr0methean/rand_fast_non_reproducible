@@ -126,8 +126,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
     
     pub const BYTE_SIZE: usize = 296;
 
-    pub const BYTE_SIZE: usize = 296;
-
     #[inline(always)]
     pub fn copy_to_le_bytes(&self, dst: &mut [u8]) {
         dst[0..32].copy_from_slice(self.tm0.to_le_bytes().as_array());

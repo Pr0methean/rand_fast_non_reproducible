@@ -114,7 +114,9 @@ impl<R: Reproducibility> TripleMixPrng<R> {
         // bits, so we use two XOFs to ensure permutation is subjective for large enough seeds.
         let mut reader0 = base.clone();
         let mut reader1 = base.clone();
+        reader0.update(&[0]);
         reader0.update(tweak.to_be_bytes().as_ref());
+        reader1.update(&[u8::MAX]);
         reader1.update((u128::MAX - tweak).to_le_bytes().as_ref());
         let mut reader0 = reader0.into_xof();
         let mut reader1 = reader1.into_xof();
