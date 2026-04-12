@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775966017578,
+  "lastUpdate": 1775966021172,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -62316,6 +62316,156 @@ window.BENCHMARK_DATA = {
             "value": 116,
             "range": "± 19",
             "unit": "cycles/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6f39d42563d6258917992b45465da1e2fbc7db33",
+          "message": "Overhaul seeding (via ChatGPT) (#124)\n\n* Include PRNG instances from large seeds in tests\n\n* Fix unused-import warning for lib target\n\n* Fix: use SMALL_SEED_SIZE to prevent breakage from feature=\"large_seeds_by_default\"\n\n* Overhaul seeding (via ChatGPT)\n\n* Fix: force XOF inputs to be distinct by adding an extra byte (otherwise they'd collide one time in 1<<64)",
+          "timestamp": "2026-04-12T03:20:54Z",
+          "tree_id": "5242235d9f7e42ed662cfd6101bca468b3a99616",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/6f39d42563d6258917992b45465da1e2fbc7db33"
+        },
+        "date": 1775966019159,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 0)/TripleMixPrng",
+            "value": 6638,
+            "range": "± 517",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 0)/TripleMixPrng<CrossPlatform>",
+            "value": 6614,
+            "range": "± 584",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 1)/TripleMixPrng",
+            "value": 6806,
+            "range": "± 630",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 1)/TripleMixPrng<CrossPlatform>",
+            "value": 6629,
+            "range": "± 662",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 7)/TripleMixPrng",
+            "value": 6745,
+            "range": "± 469",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 16KiB (misalignment 7)/TripleMixPrng<CrossPlatform>",
+            "value": 6585,
+            "range": "± 613",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 1MiB/TripleMixPrng",
+            "value": 423345,
+            "range": "± 29435",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: fill_bytes 1MiB/TripleMixPrng<CrossPlatform>",
+            "value": 424440,
+            "range": "± 28871",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: next_u64/TripleMixPrng",
+            "value": 73,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:macos: next_u64/TripleMixPrng<CrossPlatform>",
+            "value": 73,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/8",
+            "value": 1126,
+            "range": "± 62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/16",
+            "value": 1156,
+            "range": "± 153",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/32",
+            "value": 1124,
+            "range": "± 72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/64",
+            "value": 1135,
+            "range": "± 86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/72",
+            "value": 1144,
+            "range": "± 117",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/128",
+            "value": 1643,
+            "range": "± 120",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/256",
+            "value": 1884,
+            "range": "± 132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/360",
+            "value": 1650,
+            "range": "± 111",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/from_seed/512",
+            "value": 1901,
+            "range": "± 143",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "initialization/fork",
+            "value": 1699,
+            "range": "± 137",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "core/fill_blocks",
+            "value": 50,
+            "range": "± 3",
+            "unit": "ns/iter"
           }
         ]
       }
