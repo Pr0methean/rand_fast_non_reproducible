@@ -128,7 +128,7 @@ fn core<T: Measurement>(c: &mut Criterion<T>) {
     let mut seed = [0u8; DEFAULT_SEED_SIZE];
     SysRng.try_fill_bytes(&mut seed).unwrap();
     let mut prng = TripleMixPrng::<NotReproducible>::from(&seed);
-    let mut group = c.benchmark_group("core");
+    let mut group = c.benchmark_group(formatcp!("{PLATFORM}: core"));
     group.throughput(Throughput::Bytes((BLOCK_SIZE * size_of::<u64>()) as u64));
     let mut block = [[0u64; BLOCK_SIZE]];
     group.bench_function("fill_blocks", move |b| {
@@ -140,7 +140,7 @@ fn core<T: Measurement>(c: &mut Criterion<T>) {
 }
 
 fn init<T: Measurement>(c: &mut Criterion<T>) {
-    let mut group = c.benchmark_group("initialization");
+    let mut group = c.benchmark_group(formatcp!("{PLATFORM}: initialization"));
 
     // Seed and instance setup
     let mut seed_4096 = [0u8; 512];
