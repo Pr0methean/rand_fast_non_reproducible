@@ -42,3 +42,17 @@ The PRNG has the following properties:
   | 1st-order H1\|0   | 7.999 997 290 432 957 |
   | 2nd-order H2\|1,0 | 7.999 298 245 455 499 |
 * Passes PractRand 0.96 for at least 32 TiB (tested with 10 seeds).
+
+## Reproducibility and versioning
+
+TripleMixPrng can be instantiated with three `Reproducibility` options:
+* **NotReproducible**: The output for a given seed or serialized state may change after a patch release.
+  `fill_bytes` may produce output in a different order than it was generated, depending on memory alignment.
+* **SameEndianness**: A given seed or internal state has no more than 2 possible sequences of outputs, one
+  for all little-endian and one for all big-endian CPU architectures. Output from `fill_bytes` is always in
+  the order it's generated.
+* **CrossPlatform**: A given seed or internal state always leads to the same sequence of outputs, even on
+  CPU architectures with different endianness.
+
+Any new release that changes the output for a given seed or serialized state will be a **minor** release,
+unless it only affects NotReproducible.
