@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 rand_triplemix = { path = ".." }
-gungraun = "0.17.2"
+gungraun = "0.18.1"
 rand = { workspace = true, features = ["thread_rng", "sys_rng"] }
 rand_core = { workspace = true }
 
