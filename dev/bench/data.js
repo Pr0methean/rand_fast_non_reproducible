@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776587350852,
+  "lastUpdate": 1776587423287,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -63366,6 +63366,156 @@ window.BENCHMARK_DATA = {
             "value": 81,
             "range": "± 0",
             "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4961925+Pr0methean@users.noreply.github.com",
+            "name": "Chris Hennick",
+            "username": "Pr0methean"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9d5ccafb35f884a2ac4cc139db3327fd2508e7a1",
+          "message": "New schedule of PractRand testing (#133)\n\n* New schedule of PractRand testing\n\n* Fix: start first 50 tests in ascending length order\n\n* Fix: scalar_weyl was missing from debug output",
+          "timestamp": "2026-04-19T08:04:47Z",
+          "tree_id": "778c3df80db506258f084920c1b3c6fc23928257",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/9d5ccafb35f884a2ac4cc139db3327fd2508e7a1"
+        },
+        "date": 1776587421480,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 0)/TripleMixPrng",
+            "value": 12064,
+            "range": "± 31",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 0)/TripleMixPrng<CrossPlatform>",
+            "value": 12063,
+            "range": "± 21",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 1)/TripleMixPrng",
+            "value": 12114,
+            "range": "± 27",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 1)/TripleMixPrng<CrossPlatform>",
+            "value": 12746,
+            "range": "± 52",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 7)/TripleMixPrng",
+            "value": 12129,
+            "range": "± 378",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 16KiB (misalignment 7)/TripleMixPrng<CrossPlatform>",
+            "value": 12754,
+            "range": "± 42",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 1MiB/TripleMixPrng",
+            "value": 770418,
+            "range": "± 2599",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: fill_bytes 1MiB/TripleMixPrng<CrossPlatform>",
+            "value": 770598,
+            "range": "± 2862",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: next_u64/TripleMixPrng",
+            "value": 138,
+            "range": "± 0",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: next_u64/TripleMixPrng<CrossPlatform>",
+            "value": 138,
+            "range": "± 0",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: initialization/from_seed/8",
+            "value": 4065,
+            "range": "± 69",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: initialization/from_seed/16",
+            "value": 4064,
+            "range": "± 13",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: initialization/from_seed/32",
+            "value": 4044,
+            "range": "± 17",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: initialization/from_seed/64",
+            "value": 4053,
+            "range": "± 17",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: initialization/from_seed/72",
+            "value": 3933,
+            "range": "± 11",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: initialization/from_seed/128",
+            "value": 5721,
+            "range": "± 13",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: initialization/from_seed/256",
+            "value": 6685,
+            "range": "± 17",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: initialization/from_seed/360",
+            "value": 5805,
+            "range": "± 20",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: initialization/from_seed/512",
+            "value": 6719,
+            "range": "± 16",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: initialization/fork",
+            "value": 5926,
+            "range": "± 27",
+            "unit": "cycles/iter"
+          },
+          {
+            "name": "x86_64:linux: core/fill_blocks",
+            "value": 98,
+            "range": "± 0",
+            "unit": "cycles/iter"
           }
         ]
       }
