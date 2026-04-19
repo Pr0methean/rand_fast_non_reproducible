@@ -2,12 +2,9 @@
 mkdir -p target
 (
   # First 50 seeds/lengths
-  echo "r 32T"
+  for _ in {1..16}; do echo "r 1G"; echo "r 16G"; echo "r 128G"; done
   echo "r 1T"
-  for _ in {1..16}; do echo "r 128G"; done
-  for _ in {1..16}; do echo "r 16G"; done
-  for _ in {1..16}; do echo "r 1G"; done
-
+  echo "r 32T"
   # Remaining, descending by output length
   echo "z 32T"
   echo "00 32T"
