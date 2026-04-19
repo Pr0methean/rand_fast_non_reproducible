@@ -11,9 +11,31 @@ use std::str::FromStr;
 mod common;
 
 fn main() {
-    const TOTAL_OUTPUT_BYTES: u64 = 1 << 34;
-
     let args: Vec<_> = args_os().collect();
+    let total_output_bytes: u64 = if let Some(len_arg) = args.get(2)
+        && let Some(len_str) = len_arg.to_str()
+    {
+        let mut s = len_str.to_uppercase();
+        let multiplier = if s.ends_with('T') {
+            s.pop();
+            1u64 << 40
+        } else if s.ends_with('G') {
+            s.pop();
+            1u64 << 30
+        } else if s.ends_with('M') {
+            s.pop();
+            1u64 << 20
+        } else if s.ends_with('K') {
+            s.pop();
+            1u64 << 10
+        } else {
+            1
+        };
+        s.parse::<u64>().expect("Invalid length argument") * multiplier
+    } else {
+        1 << 34 // 16 GiB default
+    };
+
     let mut prng: TripleMixPrng<NotReproducible>;
     if let Some(seed_arg) = args.get(1)
         && let Some(seed_arg_utf8) = seed_arg.to_str()
@@ -39,7 +61,7 @@ fn main() {
             return;
         }
         output_so_far += buffer.len() as u64;
-        if output_so_far >= TOTAL_OUTPUT_BYTES {
+        if output_so_far >= total_output_bytes {
             break;
         }
     }

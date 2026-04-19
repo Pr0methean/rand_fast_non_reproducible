@@ -27,6 +27,7 @@ fn main() {
         let seed = get_random_seed();
         prng = TripleMixPrng::from(seed);
     }
+    eprintln!("Internal state: {:?}", prng);
     let mut stdout = stdout().lock();
     loop {
         let mut buffer = [0u8; 1 << 16];
