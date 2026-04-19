@@ -1,6 +1,6 @@
 [package]
 name = "rand_triplemix"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Pseudorandom number generator that's faster than ChaCha12Rng and has a 1.99*2<sup>382</sup>-block period"

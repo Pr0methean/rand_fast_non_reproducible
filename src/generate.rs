@@ -422,12 +422,12 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let mut a = Simd32::splat(0x243f6a88);
         let scalar_mix_1 =
             Simd32::from_array([
-                scalar2_lo, scalar1_lo, scalar1_hi, 0, scalar1_hi, scalar2_lo, scalar1_lo, scalar2_hi,
+                scalar2_lo.wrapping_mul(scalar1_hi), scalar1_lo, scalar1_hi, 0, scalar1_hi.wrapping_sub(scalar2_hi), scalar2_lo, scalar1_lo ^ scalar1_hi, scalar2_hi,
             ]);
         let mut b = Simd32::splat(0x9e3779b9);
         let scalar_mix_2 =
             Simd32::from_array([
-                scalar1_hi, scalar2_hi, scalar2_hi, scalar1_hi, scalar2_lo, scalar1_lo, 0, scalar2_lo,
+                scalar1_hi, scalar2_hi.wrapping_add(scalar1_lo), scalar2_hi, scalar1_hi ^ scalar2_lo, scalar1_lo.wrapping_mul(scalar2_hi), scalar1_lo, 0, scalar2_lo,
             ]);
         a ^= scalar_mix_1;
         let mut c = Simd32::splat(0xb7e15162);
