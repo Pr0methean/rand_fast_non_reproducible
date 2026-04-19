@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775966021172,
+  "lastUpdate": 1776579464850,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -62465,6 +62465,156 @@ window.BENCHMARK_DATA = {
             "name": "core/fill_blocks",
             "value": 50,
             "range": "± 3",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4835ad76c056306d025ad875d2474f538d57ce94",
+          "message": "Build(deps): Bump step-security/harden-runner from 2.16.1 to 2.17.0 (#129)\n\nBumps [step-security/harden-runner](https://github.com/step-security/harden-runner) from 2.16.1 to 2.17.0.\n- [Release notes](https://github.com/step-security/harden-runner/releases)\n- [Commits](https://github.com/step-security/harden-runner/compare/fe104658747b27e96e4f7e80cd0a94068e53901d...f808768d1510423e83855289c910610ca9b43176)\n\n---\nupdated-dependencies:\n- dependency-name: step-security/harden-runner\n  dependency-version: 2.17.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-18T22:51:52-07:00",
+          "tree_id": "36d6b5f5ca654d3815bb9ac9328440635fd57a76",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/4835ad76c056306d025ad875d2474f538d57ce94"
+        },
+        "date": 1776579463711,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:linux: fill_bytes 16KiB (misalignment 0)/TripleMixPrng",
+            "value": 10197,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: fill_bytes 16KiB (misalignment 0)/TripleMixPrng<CrossPlatform>",
+            "value": 10290,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: fill_bytes 16KiB (misalignment 1)/TripleMixPrng",
+            "value": 10244,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: fill_bytes 16KiB (misalignment 1)/TripleMixPrng<CrossPlatform>",
+            "value": 11036,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: fill_bytes 16KiB (misalignment 7)/TripleMixPrng",
+            "value": 10250,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: fill_bytes 16KiB (misalignment 7)/TripleMixPrng<CrossPlatform>",
+            "value": 11006,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: fill_bytes 1MiB/TripleMixPrng",
+            "value": 653124,
+            "range": "± 135",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: fill_bytes 1MiB/TripleMixPrng<CrossPlatform>",
+            "value": 658872,
+            "range": "± 208",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: next_u64/TripleMixPrng",
+            "value": 100,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: next_u64/TripleMixPrng<CrossPlatform>",
+            "value": 100,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: initialization/from_seed/8",
+            "value": 1205,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: initialization/from_seed/16",
+            "value": 1208,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: initialization/from_seed/32",
+            "value": 1207,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: initialization/from_seed/64",
+            "value": 1205,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: initialization/from_seed/72",
+            "value": 1203,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: initialization/from_seed/128",
+            "value": 1734,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: initialization/from_seed/256",
+            "value": 1990,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: initialization/from_seed/360",
+            "value": 1731,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: initialization/from_seed/512",
+            "value": 1995,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: initialization/fork",
+            "value": 1844,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:linux: core/fill_blocks",
+            "value": 81,
+            "range": "± 0",
             "unit": "ns/iter"
           }
         ]
