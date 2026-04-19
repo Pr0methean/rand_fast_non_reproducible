@@ -47,25 +47,17 @@ pub struct TripleMixSimdCore<R: Reproducibility> {
 
 impl<R: Reproducibility> core::fmt::Debug for TripleMixSimdCore<R> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let x2 = self.mwc_carry;
-        let x3 = self.mwc_state;
-        let x4 = self.tm1;
-        let x5 = self.tm0;
-        let x6 = self.pcg_state_hi;
-        let x7 = self.pcg_state_lo;
-        let x8 = self.pcg_inc_hi;
-        let x9 = self.pcg_inc_lo;
-        let x10 = self.xoshiro256;
         f.debug_struct("TripleMixSimdCore")
-            .field("pcg_state_lo", &x7.to_array())
-            .field("pcg_state_hi", &x6.to_array())
-            .field("pcg_inc_lo", &x9.to_array())
-            .field("pcg_inc_hi", &x8.to_array())
-            .field("tm0", &x5.to_array())
-            .field("tm1", &x4.to_array())
-            .field("mwc_state", &x3.to_array())
-            .field("mwc_carry", &x2.to_array())
-            .field("xoshiro256", &x10)
+            .field("pcg_state_lo", &self.pcg_state_lo.to_array())
+            .field("pcg_state_hi", &self.pcg_state_hi.to_array())
+            .field("pcg_inc_lo", &self.pcg_inc_lo.to_array())
+            .field("pcg_inc_hi", &self.pcg_inc_hi.to_array())
+            .field("tm0", &self.tm0.to_array())
+            .field("tm1", &self.tm1.to_array())
+            .field("mwc_state", &self.mwc_state.to_array())
+            .field("mwc_carry", &self.mwc_carry.to_array())
+            .field("xoshiro256", &self.xoshiro256)
+            .field("scalar_weyl", &self.scalar_weyl)
             .finish()
     }
 }
