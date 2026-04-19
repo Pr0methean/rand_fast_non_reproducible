@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776579776903,
+  "lastUpdate": 1776579953434,
   "repoUrl": "https://github.com/Pr0methean/TripleMixPrng",
   "entries": {
     "Rust Benchmark": [
@@ -62916,6 +62916,156 @@ window.BENCHMARK_DATA = {
             "value": 101,
             "range": "± 3",
             "unit": "cycles/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4835ad76c056306d025ad875d2474f538d57ce94",
+          "message": "Build(deps): Bump step-security/harden-runner from 2.16.1 to 2.17.0 (#129)\n\nBumps [step-security/harden-runner](https://github.com/step-security/harden-runner) from 2.16.1 to 2.17.0.\n- [Release notes](https://github.com/step-security/harden-runner/releases)\n- [Commits](https://github.com/step-security/harden-runner/compare/fe104658747b27e96e4f7e80cd0a94068e53901d...f808768d1510423e83855289c910610ca9b43176)\n\n---\nupdated-dependencies:\n- dependency-name: step-security/harden-runner\n  dependency-version: 2.17.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-18T22:51:52-07:00",
+          "tree_id": "36d6b5f5ca654d3815bb9ac9328440635fd57a76",
+          "url": "https://github.com/Pr0methean/TripleMixPrng/commit/4835ad76c056306d025ad875d2474f538d57ce94"
+        },
+        "date": 1776579945644,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 0)/TripleMixPrng",
+            "value": 10296,
+            "range": "± 226",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 0)/TripleMixPrng<CrossPlatform>",
+            "value": 10135,
+            "range": "± 124",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 1)/TripleMixPrng",
+            "value": 10341,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 1)/TripleMixPrng<CrossPlatform>",
+            "value": 10935,
+            "range": "± 755",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 7)/TripleMixPrng",
+            "value": 10346,
+            "range": "± 122",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 16KiB (misalignment 7)/TripleMixPrng<CrossPlatform>",
+            "value": 10931,
+            "range": "± 122",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 1MiB/TripleMixPrng",
+            "value": 659185,
+            "range": "± 9834",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: fill_bytes 1MiB/TripleMixPrng<CrossPlatform>",
+            "value": 648105,
+            "range": "± 511",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: next_u64/TripleMixPrng",
+            "value": 120,
+            "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: next_u64/TripleMixPrng<CrossPlatform>",
+            "value": 117,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: initialization/from_seed/8",
+            "value": 1210,
+            "range": "± 19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: initialization/from_seed/16",
+            "value": 1209,
+            "range": "± 18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: initialization/from_seed/32",
+            "value": 1209,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: initialization/from_seed/64",
+            "value": 1216,
+            "range": "± 103",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: initialization/from_seed/72",
+            "value": 1212,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: initialization/from_seed/128",
+            "value": 1740,
+            "range": "± 28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: initialization/from_seed/256",
+            "value": 2015,
+            "range": "± 106",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: initialization/from_seed/360",
+            "value": 1736,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: initialization/from_seed/512",
+            "value": 2002,
+            "range": "± 54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: initialization/fork",
+            "value": 1888,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aarch64:windows: core/fill_blocks",
+            "value": 81,
+            "range": "± 1",
+            "unit": "ns/iter"
           }
         ]
       }
