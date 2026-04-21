@@ -730,7 +730,7 @@ mod tests {
     }
 
     #[cfg(not(miri))]
-    const RANDOM_INPUT_ITERATIONS: usize = 128;
+    const RANDOM_INPUT_ITERATIONS: usize = 512;
     #[cfg(miri)]
     const RANDOM_INPUT_ITERATIONS: usize = 2;
 
