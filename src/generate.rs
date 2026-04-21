@@ -1501,7 +1501,7 @@ mod tests {
     /// For SEED_COUNT == 1024 and P_THRESHOLD == 5.0e-6, this amounts to about a 1.02% false
     /// positive rate for the entire test.
     #[test]
-    fn test_lowbit_rank() {
+    fn test_rank() {
         const SEED_COUNT: usize = 1024;
         const P_THRESHOLD: f64 = 5.0e-6;
         #[cfg(not(miri))]
