@@ -608,8 +608,10 @@ mod tests {
     fn evaluate_second_order_derivatives(
         mix_input: [u64; MIX_INPUT_U64S],
     ) -> SecondDerivativeStats {
+        const MAX_MESSAGES: usize = 128;
         let (base_out0, base_out1, base_out_2, base_out_3) = mix_from_flat_array(mix_input);
         let mut weights = Vec::new();
+        let mut messages_written = 0;
         for var_idx_1 in 0..MIX_INPUTS {
             for var_idx_2 in var_idx_1..MIX_INPUTS {
                 for lane_idx_1 in 0..SIMD_WIDTH {
@@ -638,10 +640,11 @@ mod tests {
                                         + out_xor_1.count_ones().reduce_sum()
                                         + out_xor_2.count_ones().reduce_sum()
                                         + out_xor_3.count_ones().reduce_sum();
-                                    if weight < (96 * MIX_OUTPUTS) as u64 {
+                                    if messages_written < MAX_MESSAGES && weight < (96 * MIX_OUTPUTS) as u64 {
                                         println!(
                                             "Low-weight second derivative: {weight} (var_idx_1={var_idx_1}, var_idx_2={var_idx_2}, lane_idx_1={lane_idx_1}, lane_idx_2={lane_idx_2}, bit_idx_1={bit_idx_1}, bit_idx_2={bit_idx_2})"
                                         );
+                                        messages_written += 1;
                                     }
                                     weights.push(weight);
                                 }
@@ -663,10 +666,11 @@ mod tests {
                                     + out_xor_1.count_ones().reduce_sum()
                                     + out_xor_2.count_ones().reduce_sum()
                                     + out_xor_3.count_ones().reduce_sum();
-                                if weight < (96 * MIX_OUTPUTS) as u64 {
+                                if messages_written < MAX_MESSAGES && weight < (96 * MIX_OUTPUTS) as u64 {
                                     println!(
                                         "Low-weight second derivative: {weight} (var_idx_1={var_idx_1}, var_idx_2={var_idx_2}, lane_idx_1={lane_idx_1}, lane_idx_2={lane_idx_2}, bit_idx={bit_idx})"
                                     );
+                                    messages_written += 1;
                                 }
                                 weights.push(weight);
                             }
