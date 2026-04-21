@@ -320,10 +320,10 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         );
 
         // Break bit-isolation with integrated bitwise rotations/shifts
-        a ^= (b.rotate_elements_right::<2>()) ^ (b << 1);
-        b += (c.rotate_elements_left::<3>()) ^ (c >> 1);
-        c ^= (d.rotate_elements_right::<1>()) ^ (d << 3);
-        d += (a.rotate_elements_left::<2>()) ^ (a >> 3);
+        a ^= (b.rotate_elements_right::<2>()) ^ (c << 1);
+        b += (c.rotate_elements_left::<3>()) ^ (d >> 1);
+        c ^= (d.rotate_elements_right::<1>()) ^ (a << 3);
+        d += (a.rotate_elements_left::<2>()) ^ (b >> 3);
 
         // Strengthened nonlinear cross-coupling
         a += (b ^ c).rotate_elements_left::<1>();
