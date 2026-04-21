@@ -598,7 +598,7 @@ mod tests {
         #[cfg(miri)]
         const BASIC_ADVANCE_BLOCKS: u128 = 2;
 
-        for mut prng in crate::create_rngs::<DefaultReproducibility>() {
+        for mut prng in crate::create_rngs::<DefaultReproducibility>(7) {
             let prng_large_jmp = prng.clone();
             let mut prng_jmp = prng.clone();
 

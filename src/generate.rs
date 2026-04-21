@@ -484,6 +484,8 @@ mod tests {
     use core::simd::Simd;
     use core::simd::cmp::SimdPartialEq;
     use core::simd::num::SimdUint;
+    use std::fmt::Debug;
+    use std::ops::{BitAnd, BitXorAssign, Shr};
     use fsum::FSum;
     use gf2::{BitMatrix, BitStore, BitVector};
     use hypors::chi_square::goodness_of_fit;
@@ -866,7 +868,7 @@ mod tests {
         const N: usize = 1 << 12;
         let mut total_frequencies = [0u32; u8::MAX as usize + 1];
         let mut frequencies = [0u32; u8::MAX as usize + 1];
-        let prngs = crate::create_rngs::<NotReproducible>();
+        let prngs = crate::create_rngs::<NotReproducible>(7);
         let prng_count = prngs.len();
         for mut prng in prngs {
             frequencies.fill(0);
@@ -902,7 +904,7 @@ mod tests {
         const N: usize = 1 << 12;
         let mut total_frequencies = vec![0u32; u16::MAX as usize + 1];
         let mut frequencies = vec![0u32; u16::MAX as usize + 1];
-        let prngs = crate::create_rngs::<NotReproducible>();
+        let prngs = crate::create_rngs::<NotReproducible>(7);
         let prng_count = prngs.len();
         for mut prng in prngs {
             frequencies.fill(0);
@@ -942,7 +944,7 @@ mod tests {
         #[cfg(not(miri))]
         const COMBINED_P_THRESHOLD: f64 = 0.005;
         const SEPARATE_P_THRESHOLD: f64 = 1e-6;
-        for mut prng in crate::create_rngs::<NotReproducible>() {
+        for mut prng in crate::create_rngs::<NotReproducible>(7) {
             // Flatten to 2D for better cache locality
             let mut bins = [[0u32; 4]; 64 * 64];
             let mut lagged_bins = [[0u32; 4]; 64 * 64];
@@ -1126,7 +1128,7 @@ mod tests {
         let mut total_checks = 0;
         let bit_flip_distribution = Binomial::new(0.5, (BLOCK_SIZE * 64) as u64).unwrap();
         let low_avalanche_probability = bit_flip_distribution.cdf(LOW_AVALANCHE_THRESHOLD);
-        for rng in crate::create_rngs::<NotReproducible>() {
+        for rng in crate::create_rngs::<NotReproducible>(7) {
             let core = rng.block_core.core;
 
             #[cfg(not(miri))]
@@ -1358,7 +1360,7 @@ mod tests {
             const N: usize = 1 << 22;
             #[cfg(miri)]
             const N: usize = 1 << 8;
-            for mut rng in create_rngs::<NotReproducible>() {
+            for mut rng in create_rngs::<NotReproducible>(7) {
                 let mut buf = vec![0u64; N];
                 rng.fill_bytes(cast_slice_mut(&mut buf));
 
@@ -1428,7 +1430,7 @@ mod tests {
     #[cfg_attr(miri, ignore)]
     #[test]
     fn test_lane_cross_correlation_bitplane() {
-        for mut rng in crate::create_rngs::<NotReproducible>() {
+        for mut rng in crate::create_rngs::<NotReproducible>(7) {
             #[cfg(not(miri))]
             const N: usize = 1 << 27;
             #[cfg(miri)]
@@ -1467,13 +1469,15 @@ mod tests {
         }
     }
 
-    fn gf2_rank(mut rows: [u64; 64]) -> u32 {
+    fn gf2_rank<E: BitXorAssign + BitAnd<Output = E> + Shr<Output = E> + Eq + Copy + TryFrom<usize>, const SIZE: usize>(mut rows: [E; SIZE]) -> u32 where <E as TryFrom<usize>>::Error: Debug {
         let mut rank = 0;
-        for col in (0..64).rev() {
-            if let Some(pivot) = (rank..64).find(|&r| (rows[r] >> col) & 1 == 1) {
-                rows.swap(rank, pivot);
-                for r in 0..64 {
-                    if r != rank && ((rows[r] >> col) & 1) == 1 {
+        let one = 1.try_into().unwrap();
+        for col in (0..SIZE).rev() {
+            let col = col.try_into().unwrap();
+            if let Some(pivot) = (rank..SIZE).find(|&r| (rows[r] >> col) & one == one) {
+                rows.swap(rank.into(), pivot.into());
+                for r in 0..SIZE {
+                    if r != rank && ((rows[r] >> col) & one) == one {
                         rows[r] ^= rows[rank];
                     }
                 }
@@ -1483,36 +1487,68 @@ mod tests {
         rank.try_into().unwrap()
     }
 
-    /// False positive rate for this test is about 1.2% per PRNG.
+    /// Number of chi-squared tests is 2 * SEED_COUNT.
+    /// For SEED_COUNT == 1024 and P_THRESHOLD == 5.0e-6, this amounts to about a 1.02% false
+    /// positive rate for the entire test.
     #[test]
     fn test_lowbit_rank() {
+        const SEED_COUNT: usize = 1024;
+        const P_THRESHOLD: f64 = 5.0e-6;
         #[cfg(not(miri))]
-        const N: usize = 10000;
+        const N: usize = 1024;
+        const SMALL_MATRIX_SIZE: u32 = 64;
+        const LARGE_MATRIX_SIZE: u32 = 128;
         #[cfg(miri)]
         const N: usize = 64;
 
-        for mut rng in crate::create_rngs::<NotReproducible>() {
-            let mut rank60_count = 0;
 
+        const RANK_DEFICIENCY_EXPECTED: [f64; 7] = [
+            0.2887880950866024 * (N as f64),
+            0.5775761901732047 * (N as f64),
+            0.12835026448293437 * (N as f64),
+            0.005238786751117709 * (N as f64),
+            4.656699336260325e-5 * (N as f64),
+            8.91730820936965e-8 * (N as f64),
+            3.700042445872005e-11 * (N as f64),
+        ];
+
+        let mut small_matrix = [0u64; SMALL_MATRIX_SIZE as usize];
+        let mut large_matrix = [0u128; LARGE_MATRIX_SIZE as usize];
+        for mut rng in crate::create_rngs::<NotReproducible>(SEED_COUNT) {
+            let mut rank_deficiency_counts = [0u32; 7];
             for _ in 0..N {
-                let mut matrix = [0u64; 64];
-                rng.fill_bytes(cast_slice_mut(&mut matrix));
-                let rank = gf2_rank(matrix);
-                assert!(rank >= 60, "Low-bit rank deficiency: {}", rank);
-                if rank == 60 {
-                    rank60_count += 1;
-                    assert!(
-                        rank60_count <= 2,
-                        "Too many low-bit rank deficiencies (rank 60)"
-                    );
-                }
+                rng.fill_bytes(cast_slice_mut(&mut small_matrix));
+                let deficiency = SMALL_MATRIX_SIZE - gf2_rank(small_matrix);
+                assert!(deficiency < 7, "Extreme low-bit rank deficiency (small matrix): {deficiency}");
+                rank_deficiency_counts[deficiency as usize] += 1;
             }
+            let chi_square = goodness_of_fit(
+                rank_deficiency_counts.map(f64::from),
+                RANK_DEFICIENCY_EXPECTED,
+                P_THRESHOLD,
+            )
+            .unwrap();
+            assert!(!chi_square.reject_null, "Chi-square test failed (p = {:.8})", chi_square.p_value);
+            let mut rank_deficiency_counts = [0u32; 7];
+            for _ in 0..N {
+                rng.fill_bytes(cast_slice_mut(&mut large_matrix));
+                let deficiency = LARGE_MATRIX_SIZE - gf2_rank(large_matrix);
+                assert!(deficiency < 7, "Extreme low-bit rank deficiency (large matrix): {deficiency}");
+                rank_deficiency_counts[deficiency as usize] += 1;
+            }
+            let chi_square = goodness_of_fit(
+                rank_deficiency_counts.map(f64::from),
+                RANK_DEFICIENCY_EXPECTED,
+                P_THRESHOLD,
+            )
+            .unwrap();
+            assert!(!chi_square.reject_null, "Chi-square test failed (p = {:.8})", chi_square.p_value);
         }
     }
 
     #[test]
     fn test_double_differential() {
-        for mut rng in crate::create_rngs::<NotReproducible>() {
+        for mut rng in crate::create_rngs::<NotReproducible>(7) {
             #[cfg(not(miri))]
             const N: usize = 1 << 21;
             #[cfg(miri)]
@@ -1542,7 +1578,7 @@ mod tests {
 
     #[test]
     fn test_fractional_spectral() {
-        for mut rng in crate::create_rngs::<NotReproducible>() {
+        for mut rng in crate::create_rngs::<NotReproducible>(7) {
             #[cfg(not(miri))]
             const N: usize = 1 << 21;
             #[cfg(miri)]
