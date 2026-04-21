@@ -226,11 +226,12 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
                 xoshiro_out,
                 scalar_weyl,
-                R::simd64_as_simd32(tm_y_val),
-                R::simd64_as_simd32(tm_secondary_out),
                 pcg_state_lo_simd32,
                 R::simd64_as_simd32(mwc_state),
-                pcg_state_hi_simd32);
+                pcg_state_hi_simd32,
+                R::simd64_as_simd32(tm_y_val),
+                R::simd64_as_simd32(tm_secondary_out),
+            );
 
             mwc_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
             mwc_state = mwc_next_state;
@@ -240,8 +241,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 i_mixed,
                 block,
                 R::simd64_as_simd32(mwc_carry),
-                pcg_state_hi_simd32,
-                R::simd64_as_simd32(mwc_state),
                 a, b, c
             );
         }
@@ -291,44 +290,50 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
             xoshiro_out,
             scalar_weyl,
-            R::simd64_as_simd32(tm_y),
-            R::simd64_as_simd32(tm_secondary_out),
             pcg_state_lo_simd32,
             R::simd64_as_simd32(mwc_state),
-            pcg_state_hi_simd32);
+            pcg_state_hi_simd32,
+            R::simd64_as_simd32(tm_y),
+            R::simd64_as_simd32(tm_secondary_out),
+        );
 
         TripleMixSimdCore::<R>::second_half_mix(
             R::simd64_as_simd32(pcg_output),
             R::simd64_as_simd32(i_mixed),
             block,
             R::simd64_as_simd32(mwc_carry),
-            pcg_state_hi_simd32,
-            R::simd64_as_simd32(mwc_state),
             a, b, c
         );
     }
 
     #[allow(clippy::too_many_arguments)]
     #[inline(always)]
-    fn second_half_mix(x5: Simd32, x6: Simd32, output: &mut [u64; 16], x2: Simd32, x3: Simd32, x4: Simd32, mut a: Simd32, mut b: Simd32, mut c: Simd32) {
+    fn second_half_mix(
+        pcg_output: Simd32,
+        i_mixed: Simd32,
+        output: &mut [u64; 16],
+        mwc_carry: Simd32,
+        mut a: Simd32,
+        mut b: Simd32,
+        mut c: Simd32,
+    ) {
+        // Generate d from current state a,b,c
         let mut d = a ^ b.rotate_elements_left::<4>() ^ c.rotate_elements_right::<2>();
+
+        // Round 3
         (b, c, d) = Self::round3(
-            b,
-            c,
-            d,
-            x5, x6, x3, x4, x2,
-            11,
-            17,
-            9,
+            b, c, d,
+            pcg_output, i_mixed, mwc_carry,
+            11, 17, 9,
         );
+
+        // Round 4
         (c, d, a) = Self::round3(
-            c,
-            d,
-            a,
-            x4, x2, x6, x5, x3,
-            5,
-            13,
-            23,
+            c, d, a,
+            pcg_output ^ Simd32::splat(0x12345678), // Reuse some inputs with a twist
+            i_mixed.rotate_elements_left::<1>(),
+            mwc_carry.rotate_elements_right::<2>(),
+            5, 13, 23,
         );
 
         // Final fast cross-lane diffusion
@@ -353,8 +358,6 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         x0: Simd32,
         x1: Simd32,
         x2: Simd32,
-        x5: Simd32,
-        x6: Simd32,
         shift1: u32,
         shift2: u32,
         shift3: u32,
@@ -364,33 +367,36 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             (x << Simd::splat(k)) | (x >> Simd::splat(32 - k))
         }
 
-        // Injection
+        // Injection at start of round ensures bits pass through multipliers
         a += x0;
         b ^= x1;
         c += x2;
 
-        // Biased multipliers to ensure non-zero products even with zero inputs
+        // Biased multipliers to ensure non-zero products
         let (m0_lo, m0_hi, m1_lo, m1_hi) = TripleMixSimdCore::<R>::mul_lo_hi_triad(
             a ^ Simd32::splat(0x9e3779b9),
             b ^ Simd32::splat(0x85ebca6b),
             c ^ Simd32::splat(0x3c6ef35f),
         );
 
-        // Cyclic mixing
+        // Cyclic mixing using all 4 multiplier outputs
         a = rotl32(a ^ m1_hi, shift1) + b.rotate_elements_left::<4>();
         b = rotl32(b + m0_hi, shift2) ^ c.rotate_elements_right::<2>();
-        c = rotl32(c ^ m0_lo, shift3) + a.rotate_elements_left::<1>();
-
-        // Final injections
-        a += rotl32(x5 ^ m1_lo, 11);
-        b ^= rotl32(x6, 17);
-        c += m1_lo.rotate_elements_left::<4>();
+        c = rotl32(c ^ m0_lo, shift3) + (a ^ m1_lo).rotate_elements_left::<1>();
 
         (a, b, c)
     }
 
     #[inline(always)]
-    fn first_half_mix(scalar1: u64, scalar2: u64, x0: Simd32, x1: Simd32, x2: Simd32, x3: Simd32, x4: Simd32) -> (Simd32, Simd32, Simd32) {
+    fn first_half_mix(
+        scalar1: u64,
+        scalar2: u64,
+        x0: Simd32, // pcg_state_lo
+        x1: Simd32, // mwc_state
+        x2: Simd32, // pcg_state_hi
+        x3: Simd32, // tm_y
+        x4: Simd32, // tm_secondary_out
+    ) -> (Simd32, Simd32, Simd32) {
         let s2_hi = (scalar2 >> 32) as u32;
         let s2_lo = scalar2 as u32;
         let s1_hi = (scalar1 >> 32) as u32;
@@ -402,11 +408,16 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             s1_hi ^ 0x13198a2e, s2_lo ^ 0x03707344
         ]);
 
-        let a = mix ^ Simd32::splat(0x9e3779b9);
-        let b = mix.rotate_elements_left::<4>() + Simd32::splat(0xb7e15162);
-        let c = Simd32::splat(0x84caa73b) ^ (mix.rotate_elements_right::<3>());
+        let mut a = mix ^ Simd32::splat(0x9e3779b9);
+        let mut b = mix.rotate_elements_left::<4>() + Simd32::splat(0xb7e15162);
+        let mut c = Simd32::splat(0x84caa73b) ^ (mix.rotate_elements_right::<3>());
 
-        Self::round3(a, b, c, x0, x1, x2, x3, x4, 13, 19, 7)
+        // Round 1
+        (a, b, c) = Self::round3(a, b, c, x0, x1, x2, 13, 19, 7);
+        // Round 2
+        (a, b, c) = Self::round3(a, b, c, x3, x4, mix, 17, 7, 13);
+
+        (a, b, c)
     }
 }
 
