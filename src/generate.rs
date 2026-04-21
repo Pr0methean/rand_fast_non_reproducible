@@ -273,25 +273,37 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
     #[allow(clippy::too_many_arguments)]
     #[inline(always)]
     pub fn mix(
-        x0: Simd64,
-        x1: Simd64,
-        x2: Simd64,
-        x3: Simd64,
-        x4: Simd64,
-        x5: Simd64,
-        x6: Simd64,
-        scalar1: u64,
-        scalar2: u64,
-        output: &mut [u64; BLOCK_SIZE]
+        mwc_state: Simd64,
+        pcg_output: Simd64,
+        i_mixed: Simd64,
+        pcg_state_lo: Simd64,
+        mwc_carry: Simd64,
+        tm_y: Simd64,
+        tm_secondary_out: Simd64,
+        xoshiro_out: u64,
+        scalar_weyl: u64,
+        block: &mut [u64; BLOCK_SIZE]
     ) {
-        let x0 = R::simd64_as_simd32(x0);
-        let x1 = R::simd64_as_simd32(x1);
-        let x2 = R::simd64_as_simd32(x2);
-        let x3 = R::simd64_as_simd32(x3);
-        let x4 = R::simd64_as_simd32(x4);
-        let (a, b, c) = Self::first_half_mix(scalar1, scalar2, x0, x1, x2, x3, x4);
+        let i_mixed = R::simd64_as_simd32(i_mixed);
+        let pcg_state_lo = R::simd64_as_simd32(pcg_state_lo);
+        let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
+            xoshiro_out,
+            scalar_weyl,
+            R::simd64_as_simd32(mwc_state),
+            R::simd64_as_simd32(pcg_output),
+            i_mixed,
+            pcg_state_lo,
+            R::simd64_as_simd32(mwc_carry));
 
-        Self::second_half_mix(x5, x6, output, x2, x3, x4, a, b, c);
+        TripleMixSimdCore::<R>::second_half_mix(
+            tm_y,
+            pcg_output,
+            block,
+            R::simd64_as_simd32(mwc_state),
+            R::simd64_as_simd32(tm_secondary_out),
+            i_mixed,
+            a, b, c
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
