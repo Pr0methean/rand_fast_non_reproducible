@@ -313,7 +313,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             c,
             d,
             a,
-            x4, x5, x6, x2, x3,
+            x4, x2, x6, x5, x3,
             3,
             13,
             23,
@@ -730,7 +730,7 @@ mod tests {
     }
 
     #[cfg(not(miri))]
-    const RANDOM_INPUT_ITERATIONS: usize = 10;
+    const RANDOM_INPUT_ITERATIONS: usize = 128;
     #[cfg(miri)]
     const RANDOM_INPUT_ITERATIONS: usize = 2;
 
