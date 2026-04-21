@@ -208,11 +208,11 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
                 xoshiro_out,
                 scalar_weyl,
-                mwc_state,
                 pcg_output,
-                i_mixed,
+                mwc_state,
                 pcg_state_lo,
-                mwc_carry);
+                mwc_carry,
+                i_mixed);
             // pcg_state_lo, mwc_carry, xoshiro_out, scalar_weyl are not used in the second half of the mix
 
             // TinyMT Step 0: Mask and initial XOR
@@ -240,8 +240,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
                 tm_y,
                 tm_secondary_out,
                 block,
-                mwc_state,
                 pcg_output,
+                mwc_state,
                 i_mixed,
                 a, b, c
             );
@@ -306,7 +306,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             b,
             c,
             d,
-            x5, x6, x3, x4, x2,
+            x2, x3, x4, x5, x6,
             5,
             17,
             9,
@@ -315,24 +315,23 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             c,
             d,
             a,
-            x4, x5, x6, x2, x3,
+            x6, x2, x3, x4, x5,
             3,
             13,
             23,
         );
 
-        a ^= b.rotate_elements_right::<2>();
-        b += c.rotate_elements_left::<3>();
-        c ^= d.rotate_elements_right::<1>();
-        d += a.rotate_elements_left::<2>();
+        // Break bit-isolation with integrated bitwise rotations/shifts
+        a ^= (b.rotate_elements_right::<2>()) ^ (b << 1);
+        b += (c.rotate_elements_left::<3>()) ^ (c >> 1);
+        c ^= (d.rotate_elements_right::<1>()) ^ (d << 3);
+        d += (a.rotate_elements_left::<2>()) ^ (a >> 3);
 
-        // extra nonlinear cross-coupling
-        let t0 = a ^ c;
-        let t1 = b + d;
-        c += a.rotate_elements_left::<3>();
-        d ^= b.rotate_elements_right::<1>();
-        b ^= t0.rotate_elements_right::<2>();
-        a += t1.rotate_elements_left::<1>();
+        // Strengthened nonlinear cross-coupling
+        a += (b ^ c).rotate_elements_left::<1>();
+        b ^= (c + d).rotate_elements_right::<2>();
+        c += (d ^ a).rotate_elements_left::<3>();
+        d ^= (a + b).rotate_elements_right::<4>();
 
         // Convert back to u64x4 by casting and packing
         R::simd32_as_simd64(a).copy_to_slice(&mut output[0..4]);
@@ -371,22 +370,17 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         // --- First nonlinear layer ---
         let (m0_lo, m0_hi, m1_lo, m1_hi) = TripleMixSimdCore::<R>::mul_lo_hi_triad(a, b, c);
 
+        // Mix m1_lo early with a lane rotation
+        b += m1_lo.rotate_elements_left::<4>();
+
+        // Balanced distribution of triad results
         let br1 = b.rotate_elements_left::<1>();
         let cr2 = c.rotate_elements_right::<2>();
-        a ^= br1;
         let ar3 = a.rotate_elements_left::<3>();
-        b += cr2;
-        c ^= ar3;
 
-        // Consume mul outputs ASAP (short lifetime)
-        let br2 = b.rotate_elements_right::<2>();
-        a ^= m1_hi + br2;
-
-        let cl3 = c.rotate_elements_left::<3>();
-        b ^= m0_lo ^ cl3;
-
-        let ar1 = a.rotate_elements_right::<1>();
-        c ^= m0_hi + ar1;
+        a ^= m1_hi + br1;
+        b ^= m0_hi + cr2;
+        c ^= m0_lo + ar3;
 
         // m0_hi / m0_lo / m1_hi now dead
 
@@ -405,7 +399,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         c ^= cr;
 
         let ar4 = a.rotate_elements_right::<4>();
-        b += m1_lo + ar4; // last use of m1_lo
+        b += ar4; // last use of m1_lo avoided earlier
 
         let cr2 = rotl32(c, shift2);
         a += cr2;
@@ -420,17 +414,35 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let scalar2_hi = (scalar2 >> 32) as u32;
         let scalar2_lo = scalar2 as u32;
         let mut a = Simd32::splat(0x243f6a88);
-        let scalar_mix_1 =
-            Simd32::from_array([
-                scalar2_lo, scalar1_lo, scalar1_hi, 0, scalar1_hi, scalar2_lo, scalar1_lo, scalar2_hi,
-            ]);
-        let mut b = Simd32::splat(0x9e3779b9);
-        let scalar_mix_2 =
-            Simd32::from_array([
-                scalar1_hi, scalar2_hi, scalar2_hi, scalar1_hi, scalar2_lo, scalar1_lo, 0, scalar2_lo,
-            ]);
+        let s1_lo = scalar1_lo;
+        let s1_hi = scalar1_hi;
+        let s2_lo = scalar2_lo;
+        let s2_hi = scalar2_hi;
+
+        // More diverse scalar distribution to break lane symmetry earlier
+        let scalar_mix_1 = Simd32::from_array([
+            s1_lo,
+            s2_lo ^ 0x3c6ef372,
+            s1_hi,
+            s2_hi ^ 0x75d06d9d,
+            s1_lo.rotate_left(13),
+            s2_lo ^ 0xef462c0b,
+            s1_hi.rotate_right(7),
+            s2_hi ^ 0x64f23b35,
+        ]);
+        let scalar_mix_2 = Simd32::from_array([
+            s2_lo,
+            s1_lo ^ 0x9e3779b9,
+            s2_hi,
+            s1_hi ^ 0xb7e15162,
+            s2_lo.rotate_right(11),
+            s1_lo ^ 0x243f6a88,
+            s2_hi.rotate_left(17),
+            s1_hi ^ 0x84caa73b,
+        ]);
         a ^= scalar_mix_1;
         let mut c = Simd32::splat(0xb7e15162);
+        let mut b = Simd32::splat(0x9e3779b9);
         b += scalar_mix_2;
         c += scalar_mix_1;
         Self::round3(a, b, c, x0, x1, x2, x3, x4, 7, 25, 11)
