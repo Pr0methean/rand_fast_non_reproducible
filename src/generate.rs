@@ -203,8 +203,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
                 xoshiro_out,
                 scalar_weyl,
-                R::simd64_as_simd32(pcg_output),
                 R::simd64_as_simd32(mwc_state),
+                R::simd64_as_simd32(pcg_output),
                 i_mixed,
                 pcg_state_lo,
                 R::simd64_as_simd32(mwc_carry));
