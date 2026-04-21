@@ -484,7 +484,7 @@ mod tests {
     const AVALANCHE_MATRIX_ROWS: usize = 8 * size_of::<Simd64>() * MIX_OUTPUTS;
     const AVALANCHE_MATRIX_COLS: usize = 8 * size_of::<u64>() * MIX_INPUT_U64S;
 
-    fn evaluate_mix_matrix(mix_input: [u64; MIX_INPUT_U64S]) -> MixMatrixStats {
+    fn evaluate_mix_matrix(mix_input: [u64; MIX_INPUT_U64S], output: bool) -> MixMatrixStats {
         let (base_out0, base_out1, base_out2, base_out3) = mix_from_flat_array(mix_input);
         let mut xor_matrix = BitMatrix::<u64>::zeros(AVALANCHE_MATRIX_ROWS, AVALANCHE_MATRIX_COLS);
         let mut i = 0;
@@ -547,18 +547,22 @@ mod tests {
             .collect::<Vec<_>>();
         let min_col_weight = col_weights.iter().copied().min().unwrap();
         let max_col_weight = col_weights.iter().copied().max().unwrap();
-        println!("min_row_weight={min_row_weight}, max_row_weight={max_row_weight}");
-        println!("Row weights:");
-        for row_chunk in row_weights.chunks_exact(64) {
-            println!("{:>4?} = {:>6}", row_chunk, row_chunk.iter().sum::<usize>());
-        }
-        println!("min_col_weight={min_col_weight}, max_col_weight={max_col_weight}");
-        println!("Column weights:");
-        for col_chunk in col_weights.chunks_exact(64) {
-            println!("{:>4?} = {:>6}", col_chunk, col_chunk.iter().sum::<usize>());
+        if output {
+            println!("min_row_weight={min_row_weight}, max_row_weight={max_row_weight}");
+            println!("Row weights:");
+            for row_chunk in row_weights.chunks_exact(64) {
+                println!("{:>4?} = {:>6}", row_chunk, row_chunk.iter().sum::<usize>());
+            }
+            println!("min_col_weight={min_col_weight}, max_col_weight={max_col_weight}");
+            println!("Column weights:");
+            for col_chunk in col_weights.chunks_exact(64) {
+                println!("{:>4?} = {:>6}", col_chunk, col_chunk.iter().sum::<usize>());
+            }
         }
         let total_weight = row_weights.into_iter().sum::<usize>();
-        println!("Total weight: {total_weight}");
+        if output {
+            println!("Total weight: {total_weight}");
+        }
         MixMatrixStats {
             total_weight,
             min_row_weight,
@@ -717,14 +721,14 @@ mod tests {
                 * 0.25
                 - 1.0)
                 .sqrt();
-        for _ in 0..RANDOM_INPUT_ITERATIONS {
+        for iter in 0..RANDOM_INPUT_ITERATIONS {
             rng.fill(&mut mix_input);
             let MixMatrixStats {
                 total_weight,
                 min_row_weight,
                 min_col_weight,
                 rank,
-            } = evaluate_mix_matrix(mix_input);
+            } = evaluate_mix_matrix(mix_input, iter < 10);
             let deviation = 0isize
                 .checked_add_unsigned(total_weight)
                 .unwrap()
@@ -802,7 +806,7 @@ mod tests {
         #[test]
         fn test_mix_matrix_proptest(mix_input: [u64; MIX_INPUT_U64S]) {
             let MixMatrixStats { total_weight, min_row_weight, min_col_weight, rank } =
-                evaluate_mix_matrix(mix_input);
+                evaluate_mix_matrix(mix_input, true);
             prop_assert!(min_col_weight >= (AVALANCHE_MATRIX_ROWS * 3) / 8);
             prop_assert!(min_row_weight >= (AVALANCHE_MATRIX_COLS * 3) / 8);
             let expected = AVALANCHE_MATRIX_ROWS * AVALANCHE_MATRIX_COLS / 2;
