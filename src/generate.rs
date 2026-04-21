@@ -193,26 +193,24 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
             let mwc_borrow = mwc_carry.simd_lt(mwc_kx_lo).to_simd().cast::<u64>();
             let mwc_next_state = mwc_carry - mwc_kx_lo;
-            mwc_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
-            mwc_state = mwc_next_state;
 
             scalar_weyl = (scalar_weyl + 1) % Self::SCALAR_WEYL_MODULUS;
             // Generate scalar xoshiro256** output
             let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
             Self::advance_xoshiro(&mut xoshiro256);
-            let mwc_state = R::simd64_as_simd32(mwc_state);
-            let mwc_carry = R::simd64_as_simd32(mwc_carry);
-            let pcg_output = R::simd64_as_simd32(pcg_output);
             let pcg_state_lo = R::simd64_as_simd32(pcg_state_lo);
 
             let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
                 xoshiro_out,
                 scalar_weyl,
-                pcg_output,
-                mwc_state,
+                R::simd64_as_simd32(pcg_output),
+                R::simd64_as_simd32(mwc_state),
+                i_mixed,
                 pcg_state_lo,
-                mwc_carry,
-                i_mixed);
+                R::simd64_as_simd32(mwc_carry));
+
+            mwc_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
+            mwc_state = mwc_next_state;
             // pcg_state_lo, mwc_carry, xoshiro_out, scalar_weyl are not used in the second half of the mix
 
             // TinyMT Step 0: Mask and initial XOR
@@ -238,10 +236,10 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let tm_secondary_out = tm0 - tm1;
             TripleMixSimdCore::<R>::second_half_mix(
                 tm_y,
-                tm_secondary_out,
-                block,
                 pcg_output,
-                mwc_state,
+                block,
+                R::simd64_as_simd32(mwc_state),
+                R::simd64_as_simd32(tm_secondary_out),
                 i_mixed,
                 a, b, c
             );
@@ -306,7 +304,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             b,
             c,
             d,
-            x2, x3, x4, x5, x6,
+            x5, x6, x3, x4, x2,
             5,
             17,
             9,
@@ -315,7 +313,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             c,
             d,
             a,
-            x6, x2, x3, x4, x5,
+            x4, x5, x6, x2, x3,
             3,
             13,
             23,
