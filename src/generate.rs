@@ -194,30 +194,10 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             let mwc_borrow = mwc_carry.simd_lt(mwc_kx_lo).to_simd().cast::<u64>();
             let mwc_next_state = mwc_carry - mwc_kx_lo;
 
-            scalar_weyl = (scalar_weyl + 1) % Self::SCALAR_WEYL_MODULUS;
-            // Generate scalar xoshiro256** output
-            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
-            Self::advance_xoshiro(&mut xoshiro256);
-            let pcg_state_lo_simd32 = R::simd64_as_simd32(pcg_state_lo);
-            let pcg_state_hi_simd32 = R::simd64_as_simd32(pcg_state_hi);
-
-            let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
-                xoshiro_out,
-                scalar_weyl,
-                pcg_state_lo_simd32,
-                R::simd64_as_simd32(mwc_state),
-                pcg_state_hi_simd32,
-                i_mixed,
-                R::simd64_as_simd32(mwc_carry));
-
-            mwc_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
-            mwc_state = mwc_next_state;
-            // pcg_state_lo, mwc_carry, xoshiro_out, scalar_weyl are not used in the second half of the mix
-
             // TinyMT Step 0: Mask and initial XOR
             let tm0_masked = tm0 & Simd::splat(TINYMT64_LANE_MASK);
             let mut tm_x = tm0_masked ^ tm1;
-            let mut tm_y = tm0_masked + tm1;
+            let mut tm_y_val = tm0_masked + tm1;
 
             // TinyMT Step 1: First shift
             tm_x ^= tm_x << Simd::splat(12);
@@ -229,18 +209,38 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
             tm_x ^= tm_x << Simd::splat(32);
 
             // TinyMT Step 4: Fourth shift & final output
-            tm_y ^= (tm_y & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT);
+            tm_y_val ^= (tm_y_val & Simd::splat(1)).wrapping_neg() & Simd::splat(Self::TINYMT_TMAT);
             tm_x ^= tm_x << Simd::splat(11);
             let tm_mask = (tm_x & Simd::splat(1)).wrapping_neg();
             tm0 = tm1 ^ (tm_mask & Simd::splat(Self::TINYMT_MAT1));
             tm1 = tm_x ^ (tm_mask & Simd::splat(Self::TINYMT_MAT2));
             let tm_secondary_out = tm0 - tm1;
-            TripleMixSimdCore::<R>::second_half_mix(
-                tm_y,
-                pcg_output,
-                block,
-                pcg_state_hi_simd32,
+
+            scalar_weyl = (scalar_weyl + 1) % Self::SCALAR_WEYL_MODULUS;
+            // Generate scalar xoshiro256** output
+            let xoshiro_out = xoshiro256[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
+            Self::advance_xoshiro(&mut xoshiro256);
+            let pcg_state_lo_simd32 = R::simd64_as_simd32(pcg_state_lo);
+            let pcg_state_hi_simd32 = R::simd64_as_simd32(pcg_state_hi);
+
+            let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
+                xoshiro_out,
+                scalar_weyl,
+                R::simd64_as_simd32(tm_y_val),
                 R::simd64_as_simd32(tm_secondary_out),
+                pcg_state_lo_simd32,
+                R::simd64_as_simd32(mwc_state),
+                pcg_state_hi_simd32);
+
+            mwc_carry = (mwc_state - mwc_kx_hi) + mwc_borrow;
+            mwc_state = mwc_next_state;
+
+            TripleMixSimdCore::<R>::second_half_mix(
+                R::simd64_as_simd32(pcg_output),
+                i_mixed,
+                block,
+                R::simd64_as_simd32(mwc_carry),
+                pcg_state_hi_simd32,
                 R::simd64_as_simd32(mwc_state),
                 a, b, c
             );
@@ -291,18 +291,18 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         let (a, b, c) = TripleMixSimdCore::<R>::first_half_mix(
             xoshiro_out,
             scalar_weyl,
+            R::simd64_as_simd32(tm_y),
+            R::simd64_as_simd32(tm_secondary_out),
             pcg_state_lo_simd32,
             R::simd64_as_simd32(mwc_state),
-            pcg_state_hi_simd32,
-            R::simd64_as_simd32(i_mixed),
-            R::simd64_as_simd32(mwc_carry));
+            pcg_state_hi_simd32);
 
         TripleMixSimdCore::<R>::second_half_mix(
-            tm_y,
-            pcg_output,
+            R::simd64_as_simd32(pcg_output),
+            R::simd64_as_simd32(i_mixed),
             block,
+            R::simd64_as_simd32(mwc_carry),
             pcg_state_hi_simd32,
-            R::simd64_as_simd32(tm_secondary_out),
             R::simd64_as_simd32(mwc_state),
             a, b, c
         );
@@ -310,9 +310,7 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
 
     #[allow(clippy::too_many_arguments)]
     #[inline(always)]
-    fn second_half_mix(x5: Simd64, x6: Simd64, output: &mut [u64; 16], x2: Simd32, x3: Simd32, x4: Simd32, mut a: Simd32, mut b: Simd32, mut c: Simd32) {
-        let x5 = R::simd64_as_simd32(x5);
-        let x6 = R::simd64_as_simd32(x6);
+    fn second_half_mix(x5: Simd32, x6: Simd32, output: &mut [u64; 16], x2: Simd32, x3: Simd32, x4: Simd32, mut a: Simd32, mut b: Simd32, mut c: Simd32) {
         let mut d = a ^ b.rotate_elements_left::<4>() ^ c.rotate_elements_right::<2>();
         (b, c, d) = Self::round3(
             b,
@@ -384,8 +382,8 @@ impl<R: Reproducibility> TripleMixSimdCore<R> {
         c = rotl32(c ^ m0_lo, shift3) + a.rotate_elements_left::<1>();
 
         // Final injections
-        a += x5 ^ m1_lo;
-        b ^= x6;
+        a += rotl32(x5 ^ m1_lo, 11);
+        b ^= rotl32(x6, 17);
         c += m1_lo.rotate_elements_left::<4>();
 
         (a, b, c)
@@ -548,6 +546,17 @@ mod tests {
         let min_col_weight = col_weights.iter().copied().min().unwrap();
         let max_col_weight = col_weights.iter().copied().max().unwrap();
         if output {
+            if min_col_weight < (AVALANCHE_MATRIX_ROWS * 3) / 8 {
+                for (col_idx, &weight) in col_weights.iter().enumerate() {
+                    if weight < (AVALANCHE_MATRIX_ROWS * 3) / 8 {
+                        let var_idx = col_idx / (64 * SIMD_WIDTH);
+                        let rem = col_idx % (64 * SIMD_WIDTH);
+                        let lane_idx = rem / 64;
+                        let bit_idx = rem % 64;
+                        println!("Low column weight: {weight} at col {col_idx} (var={var_idx}, lane={lane_idx}, bit={bit_idx})");
+                    }
+                }
+            }
             println!("min_row_weight={min_row_weight}, max_row_weight={max_row_weight}");
             println!("Row weights:");
             for row_chunk in row_weights.chunks_exact(64) {
@@ -1513,6 +1522,10 @@ mod tests {
                 P_THRESHOLD,
             )
             .unwrap();
+            if chi_square.reject_null {
+                println!("Small matrix rank deficiency counts: {:?}", rank_deficiency_counts);
+                println!("Expected: {:?}", RANK_DEFICIENCY_EXPECTED);
+            }
             assert!(!chi_square.reject_null, "Chi-square test failed (p = {:.8})", chi_square.p_value);
             let mut rank_deficiency_counts = [0u32; 7];
             for _ in 0..N {
@@ -1527,6 +1540,10 @@ mod tests {
                 P_THRESHOLD,
             )
             .unwrap();
+            if chi_square.reject_null {
+                println!("Large matrix rank deficiency counts: {:?}", rank_deficiency_counts);
+                println!("Expected: {:?}", RANK_DEFICIENCY_EXPECTED);
+            }
             assert!(!chi_square.reject_null, "Chi-square test failed (p = {:.8})", chi_square.p_value);
         }
     }
