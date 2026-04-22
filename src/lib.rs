@@ -175,7 +175,7 @@ impl<R: Reproducibility> TryRng for TripleMixPrng<R> {
 }
 
 #[cfg(test)]
-pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
+pub(crate) fn create_rngs<R: Reproducibility>(count: usize) -> Vec<TripleMixPrng<R>> {
     let mut rngs = Vec::new();
     rngs.push(TripleMixPrng::<R>::almost_all_zeroes_state());
     #[cfg(not(miri))]
@@ -219,8 +219,10 @@ pub(crate) fn create_rngs<R: Reproducibility>() -> Vec<TripleMixPrng<R>> {
         rngs.push(TripleMixPrng::from(&seed));
         let mut large_seed = [0u8; seed::LARGE_SEED_SIZE];
         rngs.push(TripleMixPrng::from(&large_seed));
-        SysRng.try_fill_bytes(&mut large_seed).unwrap();
-        rngs.push(TripleMixPrng::from(&large_seed));
+        while rngs.len() < count {
+            SysRng.try_fill_bytes(&mut large_seed).unwrap();
+            rngs.push(TripleMixPrng::from(&large_seed));
+        }
     }
     rngs
 }

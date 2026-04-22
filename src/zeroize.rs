@@ -66,7 +66,7 @@ mod tests {
         let mut expected_output = [0u8; BLOCK_SIZE * size_of::<u64>() * 2];
         TripleMixPrng::<DefaultReproducibility>::from_core(zero_core)
             .fill_bytes(&mut expected_output);
-        for mut prng in create_rngs::<DefaultReproducibility>() {
+        for mut prng in create_rngs::<DefaultReproducibility>(7) {
             let mut output = [0u8; BLOCK_SIZE * size_of::<u64>() * 2];
             prng.next_u64();
             prng.zeroize();

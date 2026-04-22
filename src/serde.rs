@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_round_trip() {
-        for prng in create_rngs::<DefaultReproducibility>() {
+        for prng in create_rngs::<DefaultReproducibility>(7) {
             let json = serde_json::to_string(&prng).unwrap();
             let prng_copy: TripleMixPrng<DefaultReproducibility> =
                 serde_json::from_str(&json).unwrap();

@@ -335,7 +335,7 @@ mod tests {
             std::collections::HashSet::with_capacity(SAMPLES_PER_FORK * FORKS);
         #[cfg(feature = "no_std")]
         let mut previous_outputs = alloc::collections::BTreeSet::new();
-        for mut prng in crate::create_rngs::<DefaultReproducibility>() {
+        for mut prng in crate::create_rngs::<DefaultReproducibility>(7) {
             previous_outputs.clear();
             for _ in 0..FORKS {
                 for _ in 0..SAMPLES_PER_FORK {
@@ -358,7 +358,7 @@ mod tests {
             std::collections::HashSet::with_capacity(SAMPLES_PER_FORK * FORKS);
         #[cfg(feature = "no_std")]
         let mut previous_outputs = alloc::collections::BTreeSet::new();
-        for mut parent_prng in crate::create_rngs::<DefaultReproducibility>() {
+        for mut parent_prng in crate::create_rngs::<DefaultReproducibility>(7) {
             previous_outputs.clear();
             for _ in 0..FORKS {
                 let mut prng = parent_prng.fork();
