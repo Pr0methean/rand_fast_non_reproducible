@@ -9,7 +9,7 @@ use rand_triplemix::reproducibility::NotReproducible;
 use rand_triplemix::reproducibility::cross_platform::CrossPlatform;
 #[cfg(feature = "reproducibility_same_endianness")]
 use rand_triplemix::reproducibility::same_endianness::SameEndianness;
-use rand_triplemix::{BLOCK_SIZE, TripleMixPrng};
+use rand_triplemix::{BLOCK_SIZE, FastBlockRng};
 use std::hint::black_box;
 use rand::RngExt;
 

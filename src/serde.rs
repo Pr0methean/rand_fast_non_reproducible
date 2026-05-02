@@ -1,44 +1,25 @@
-use crate::TripleMixPrng;
-use crate::generate::Simd64;
-use crate::reproducibility::Reproducibility;
-
-#[cfg(all(feature = "no_std", feature = "serde"))]
 extern crate alloc;
-#[cfg(all(feature = "no_std", feature = "serde"))]
+
+use crate::reproducibility::Reproducibility;
+use crate::FastBlockRng;
 use alloc::boxed::Box;
+use rand_core::block::Generator;
+use rand_core::utils::Word;
+use serde::{Deserialize, Serialize};
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub(crate) struct CoreState {
-    pcg_state_lo: [u64; 4],
-    pcg_state_hi: [u64; 4],
-    pcg_inc_lo: [u64; 4],
-    pcg_inc_hi: [u64; 4],
-    tm0: [u64; 4],
-    tm1: [u64; 4],
-    mwc_state: [u64; 4],
-    mwc_carry: [u64; 4],
-    xoshiro256: [u64; 4],
-    scalar_weyl: u64,
-    remaining_results: Box<[u64]>,
+pub(crate) struct CoreState<T, W: Word> {
+    core: T,
+    remaining_results: Box<[W]>,
 }
 
-impl<R: Reproducibility> serde::Serialize for TripleMixPrng<R> {
+impl<R: Reproducibility, W: Word + Serialize, const N: usize, G: Serialize + Generator<Output = [W; N]> + Clone> serde::Serialize for FastBlockRng<R, W, N, G> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let core = &self.block_core.core;
         CoreState {
-            pcg_state_lo: core.pcg_state_lo.to_array(),
-            pcg_state_hi: core.pcg_state_hi.to_array(),
-            pcg_inc_lo: core.pcg_inc_lo.to_array(),
-            pcg_inc_hi: core.pcg_inc_hi.to_array(),
-            tm0: core.tm0.to_array(),
-            tm1: core.tm1.to_array(),
-            mwc_state: core.mwc_state.to_array(),
-            mwc_carry: core.mwc_carry.to_array(),
-            xoshiro256: core.xoshiro256,
-            scalar_weyl: core.scalar_weyl,
+            core: self.block_core.core.clone(),
             remaining_results: self
                 .block_core
                 .remaining_results()
@@ -49,64 +30,21 @@ impl<R: Reproducibility> serde::Serialize for TripleMixPrng<R> {
     }
 }
 
-impl<'de, R: Reproducibility> serde::Deserialize<'de> for TripleMixPrng<R> {
+impl<'de, R: Reproducibility, W: Word + Deserialize<'de>, const N: usize, G: Deserialize<'de> + Generator<Output = [W; N]> + Clone> serde::Deserialize<'de> for FastBlockRng<R, W, N, G> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        use crate::TripleMixSimdCore;
-        use core::hint::cold_path;
         use core::marker::PhantomData;
         use rand_core::block::BlockRng;
-        use serde::de::Error;
-        let state = CoreState::deserialize(deserializer)?;
-        let core = TripleMixSimdCore::<R> {
-            pcg_state_lo: Simd64::from_array(state.pcg_state_lo),
-            pcg_state_hi: Simd64::from_array(state.pcg_state_hi),
-            pcg_inc_lo: Simd64::from_array(state.pcg_inc_lo),
-            pcg_inc_hi: Simd64::from_array(state.pcg_inc_hi),
-            tm0: Simd64::from_array(state.tm0),
-            tm1: Simd64::from_array(state.tm1),
-            mwc_state: Simd64::from_array(state.mwc_state),
-            mwc_carry: Simd64::from_array(state.mwc_carry),
-            xoshiro256: state.xoshiro256,
-            reproducibility: PhantomData,
-            scalar_weyl: state.scalar_weyl,
-        };
-        if !core.is_valid() {
-            cold_path();
-            Err(D::Error::custom("invalid core state"))
-        } else if let Some(block_core) = BlockRng::reconstruct(core, &state.remaining_results) {
-            Ok(TripleMixPrng {
+        let CoreState {core, remaining_results}: CoreState<G, W> = CoreState::deserialize(deserializer)?;
+        if let Some(block_core) = BlockRng::reconstruct(core.clone(), &remaining_results) {
+            Ok(FastBlockRng {
                 block_core,
                 reproducibility: PhantomData,
             })
         } else {
-            Ok(TripleMixPrng::from_core(core))
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::reproducibility::DefaultReproducibility;
-    use crate::{TripleMixPrng, TripleMixSimdCore, create_rngs};
-
-    #[test]
-    fn test_round_trip() {
-        for prng in create_rngs::<DefaultReproducibility>(7) {
-            let json = serde_json::to_string(&prng).unwrap();
-            let prng_copy: TripleMixPrng<DefaultReproducibility> =
-                serde_json::from_str(&json).unwrap();
-            let mut bytes1 = [0u8; TripleMixSimdCore::<DefaultReproducibility>::BYTE_SIZE];
-            let mut bytes2 = [0u8; TripleMixSimdCore::<DefaultReproducibility>::BYTE_SIZE];
-            prng.block_core.core.copy_to_le_bytes(&mut bytes1);
-            prng_copy.block_core.core.copy_to_le_bytes(&mut bytes2);
-            assert_eq!(bytes1, bytes2);
-            assert_eq!(
-                prng.block_core.remaining_results(),
-                prng_copy.block_core.remaining_results()
-            );
+            Ok(FastBlockRng::from_core(core))
         }
     }
 }

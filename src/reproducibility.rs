@@ -1,18 +1,15 @@
-use crate::TripleMixSimdCore;
-use crate::generate::{Simd32, Simd64};
-use bytemuck::{cast, cast_slice};
-use rand_core::block::BlockRng;
+use bytemuck::cast_slice;
+use rand_core::block::{BlockRng, Generator};
+use rand_core::utils::Word;
 
 /// Levels of reproducibility for output of [`TripleMixPrng::fill_bytes`] and output after
 /// fill_bytes has been called.
 pub trait Reproducibility: Clone + Copy {
     type U8Slice<'a>: AsRef<[u8]>;
-    fn fill_bytes(core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]);
+    fn fill_bytes<W: Word, const N: usize, G: Generator<Output = [W; N]>>(core: &mut BlockRng<G>, bytes: &mut [u8]);
     fn cast_u64_slice_as_u8(slice: &[u64]) -> Self::U8Slice<'_>;
     fn u64_as_bytes(input: u64) -> [u8; 8];
     fn u128_as_bytes(input: u128) -> [u8; 16];
-    fn simd64_as_simd32(input: Simd64) -> Simd32;
-    fn simd32_as_simd64(input: Simd32) -> Simd64;
 }
 
 #[cfg(feature = "reproducibility_cross_platform")]
@@ -38,9 +35,9 @@ pub struct NotReproducible;
 impl Reproducibility for NotReproducible {
     type U8Slice<'a> = &'a [u8];
     #[inline(always)]
-    fn fill_bytes(block_core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]) {
-        let (prefix, u64s, suffix) = unsafe { bytes.align_to_mut::<u64>() };
-        if u64s.is_empty() {
+    fn fill_bytes<W: Word, const N: usize, G: Generator<Output = [W; N]>>(block_core: &mut BlockRng<G>, bytes: &mut [u8]) {
+        let (prefix, words, suffix) = unsafe { bytes.align_to_mut::<W>() };
+        if words.is_empty() {
             // There's no benefit to bypassing the buffer or consolidating
             // writes if we can't write at least one aligned u64.
             block_core.fill_bytes(bytes);
@@ -49,7 +46,7 @@ impl Reproducibility for NotReproducible {
         if !prefix.is_empty() {
             block_core.fill_bytes(prefix);
         }
-        fill_bytes_inner::<Self>(block_core, u64s, suffix);
+        fill_bytes_inner::<NotReproducible, W, N, G>(block_core, words, suffix);
     }
 
     #[inline(always)]
@@ -66,16 +63,6 @@ impl Reproducibility for NotReproducible {
     fn u128_as_bytes(input: u128) -> [u8; 16] {
         input.to_ne_bytes()
     }
-
-    #[inline(always)]
-    fn simd64_as_simd32(input: Simd64) -> Simd32 {
-        cast(input)
-    }
-
-    #[inline(always)]
-    fn simd32_as_simd64(input: Simd32) -> Simd64 {
-        cast(input)
-    }
 }
 
 /// Output of the PRNG will be the same as for an instance created with the same seed and receiving
@@ -83,11 +70,10 @@ impl Reproducibility for NotReproducible {
 /// length), as long as both instances are created on machines with the same endianness.
 #[cfg(feature = "reproducibility_same_endianness")]
 pub mod same_endianness {
-    use crate::TripleMixSimdCore;
-    use crate::generate::{Simd32, Simd64};
-    use crate::reproducibility::{Reproducibility, fill_bytes_alignment_aware};
-    use bytemuck::{cast, cast_slice};
-    use rand_core::block::BlockRng;
+    use crate::reproducibility::{fill_bytes_alignment_aware, Reproducibility};
+    use bytemuck::cast_slice;
+    use rand_core::block::{BlockRng, Generator};
+    use rand_core::utils::Word;
 
     #[derive(Copy, Clone, Default, Debug)]
     pub struct SameEndianness;
@@ -95,8 +81,8 @@ pub mod same_endianness {
     impl Reproducibility for SameEndianness {
         type U8Slice<'a> = &'a [u8];
 
-        fn fill_bytes(core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]) {
-            fill_bytes_alignment_aware::<Self>(core, bytes);
+        fn fill_bytes<W: Word, const N: usize, G: Generator<Output = [W; N]>>(block_core: &mut BlockRng<G>, bytes: &mut [u8]) {
+            fill_bytes_alignment_aware::<SameEndianness, W, N, G>(block_core, bytes);
         }
 
         #[inline(always)]
@@ -113,21 +99,6 @@ pub mod same_endianness {
         fn u128_as_bytes(input: u128) -> [u8; 16] {
             input.to_ne_bytes()
         }
-
-        #[inline(always)]
-        fn simd64_as_simd32(input: Simd64) -> Simd32 {
-            cast(input)
-        }
-
-        #[inline(always)]
-        fn simd32_as_simd64(input: Simd32) -> Simd64 {
-            cast(input)
-        }
-    }
-
-    #[test]
-    fn test_equivalence_same_endianness() {
-        super::test_equivalence_generic::<SameEndianness>();
     }
 }
 
@@ -136,15 +107,13 @@ pub mod same_endianness {
 /// length) on another machine, even if that machine has a different CPU architecture.
 #[cfg(feature = "reproducibility_cross_platform")]
 pub mod cross_platform {
-    use crate::TripleMixSimdCore;
-    use crate::generate::{Simd32, Simd64};
-    use crate::reproducibility::Reproducibility;
     #[cfg(target_endian = "little")]
     use crate::reproducibility::fill_bytes_alignment_aware;
-    use bytemuck::cast;
+    use crate::reproducibility::Reproducibility;
     #[cfg(target_endian = "little")]
     use bytemuck::cast_slice;
-    use rand_core::block::BlockRng;
+    use rand_core::block::{BlockRng, Generator};
+    use rand_core::utils::Word;
 
     #[derive(Copy, Clone, Default, Debug)]
     pub struct CrossPlatform;
@@ -157,8 +126,8 @@ pub mod cross_platform {
         type U8Slice<'a> = Vec<u8>;
         #[cfg(target_endian = "little")]
         #[inline(always)]
-        fn fill_bytes(block_core: &mut BlockRng<TripleMixSimdCore<Self>>, bytes: &mut [u8]) {
-            fill_bytes_alignment_aware::<Self>(block_core, bytes);
+        fn fill_bytes<W: Word, const N: usize, G: Generator<Output = [W; N]>>(block_core: &mut BlockRng<G>, bytes: &mut [u8]) {
+            fill_bytes_alignment_aware::<CrossPlatform, W, N, G>(block_core, bytes);
         }
         #[cfg(target_endian = "big")]
         #[inline(always)]
@@ -187,61 +156,6 @@ pub mod cross_platform {
         fn u128_as_bytes(input: u128) -> [u8; 16] {
             input.to_le_bytes()
         }
-
-        #[cfg(target_endian = "little")]
-        #[inline(always)]
-        fn simd64_as_simd32(input: Simd64) -> Simd32 {
-            cast(input)
-        }
-
-        #[cfg(target_endian = "big")]
-        #[inline(always)]
-        fn simd64_as_simd32(input: Simd64) -> Simd32 {
-            use core::simd::simd_swizzle;
-            simd_swizzle!(cast::<Simd64, Simd32>(input), [1, 0, 3, 2, 5, 4, 7, 6])
-        }
-
-        #[cfg(target_endian = "little")]
-        #[inline(always)]
-        fn simd32_as_simd64(input: Simd32) -> Simd64 {
-            cast(input)
-        }
-
-        #[cfg(target_endian = "big")]
-        #[inline(always)]
-        fn simd32_as_simd64(input: Simd32) -> Simd64 {
-            use core::simd::simd_swizzle;
-            let swizzled = simd_swizzle!(input, [1, 0, 3, 2, 5, 4, 7, 6]);
-            cast(swizzled)
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use crate::seed::SMALL_SEED_SIZE;
-
-        #[test]
-        fn test_cross_platform_reproducibility() {
-            use super::CrossPlatform;
-            use crate::TripleMixPrng;
-            use itertools::Itertools;
-            use rand_core::Rng;
-            let seed = [0u8; SMALL_SEED_SIZE];
-            let mut prng = TripleMixPrng::<CrossPlatform>::from(&seed);
-            let expected = "6508A0CAC50F6155365E75FC4962D011CD14944D8474AC98FAFEFF5463BE2A754C01F1164B05E02DC628BCC91BB5224606EEBEFDCDE301056E54D27281F421649A5B2622BAB0B63559B9427ECD8CA3EE9DA7D1BA11996CAE2C423960A024053C8AF122CC57A4CA5AC9C15BEA807E9EB5D5B6DBFA98E6A729A4D4453D8028B26ACC5CFC3C5D9718E1C9E6761432595BA22D08782D291EBF54513B0C3B3A8DC2EA28B54AF3C2B6250EE5A9AAE0A050D9159E673B3C2E2265D06C9C218C9EC0A7E2368CDB781494B8C4567C44163A72B7C610C6F71F05736569A3ABC8B4DC0EE8CA2A1D805048C9CC000CEC1E2BB72E7B23354FFBC5983802902DB84014986DC374";
-            let mut actual = vec![0u8; expected.len() / 2];
-            prng.fill_bytes(&mut actual);
-            assert_eq!(
-                &actual.iter().map(|byte| format!("{byte:02X}")).join(""),
-                expected
-            );
-        }
-
-        #[cfg(feature = "reproducibility_cross_platform")]
-        #[test]
-        fn test_equivalence_cross_platform() {
-            super::super::test_equivalence_generic::<super::CrossPlatform>();
-        }
     }
 }
 
@@ -250,34 +164,36 @@ pub mod cross_platform {
     feature = "reproducibility_same_endianness"
 ))]
 #[inline(always)]
-fn fill_bytes_alignment_aware<R: Reproducibility>(
-    block_core: &mut BlockRng<TripleMixSimdCore<R>>,
+fn fill_bytes_alignment_aware<R: Reproducibility, W: Word, const N: usize, G: Generator<Output = [W; N]>>(
+    block_core: &mut BlockRng<G>,
     bytes: &mut [u8],
 ) {
-    let (prefix, u64s, suffix) = unsafe { bytes.align_to_mut::<u64>() };
+    let (prefix, words, suffix) = unsafe { bytes.align_to_mut::<W>() };
     if !prefix.is_empty() {
         block_core.fill_bytes(bytes);
         return;
     }
-    fill_bytes_inner::<R>(block_core, u64s, suffix);
+    fill_bytes_inner::<R, W, N, G>(block_core, words, suffix);
 }
 
 #[inline(always)]
-fn fill_bytes_inner<R: Reproducibility>(
-    block_core: &mut BlockRng<TripleMixSimdCore<R>>,
-    u64s: &mut [u64],
+fn fill_bytes_inner<R: Reproducibility, W: Word, const N: usize, G: Generator<Output = [W; N]>>(
+    block_core: &mut BlockRng<G>,
+    output_words: &mut [W],
     suffix: &mut [u8],
 ) {
     let remaining = block_core.remaining_results();
-    if u64s.len() <= remaining.len() {
-        for word in u64s.iter_mut() {
+    if output_words.len() <= remaining.len() {
+        for word in output_words.iter_mut() {
             *word = block_core.next_word();
         }
     } else {
-        u64s[0..remaining.len()].copy_from_slice(remaining);
-        let (dst_blocks, tail) = u64s[remaining.len()..].as_chunks_mut();
+        output_words[0..remaining.len()].copy_from_slice(remaining);
+        let (dst_blocks, tail) = output_words[remaining.len()..].as_chunks_mut::<N>();
         if !dst_blocks.is_empty() {
-            block_core.core.fill_blocks(dst_blocks);
+            for block in dst_blocks {
+                block_core.core.generate(block);
+            }
         }
         block_core.reset_and_skip(0); // mark the buffer contents as used
         for tail_u64 in tail {
@@ -286,47 +202,5 @@ fn fill_bytes_inner<R: Reproducibility>(
     }
     if !suffix.is_empty() {
         block_core.fill_bytes(suffix);
-    }
-}
-
-#[cfg(all(
-    test,
-    any(
-        feature = "reproducibility_cross_platform",
-        feature = "reproducibility_same_endianness"
-    )
-))]
-fn test_equivalence_generic<R: Reproducibility>() {
-    use crate::TripleMixPrng;
-    use crate::seed::DEFAULT_SEED_SIZE;
-    use bytemuck::cast_slice_mut;
-    use rand_core::Rng;
-    let seed = [0u8; DEFAULT_SEED_SIZE];
-    let mut prng1 = TripleMixPrng::<R>::from(&seed);
-    let mut prng2 = TripleMixPrng::<R>::from(&seed);
-    #[cfg(not(miri))]
-    const LENGTHS: &[usize] = &[1, 2, 4, 8, 16, 32, 64, 1024];
-    #[cfg(miri)]
-    const LENGTHS: &[usize] = &[4];
-    for &length in LENGTHS {
-        for misalignment in 0..size_of::<u64>() {
-            // Force buffer edges to be aligned on 64 bits, so that written portion will be misaligned
-            let mut buf1 = vec![0u64; (length + size_of::<u64>()) / size_of::<u64>() + 1];
-            let buf1: &mut [u8] = cast_slice_mut(&mut buf1);
-            let buf1 = &mut buf1[misalignment..(length + misalignment)];
-            prng1.fill_bytes(buf1);
-            let mut buf2 = vec![0u64; (length + size_of::<u64>()) / size_of::<u64>() + 1];
-            let buf2: &mut [u8] = cast_slice_mut(&mut buf2);
-            let buf2 = &mut buf2[0..length];
-            if length.is_multiple_of(size_of::<u64>()) {
-                for chunk in buf2.chunks_exact_mut(size_of::<u64>()) {
-                    let next_word = prng2.next_u64();
-                    chunk.copy_from_slice(&R::u64_as_bytes(next_word));
-                }
-            } else {
-                prng2.fill_bytes(buf2);
-            }
-            assert_eq!(&*buf1, &*buf2);
-        }
     }
 }

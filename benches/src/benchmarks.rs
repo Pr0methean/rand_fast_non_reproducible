@@ -16,7 +16,7 @@ use rand_triplemix::reproducibility::cross_platform::CrossPlatform;
 use rand_triplemix::reproducibility::same_endianness::SameEndianness;
 use rand_triplemix::reproducibility::NotReproducible;
 use rand_triplemix::seed::{DEFAULT_SEED_SIZE, LARGE_SEED_SIZE};
-use rand_triplemix::{TripleMixPrng, BLOCK_SIZE};
+use rand_triplemix::{FastBlockRng, BLOCK_SIZE};
 use std::env::consts::{ARCH, OS};
 use core::hint::black_box;
 use core::mem::size_of;
@@ -107,17 +107,17 @@ fn create_prngs() -> Vec<(&'static str, Box<dyn DynCloneRng>)> {
     let mut prngs = Vec::<(&'static str, Box<dyn DynCloneRng>)>::new();
     prngs.push((
         "TripleMixPrng",
-        Box::new(TripleMixPrng::<NotReproducible>::from(&seed)),
+        Box::new(FastBlockRng::<NotReproducible>::from(&seed)),
     ));
     #[cfg(feature = "reproducibility_same_endianness")]
     prngs.push((
         "TripleMixPrng<SameEndianness>",
-        Box::new(TripleMixPrng::<SameEndianness>::from(&seed)),
+        Box::new(FastBlockRng::<SameEndianness>::from(&seed)),
     ));
     #[cfg(feature = "reproducibility_cross_platform")]
     prngs.push((
         "TripleMixPrng<CrossPlatform>",
-        Box::new(TripleMixPrng::<CrossPlatform>::from(&seed)),
+        Box::new(FastBlockRng::<CrossPlatform>::from(&seed)),
     ));
     #[cfg(feature = "bench_include_threadrng")]
     prngs.push(("ThreadRng", Box::new(rng())));
@@ -127,7 +127,7 @@ fn create_prngs() -> Vec<(&'static str, Box<dyn DynCloneRng>)> {
 fn core<T: Measurement>(c: &mut Criterion<T>) {
     let mut seed = [0u8; DEFAULT_SEED_SIZE];
     SysRng.try_fill_bytes(&mut seed).unwrap();
-    let mut prng = TripleMixPrng::<NotReproducible>::from(&seed);
+    let mut prng = FastBlockRng::<NotReproducible>::from(&seed);
     let mut group = c.benchmark_group(formatcp!("{PLATFORM}: core"));
     group.throughput(Throughput::Bytes((BLOCK_SIZE * size_of::<u64>()) as u64));
     let mut block = [[0u64; BLOCK_SIZE]];
@@ -163,11 +163,11 @@ fn init<T: Measurement>(c: &mut Criterion<T>) {
         group.bench_with_input(
             BenchmarkId::new("from_seed", size),
             input_seed,
-            move |b, s| b.iter(|| black_box(TripleMixPrng::<NotReproducible>::from(black_box(s)))),
+            move |b, s| b.iter(|| black_box(FastBlockRng::<NotReproducible>::from(black_box(s)))),
         );
     }
 
-    let mut parent = TripleMixPrng::<NotReproducible>::from(&seed_4096);
+    let mut parent = FastBlockRng::<NotReproducible>::from(&seed_4096);
 
     // Benchmark fork()
     group.bench_function("fork", move |b| {
