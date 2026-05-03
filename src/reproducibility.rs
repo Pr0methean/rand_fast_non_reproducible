@@ -100,6 +100,11 @@ pub mod same_endianness {
             input.to_ne_bytes()
         }
     }
+
+    #[test]
+    fn test_equivalence_same_endianness() {
+        super::test_equivalence_generic::<SameEndianness>();
+    }
 }
 
 /// Output of the PRNG will be the same as for an instance created with the same seed and receiving
@@ -157,6 +162,11 @@ pub mod cross_platform {
             input.to_le_bytes()
         }
     }
+
+    #[test]
+    fn test_equivalence_cross_platform() {
+        super::test_equivalence_generic::<CrossPlatform>();
+    }
 }
 
 #[cfg(any(
@@ -202,5 +212,56 @@ fn fill_bytes_inner<R: Reproducibility, W: Word, const N: usize, G: Generator<Ou
     }
     if !suffix.is_empty() {
         block_core.fill_bytes(suffix);
+    }
+}
+
+#[cfg(all(
+    test,
+    any(
+        feature = "reproducibility_cross_platform",
+        feature = "reproducibility_same_endianness"
+    )
+))]
+fn test_equivalence_generic<R: Reproducibility>() {
+    extern crate alloc;
+    use alloc::vec;
+    use crate::TestFastBlockRng;
+    use bytemuck::cast_slice_mut;
+    use rand_core::Rng;
+    use chacha20::{ChaChaCore, KeyIvInit};
+    use rand_core::UnwrapErr;
+
+    use rand::rngs::SysRng;
+    let mut os_rng = UnwrapErr(SysRng);
+    let mut key = [0u8; 32];
+    let mut iv = [0u8; 12];
+    os_rng.fill_bytes(&mut key);
+    os_rng.fill_bytes(&mut iv);
+    let mut prng1 = TestFastBlockRng::<R>::from_core(ChaChaCore::new(&key.into(), &iv.into()));
+    let mut prng2 = TestFastBlockRng::<R>::from_core(ChaChaCore::new(&key.into(), &iv.into()));
+    #[cfg(not(miri))]
+    const LENGTHS: &[usize] = &[1, 2, 4, 8, 16, 32, 64, 1024];
+    #[cfg(miri)]
+    const LENGTHS: &[usize] = &[4];
+    for &length in LENGTHS {
+        for misalignment in 0..size_of::<u64>() {
+            // Force buffer edges to be aligned on 64 bits, so that written portion will be misaligned
+            let mut buf1 = vec![0u64; (length + size_of::<u64>()) / size_of::<u64>() + 1];
+            let buf1: &mut [u8] = cast_slice_mut(&mut buf1);
+            let buf1 = &mut buf1[misalignment..(length + misalignment)];
+            prng1.fill_bytes(buf1);
+            let mut buf2 = vec![0u64; (length + size_of::<u64>()) / size_of::<u64>() + 1];
+            let buf2: &mut [u8] = cast_slice_mut(&mut buf2);
+            let buf2 = &mut buf2[0..length];
+            if length.is_multiple_of(size_of::<u64>()) {
+                for chunk in buf2.chunks_exact_mut(size_of::<u64>()) {
+                    let next_word = prng2.next_u64();
+                    chunk.copy_from_slice(&R::u64_as_bytes(next_word));
+                }
+            } else {
+                prng2.fill_bytes(buf2);
+            }
+            assert_eq!(&*buf1, &*buf2);
+        }
     }
 }

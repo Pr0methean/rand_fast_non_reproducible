@@ -1,4 +1,5 @@
 #![no_std]
+extern crate alloc;
 
 pub mod reproducibility;
 pub mod seed;
@@ -52,7 +53,7 @@ impl<R: Reproducibility, const N: usize, G: Generator<Output = [u32; N]>> TryRng
 
     #[inline(always)]
     fn try_next_u64(&mut self) -> Result<u64, Infallible> {
-        Ok(((self.next_u32() as u64) << 32) | (self.next_u32() as u64))
+        Ok((self.next_u32() as u64) | ((self.next_u32() as u64) << 32))
     }
 
     #[inline(always)]
@@ -61,3 +62,6 @@ impl<R: Reproducibility, const N: usize, G: Generator<Output = [u32; N]>> TryRng
         Ok(())
     }
 }
+
+#[cfg(test)]
+pub type TestFastBlockRng<R: Reproducibility> = FastBlockRng<R, u32, 64, chacha20::ChaChaCore<chacha20::R12, chacha20::variants::Ietf>>;
